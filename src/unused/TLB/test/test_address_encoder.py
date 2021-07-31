@@ -1,5 +1,5 @@
 from nmigen.compat.sim import run_simulation
-from soc.TLB.AddressEncoder import AddressEncoder
+from unused.TLB.AddressEncoder import AddressEncoder
 from soc.TestUtil.test_helper import assert_eq, assert_ne, assert_op
 
 

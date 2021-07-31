@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 
-from soc.TLB.SetAssociativeCache import SetAssociativeCache
+from unused.TLB.SetAssociativeCache import SetAssociativeCache
 
 from soc.TestUtil.test_helper import assert_eq, assert_ne, assert_op
 

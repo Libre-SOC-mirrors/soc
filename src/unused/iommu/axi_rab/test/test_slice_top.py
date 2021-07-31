@@ -2,7 +2,7 @@ from nmigen.compat.sim import run_simulation
 import sys
 sys.path.append("../")
 # sys.path.append("../../../TestUtil")
-from slice_top import slice_top
+from ..slice_top import slice_top
 
 def tbench(dut):
     yield

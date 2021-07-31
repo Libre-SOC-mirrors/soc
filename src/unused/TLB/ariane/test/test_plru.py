@@ -1,5 +1,5 @@
 import sys
-from soc.TLB.ariane.plru import PLRU
+from unused.TLB.ariane.plru import PLRU
 from nmigen.compat.sim import run_simulation
 
 

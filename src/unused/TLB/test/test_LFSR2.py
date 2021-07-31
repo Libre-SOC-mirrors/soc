@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # See Notices.txt for copyright information
-from soc.TLB.LFSR import LFSR, LFSRPolynomial, LFSR_POLY_3
+from unused.TLB.LFSR import LFSR, LFSRPolynomial, LFSR_POLY_3
 
 from nmigen.back.pysim import Simulator, Delay, Tick
 import unittest

@@ -2,7 +2,7 @@ from nmigen import Module, Signal
 from nmigen.back.pysim import Simulator, Delay
 from nmigen.test.utils import FHDLTestCase
 import unittest
-from soc.simulator.internalop_sim import InternalOpSimulator
+from unused.simulator.internalop_sim import InternalOpSimulator
 from soc.decoder.power_decoder import (create_pdecode)
 from soc.decoder.power_enums import (Function, InternalOp,
                                      In1Sel, In2Sel, In3Sel,

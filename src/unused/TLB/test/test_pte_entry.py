@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 
-from soc.TLB.PteEntry import PteEntry
+from unused.TLB.PteEntry import PteEntry
 
 from soc.TestUtil.test_helper import assert_op
 

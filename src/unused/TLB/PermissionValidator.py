@@ -1,7 +1,7 @@
 from nmigen import Module, Signal, Elaboratable
 from nmigen.cli import main
 
-from soc.TLB.PteEntry import PteEntry
+from unused.TLB.PteEntry import PteEntry
 
 
 class PermissionValidator(Elaboratable):

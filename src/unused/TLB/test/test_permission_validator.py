@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 
-from soc.TLB.PermissionValidator import PermissionValidator
+from unused.TLB.PermissionValidator import PermissionValidator
 
 from soc.TestUtil.test_helper import assert_op
 

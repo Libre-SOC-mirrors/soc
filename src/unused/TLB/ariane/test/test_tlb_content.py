@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 
-from soc.TLB.ariane.tlb_content import TLBContent
+from unused.TLB.ariane.tlb_content import TLBContent
 from soc.TestUtil.test_helper import assert_op, assert_eq
 
 

@@ -1,4 +1,4 @@
-from ram_tp_write_first import ram_tp_write_first
+from ..ram_tp_write_first import ram_tp_write_first
 from nmigen.compat.sim import run_simulation
 import sys
 sys.path.append("../")

@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 
-from soc.TLB.Cam import Cam
+from unused.TLB.Cam import Cam
 
 from soc.TestUtil.test_helper import assert_eq, assert_ne, assert_op
 

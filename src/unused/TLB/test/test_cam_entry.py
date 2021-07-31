@@ -1,7 +1,7 @@
 from nmigen.compat.sim import run_simulation
 
 from soc.TestUtil.test_helper import assert_eq, assert_ne, assert_op
-from soc.TLB.CamEntry import CamEntry
+from unused.TLB.CamEntry import CamEntry
 
 # This function allows for the easy setting of values to the Cam Entry
 # Arguments:

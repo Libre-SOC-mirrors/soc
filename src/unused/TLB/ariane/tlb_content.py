@@ -1,6 +1,6 @@
 from nmigen import Signal, Module, Cat, Const, Elaboratable
 
-from soc.TLB.ariane.ptw import TLBUpdate, PTE
+from unused.TLB.ariane.ptw import TLBUpdate, PTE
 
 
 class TLBEntry:

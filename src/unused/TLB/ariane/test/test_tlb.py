@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 
-from soc.TLB.ariane.tlb import TLB
+from unused.TLB.ariane.tlb import TLB
 
 
 def set_vaddr(addr):
