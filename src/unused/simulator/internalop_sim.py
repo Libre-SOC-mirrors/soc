@@ -1,4 +1,4 @@
-from soc.decoder.power_enums import (Function, Form, InternalOp,
+from soc.decoder.power_enums import (Function, Form, MicrOp,
                                      In1Sel, In2Sel, In3Sel, OutSel,
                                      RC, LdstLen, CryIn, get_csv,
                                      single_bit_flags,
@@ -94,13 +94,13 @@ class InternalOpSimulator:
 
     def execute_alu_op(self, op1, op2, internal_op, carry=0):
         print(internal_op)
-        if internal_op == InternalOp.OP_ADD.value:
+        if internal_op == MicrOp.OP_ADD.value:
             return op1 + op2 + carry
-        elif internal_op == InternalOp.OP_AND.value:
+        elif internal_op == MicrOp.OP_AND.value:
             return op1 & op2
-        elif internal_op == InternalOp.OP_OR.value:
+        elif internal_op == MicrOp.OP_OR.value:
             return op1 | op2
-        elif internal_op == InternalOp.OP_MUL_L64.value:
+        elif internal_op == MicrOp.OP_MUL_L64.value:
             return op1 * op2
         else:
             assert False, "Not implemented"
@@ -179,11 +179,11 @@ class InternalOpSimulator:
         elif r2_ok:
             r2_sel = yield pdecode2.e.read_reg2.data
             addr += self.regfile.read_reg(r2_sel)
-        if internal_op == InternalOp.OP_STORE.value:
+        if internal_op == MicrOp.OP_STORE.value:
             val_reg = yield pdecode2.e.read_reg3.data
             val = self.regfile.read_reg(val_reg)
             self.mem_sim.st(addr, val, width)
-        elif internal_op == InternalOp.OP_LOAD.value:
+        elif internal_op == MicrOp.OP_LOAD.value:
             dest_reg = yield pdecode2.e.write_reg.data
             val = self.mem_sim.ld(addr, width)
             self.regfile.write_reg(dest_reg, val)
