@@ -4,7 +4,7 @@ from nmigen.test.utils import FHDLTestCase
 import unittest
 from unused.simulator.internalop_sim import InternalOpSimulator
 from soc.decoder.power_decoder import (create_pdecode)
-from soc.decoder.power_enums import (Function, InternalOp,
+from soc.decoder.power_enums import (Function,
                                      In1Sel, In2Sel, In3Sel,
                                      OutSel, RC, LdstLen, CryIn,
                                      single_bit_flags, Form, SPR,
