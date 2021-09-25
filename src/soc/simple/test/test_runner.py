@@ -276,6 +276,108 @@ class HDLRunner(StateRunner):
         m.submodules.issuer = self.issuer
         self.dmi = self.issuer.dbg.dmi
 
+    def prepare_for_test(self, test):
+        self.test = test
+
+        # set up bigendian (TODO: don't do this, use MSR)
+        yield self.issuer.core_bigendian_i.eq(bigendian)
+        yield Settle()
+
+        yield
+        yield
+        yield
+        yield
+
+    def setup_during_test(self):
+        yield from set_dmi(self.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
+        yield
+
+    def run_test(self, pc_i, svstate_i, instructions):
+        """run_hdl_state - runs a TestIssuer nmigen HDL simulation
+        """
+
+        imem = self.issuer.imem._get_memory()
+        core = self.issuer.core
+        dmi = self.issuer.dbg.dmi
+        pdecode2 = self.issuer.pdecode2
+        l0 = core.l0
+        hdl_states = []
+
+        # establish the TestIssuer context (mem, regs etc)
+
+        pc = 0  # start address
+        counter = 0  # test to pause/start
+
+        yield from setup_i_memory(imem, pc, instructions)
+        #yield from setup_tst_memory(l0, self.test.mem)
+        yield from setup_regs(pdecode2, core, self.test)
+
+        # set PC and SVSTATE
+        yield pc_i.eq(pc)
+        yield self.issuer.pc_i.ok.eq(1)
+
+        # copy initial SVSTATE
+        initial_svstate = copy(self.test.svstate)
+        if isinstance(initial_svstate, int):
+            initial_svstate = SVP64State(initial_svstate)
+        yield svstate_i.eq(initial_svstate.value)
+        yield self.issuer.svstate_i.ok.eq(1)
+        yield
+
+        print("instructions", instructions)
+
+        # run the loop of the instructions on the current test
+        index = (yield self.issuer.cur_state.pc) // 4
+        while index < len(instructions):
+            ins, code = instructions[index]
+
+            print("hdl instr: 0x{:X}".format(ins & 0xffffffff))
+            print(index, code)
+
+            if counter == 0:
+                # start the core
+                yield
+                yield from set_dmi(dmi, DBGCore.CTRL,
+                                1<<DBGCtrl.START)
+                yield self.issuer.pc_i.ok.eq(0) # no change PC after this
+                yield self.issuer.svstate_i.ok.eq(0) # ditto
+                yield
+                yield
+
+            counter = counter + 1
+
+            # wait until executed
+            while not (yield self.issuer.insn_done):
+                yield
+
+            yield Settle()
+
+            index = (yield self.issuer.cur_state.pc) // 4
+
+            terminated = yield self.issuer.dbg.terminated_o
+            print("terminated", terminated)
+
+            if index < len(instructions):
+                # Get HDL mem and state
+                state = yield from TestState("hdl", core, self.dut,
+                                            code)
+                hdl_states.append(state)
+
+            if index >= len(instructions):
+                print ("index over, send dmi stop")
+                # stop at end
+                yield from set_dmi(dmi, DBGCore.CTRL,
+                                1<<DBGCtrl.STOP)
+                yield
+                yield
+
+            terminated = yield self.issuer.dbg.terminated_o
+            print("terminated(2)", terminated)
+            if terminated:
+                break
+
+        return hdl_states
+
 
 class TestRunner(FHDLTestCase):
     def __init__(self, tst_data, microwatt_mmu=False, rom=None,
@@ -349,9 +451,7 @@ class TestRunner(FHDLTestCase):
                 simrun.setup_during_test() # TODO, some arguments?
 
             if self.run_hdl:
-                # start in stopped
-                yield from set_dmi(hdlrun.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
-                yield
+                yield from hdlrun.setup_during_test()
 
             # get each test, completely reset the core, and run it
 
@@ -366,14 +466,7 @@ class TestRunner(FHDLTestCase):
                         simrun.prepare_for_test(test)
 
                     if self.run_hdl:
-                        # set up bigendian (TODO: don't do this, use MSR)
-                        yield hdlrun.issuer.core_bigendian_i.eq(bigendian)
-                        yield Settle()
-
-                        yield
-                        yield
-                        yield
-                        yield
+                        yield from hdlrun.prepare_for_test(test)
 
                     print(test.name)
                     program = test.program
@@ -401,10 +494,9 @@ class TestRunner(FHDLTestCase):
                     # 1. HDL
                     ##########
                     if self.run_hdl:
-                        hdl_states = yield from run_hdl_state(self, test,
-                                                              hdlrun.issuer,
-                                                              pc_i, svstate_i,
-                                                              instructions)
+                       hdl_states = yield from hdlrun.run_test(
+                                                           pc_i, svstate_i,
+                                                           instructions)
 
                     ##########
                     # 2. Simulator
