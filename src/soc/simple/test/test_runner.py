@@ -234,7 +234,7 @@ class HDLRunner(StateRunner):
         counter = 0  # test to pause/start
 
         yield from setup_i_memory(imem, pc, instructions)
-        #yield from setup_tst_memory(l0, self.test.mem)
+        yield from setup_tst_memory(l0, self.test.mem)
         yield from setup_regs(pdecode2, core, self.test)
 
         # set PC and SVSTATE
