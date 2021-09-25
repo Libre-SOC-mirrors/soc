@@ -211,48 +211,6 @@ def run_hdl_state(dut, test, issuer, pc_i, svstate_i, instructions):
     return hdl_states
 
 
-def run_sim_state(dut, test, simdec2, instructions, gen, insncode):
-    """run_sim_state - runs an ISACaller simulation
-    """
-
-    sim_states = []
-
-    # set up the Simulator (which must track TestIssuer exactly)
-    sim = ISA(simdec2, test.regs, test.sprs, test.cr, test.mem,
-              test.msr,
-              initial_insns=gen, respect_pc=True,
-              disassembly=insncode,
-              bigendian=bigendian,
-              initial_svstate=test.svstate)
-
-    # run the loop of the instructions on the current test
-    index = sim.pc.CIA.value//4
-    while index < len(instructions):
-        ins, code = instructions[index]
-
-        print("sim instr: 0x{:X}".format(ins & 0xffffffff))
-        print(index, code)
-
-        # set up simulated instruction (in simdec2)
-        try:
-            yield from sim.setup_one()
-        except KeyError:  # instruction not in imem: stop
-            break
-        yield Settle()
-
-        # call simulated operation
-        print("sim", code)
-        yield from sim.execute_one()
-        yield Settle()
-        index = sim.pc.CIA.value//4
-
-        # get sim register and memory TestState, add to list
-        state = yield from TestState("sim", sim, dut, code)
-        sim_states.append(state)
-
-    return sim_states
-
-
 class SimRunner(StateRunner):
     def __init__(self, dut, m, pspec):
         self.dut = dut
@@ -265,10 +223,45 @@ class SimRunner(StateRunner):
         self.test = test
 
     def run_test(self, instructions, gen, insncode):
-        sim_states = yield from run_sim_state(self.dut, self.test,
-                                          self.simdec2,
-                                          instructions, gen,
-                                          insncode)
+        """run_sim_state - runs an ISACaller simulation
+        """
+
+        dut, test, simdec2 = self.dut, self.test, self.simdec2
+        sim_states = []
+
+        # set up the Simulator (which must track TestIssuer exactly)
+        sim = ISA(simdec2, test.regs, test.sprs, test.cr, test.mem,
+                  test.msr,
+                  initial_insns=gen, respect_pc=True,
+                  disassembly=insncode,
+                  bigendian=bigendian,
+                  initial_svstate=test.svstate)
+
+        # run the loop of the instructions on the current test
+        index = sim.pc.CIA.value//4
+        while index < len(instructions):
+            ins, code = instructions[index]
+
+            print("sim instr: 0x{:X}".format(ins & 0xffffffff))
+            print(index, code)
+
+            # set up simulated instruction (in simdec2)
+            try:
+                yield from sim.setup_one()
+            except KeyError:  # instruction not in imem: stop
+                break
+            yield Settle()
+
+            # call simulated operation
+            print("sim", code)
+            yield from sim.execute_one()
+            yield Settle()
+            index = sim.pc.CIA.value//4
+
+            # get sim register and memory TestState, add to list
+            state = yield from TestState("sim", sim, dut, code)
+            sim_states.append(state)
+
         return sim_states
 
 
