@@ -294,6 +294,37 @@ class HDLRunner(StateRunner):
 
         return hdl_states
 
+    def end_test(self):
+        yield from set_dmi(self.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
+        yield
+        yield
+
+        # TODO, here is where the static (expected) results
+        # can be checked: register check (TODO, memory check)
+        # see https://bugs.libre-soc.org/show_bug.cgi?id=686#c51
+        # yield from check_regs(self, sim, core, test, code,
+        #                       >>>expected_data<<<)
+
+        # get CR
+        cr = yield from get_dmi(self.dmi, DBGCore.CR)
+        print("after test %s cr value %x" % (self.test.name, cr))
+
+        # get XER
+        xer = yield from get_dmi(self.dmi, DBGCore.XER)
+        print("after test %s XER value %x" % (self.test.name, xer))
+
+        # test of dmi reg get
+        for int_reg in range(32):
+            yield from set_dmi(self.dmi, DBGCore.GSPR_IDX, int_reg)
+            value = yield from get_dmi(self.dmi, DBGCore.GSPR_DATA)
+
+            print("after test %s reg %2d value %x" %
+            (self.test.name, int_reg, value))
+
+        # pull a reset
+        yield from set_dmi(self.dmi, DBGCore.CTRL, 1<<DBGCtrl.RESET)
+        yield
+
 
 class TestRunner(FHDLTestCase):
     def __init__(self, tst_data, microwatt_mmu=False, rom=None,
@@ -345,13 +376,7 @@ class TestRunner(FHDLTestCase):
         intclk = ClockSignal("coresync")
         comb += intclk.eq(ClockSignal())
 
-        # TODO these should probably move into HDLRunner's constructor
-        # and become HDLRunner.pc_i and HDLRunner.svstate_i
         if self.run_hdl:
-
-            #pc_i = Signal(32)
-            #svstate_i = Signal(64)
-
             comb += hdlrun.issuer.pc_i.data.eq(pc_i)
             comb += hdlrun.issuer.svstate_i.data.eq(svstate_i)
 
@@ -413,11 +438,7 @@ class TestRunner(FHDLTestCase):
                     ##########
                     if self.run_hdl:
                         hdl_states = yield from hdlrun.run_test(instructions)
-                    """
-                       hdl_states = yield from hdlrun.run_test(
-                                                           pc_i, svstate_i,
-                                                           instructions)
-                    """
+
                     ##########
                     # 2. Simulator
                     ##########
@@ -476,7 +497,8 @@ class TestRunner(FHDLTestCase):
                     simrun.end_test() # TODO, some arguments?
 
                 if self.run_hdl:
-                    # stop at end
+                    yield from hdlrun.end_test()
+                    """
                     yield from set_dmi(hdlrun.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
                     yield
                     yield
@@ -506,13 +528,15 @@ class TestRunner(FHDLTestCase):
                     # pull a reset
                     yield from set_dmi(hdlrun.dmi, DBGCore.CTRL, 1<<DBGCtrl.RESET)
                     yield
-
+                    """
         ###### END OF EVERYTHING (but none needs doing, still call fn) #######
         # StateRunner.cleanup()
 
         if self.run_sim:
             simrun.cleanup() # TODO, some arguments?
 
+        if self.run_hdl:
+            hdlrun.cleanup()
 
         styles = {
             'dec': {'base': 'dec'},
