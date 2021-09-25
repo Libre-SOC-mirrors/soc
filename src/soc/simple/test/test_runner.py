@@ -368,6 +368,7 @@ class TestRunner(FHDLTestCase):
         ###### SETUP PHASE #######
         # StateRunner.setup_for_test()
 
+        # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
         if self.run_hdl:
             hdlrun = HDLRunner(self, m, pspec)
 
@@ -387,6 +388,10 @@ class TestRunner(FHDLTestCase):
 
             ###### PREPARATION PHASE AT START OF RUNNING #######
             # StateRunner.setup_during_test()
+            # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
+            # but "normalise" the APIs, make openpower-isa StateRunner
+            # dummy "yield" functions so if they're not provided at least
+            # there is a fallback which can be "yielded".
 
             if self.run_sim:
                 simrun.setup_during_test() # TODO, some arguments?
@@ -402,6 +407,7 @@ class TestRunner(FHDLTestCase):
 
                     ###### PREPARATION PHASE AT START OF TEST #######
                     # StateRunner.prepare_for_test()
+                    # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
                     if self.run_sim:
                         simrun.prepare_for_test(test)
@@ -430,6 +436,8 @@ class TestRunner(FHDLTestCase):
                     #   (actually, the other way round because running
                     #    Simulator somehow modifies the test state!)
                     # * finally, compare all the results
+
+                    # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
                     ##########
                     # 1. HDL
@@ -490,45 +498,17 @@ class TestRunner(FHDLTestCase):
 
                 ###### END OF A TEST #######
                 # StateRunner.end_test()
+                # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
                 if self.run_sim:
                     simrun.end_test() # TODO, some arguments?
 
                 if self.run_hdl:
                     yield from hdlrun.end_test()
-                    """
-                    yield from set_dmi(hdlrun.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
-                    yield
-                    yield
 
-                    # TODO, here is where the static (expected) results
-                    # can be checked: register check (TODO, memory check)
-                    # see https://bugs.libre-soc.org/show_bug.cgi?id=686#c51
-                    # yield from check_regs(self, sim, core, test, code,
-                    #                       >>>expected_data<<<)
-
-                    # get CR
-                    cr = yield from get_dmi(hdlrun.dmi, DBGCore.CR)
-                    print("after test %s cr value %x" % (test.name, cr))
-
-                    # get XER
-                    xer = yield from get_dmi(hdlrun.dmi, DBGCore.XER)
-                    print("after test %s XER value %x" % (test.name, xer))
-
-                    # test of dmi reg get
-                    for int_reg in range(32):
-                        yield from set_dmi(hdlrun.dmi, DBGCore.GSPR_IDX, int_reg)
-                        value = yield from get_dmi(hdlrun.dmi, DBGCore.GSPR_DATA)
-
-                        print("after test %s reg %2d value %x" %
-                              (test.name, int_reg, value))
-
-                    # pull a reset
-                    yield from set_dmi(hdlrun.dmi, DBGCore.CTRL, 1<<DBGCtrl.RESET)
-                    yield
-                    """
         ###### END OF EVERYTHING (but none needs doing, still call fn) #######
         # StateRunner.cleanup()
+        # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
         if self.run_sim:
             simrun.cleanup() # TODO, some arguments?
