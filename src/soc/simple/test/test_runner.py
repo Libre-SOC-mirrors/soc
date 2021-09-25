@@ -134,6 +134,8 @@ class SimRunner(StateRunner):
 
     def prepare_for_test(self, test):
         self.test = test
+        if False:
+            yield
 
     def run_test(self, instructions, gen, insncode):
         """run_sim_state - runs an ISACaller simulation
