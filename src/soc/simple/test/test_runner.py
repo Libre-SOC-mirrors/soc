@@ -261,6 +261,16 @@ class SimRunner(StateRunner):
         self.simdec2 = simdec2 = PowerDecode2(None, regreduce_en=regreduce_en)
         m.submodules.simdec2 = simdec2  # pain in the neck
 
+    def prepare_for_test(self, test):
+        self.test = test
+
+    def run_test(self, instructions, gen, insncode):
+        sim_states = yield from run_sim_state(self.dut, self.test,
+                                          self.simdec2,
+                                          instructions, gen,
+                                          insncode)
+        return sim_states
+
 
 class HDLRunner(StateRunner):
     def __init__(self, dut, m, pspec):
@@ -354,6 +364,9 @@ class TestRunner(FHDLTestCase):
                     ###### PREPARATION PHASE AT START OF TEST #######
                     # StateRunner.prepare_for_test()
 
+                    if self.run_sim:
+                        simrun.prepare_for_test(test)
+
                     if self.run_hdl:
                         # set up bigendian (TODO: don't do this, use MSR)
                         yield hdlrun.issuer.core_bigendian_i.eq(bigendian)
@@ -400,8 +413,7 @@ class TestRunner(FHDLTestCase):
                     ##########
 
                     if self.run_sim:
-                        sim_states = yield from run_sim_state(self, test,
-                                                          simrun.simdec2,
+                        sim_states = yield from simrun.run_test(
                                                           instructions, gen,
                                                           insncode)
 
