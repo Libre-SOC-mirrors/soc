@@ -179,10 +179,10 @@ class SimRunner(StateRunner):
 
 
 class HDLRunner(StateRunner):
-    def __init__(self, dut, m, pspec, pc_i, svstate_i):
+    def __init__(self, dut, m, pspec):
         self.dut = dut
-        self.pc_i = pc_i
-        self.svstate_i = svstate_i
+        self.pc_i = Signal(32)
+        self.svstate_i = Signal(64)
 
         #hard_reset = Signal(reset_less=True)
         self.issuer = TestIssuerInternal(pspec)
@@ -191,6 +191,10 @@ class HDLRunner(StateRunner):
         #                        'sync': hard_reset})(issuer)
         m.submodules.issuer = self.issuer
         self.dmi = self.issuer.dbg.dmi
+
+        comb = m.d.comb
+        comb += self.issuer.pc_i.data.eq(self.pc_i)
+        comb += self.issuer.svstate_i.data.eq(self.svstate_i)
 
     def prepare_for_test(self, test):
         self.test = test
@@ -365,9 +369,7 @@ class TestRunner(FHDLTestCase):
         # StateRunner.setup_for_test()
 
         if self.run_hdl:
-            pc_i = Signal(32)
-            svstate_i = Signal(64)
-            hdlrun = HDLRunner(self, m, pspec, pc_i, svstate_i)
+            hdlrun = HDLRunner(self, m, pspec)
 
         if self.run_sim:
             simrun = SimRunner(self, m, pspec)
@@ -375,10 +377,6 @@ class TestRunner(FHDLTestCase):
         # run core clock at same rate as test clock
         intclk = ClockSignal("coresync")
         comb += intclk.eq(ClockSignal())
-
-        if self.run_hdl:
-            comb += hdlrun.issuer.pc_i.data.eq(pc_i)
-            comb += hdlrun.issuer.svstate_i.data.eq(svstate_i)
 
         # nmigen Simulation - everything runs around this, so it
         # still has to be created.
