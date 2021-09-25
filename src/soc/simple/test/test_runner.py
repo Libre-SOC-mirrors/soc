@@ -201,10 +201,6 @@ class HDLRunner(StateRunner):
         comb += self.issuer.pc_i.data.eq(self.pc_i)
         comb += self.issuer.svstate_i.data.eq(self.svstate_i)
 
-        # run core clock at same rate as test clock
-        intclk = ClockSignal("coresync")
-        comb += intclk.eq(ClockSignal())
-
     def prepare_for_test(self, test):
         self.test = test
 
@@ -383,6 +379,10 @@ class TestRunner(FHDLTestCase):
 
         if self.run_sim:
             simrun = SimRunner(self, m, pspec)
+
+        # run core clock at same rate as test clock
+        intclk = ClockSignal("coresync")
+        comb += intclk.eq(ClockSignal())
 
         # nmigen Simulation - everything runs around this, so it
         # still has to be created.
