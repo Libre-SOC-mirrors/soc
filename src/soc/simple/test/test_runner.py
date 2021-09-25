@@ -478,11 +478,6 @@ class TestRunner(FHDLTestCase):
                     else:
                         last_sim = None # err what are you doing??
 
-                    if self.run_hdl and self.run_sim:
-                        for simstate, hdlstate in zip(sim_states, hdl_states):
-                            simstate.compare(hdlstate)     # register check
-                            simstate.compare_mem(hdlstate) # memory check
-
                     if self.run_hdl:
                         print ("hdl_states")
                         for state in hdl_states:
@@ -492,6 +487,11 @@ class TestRunner(FHDLTestCase):
                         print ("sim_states")
                         for state in sim_states:
                             print (state)
+
+                    if self.run_hdl and self.run_sim:
+                        for simstate, hdlstate in zip(sim_states, hdl_states):
+                            simstate.compare(hdlstate)     # register check
+                            simstate.compare_mem(hdlstate) # memory check
 
                     # compare against expected results
                     if test.expected is not None:
