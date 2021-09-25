@@ -124,93 +124,6 @@ def get_dmi(dmi, addr):
     return data
 
 
-def run_hdl_state(dut, test, issuer, pc_i, svstate_i, instructions):
-    """run_hdl_state - runs a TestIssuer nmigen HDL simulation
-    """
-
-    imem = issuer.imem._get_memory()
-    core = issuer.core
-    dmi = issuer.dbg.dmi
-    pdecode2 = issuer.pdecode2
-    l0 = core.l0
-    hdl_states = []
-
-    # establish the TestIssuer context (mem, regs etc)
-
-    pc = 0  # start address
-    counter = 0  # test to pause/start
-
-    yield from setup_i_memory(imem, pc, instructions)
-    yield from setup_tst_memory(l0, test.mem)
-    yield from setup_regs(pdecode2, core, test)
-
-    # set PC and SVSTATE
-    yield pc_i.eq(pc)
-    yield issuer.pc_i.ok.eq(1)
-
-    # copy initial SVSTATE
-    initial_svstate = copy(test.svstate)
-    if isinstance(initial_svstate, int):
-        initial_svstate = SVP64State(initial_svstate)
-    yield svstate_i.eq(initial_svstate.value)
-    yield issuer.svstate_i.ok.eq(1)
-    yield
-
-    print("instructions", instructions)
-
-    # run the loop of the instructions on the current test
-    index = (yield issuer.cur_state.pc) // 4
-    while index < len(instructions):
-        ins, code = instructions[index]
-
-        print("hdl instr: 0x{:X}".format(ins & 0xffffffff))
-        print(index, code)
-
-        if counter == 0:
-            # start the core
-            yield
-            yield from set_dmi(dmi, DBGCore.CTRL,
-                               1<<DBGCtrl.START)
-            yield issuer.pc_i.ok.eq(0) # no change PC after this
-            yield issuer.svstate_i.ok.eq(0) # ditto
-            yield
-            yield
-
-        counter = counter + 1
-
-        # wait until executed
-        while not (yield issuer.insn_done):
-            yield
-
-        yield Settle()
-
-        index = (yield issuer.cur_state.pc) // 4
-
-        terminated = yield issuer.dbg.terminated_o
-        print("terminated", terminated)
-
-        if index < len(instructions):
-            # Get HDL mem and state
-            state = yield from TestState("hdl", core, dut,
-                                         code)
-            hdl_states.append(state)
-
-        if index >= len(instructions):
-            print ("index over, send dmi stop")
-            # stop at end
-            yield from set_dmi(dmi, DBGCore.CTRL,
-                               1<<DBGCtrl.STOP)
-            yield
-            yield
-
-        terminated = yield issuer.dbg.terminated_o
-        print("terminated(2)", terminated)
-        if terminated:
-            break
-
-    return hdl_states
-
-
 class SimRunner(StateRunner):
     def __init__(self, dut, m, pspec):
         self.dut = dut
@@ -266,8 +179,11 @@ class SimRunner(StateRunner):
 
 
 class HDLRunner(StateRunner):
-    def __init__(self, dut, m, pspec):
+    def __init__(self, dut, m, pspec, pc_i, svstate_i):
         self.dut = dut
+        self.pc_i = pc_i
+        self.svstate_i = svstate_i
+
         #hard_reset = Signal(reset_less=True)
         self.issuer = TestIssuerInternal(pspec)
         # use DMI RESET command instead, this does actually work though
@@ -292,7 +208,7 @@ class HDLRunner(StateRunner):
         yield from set_dmi(self.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
         yield
 
-    def run_test(self, pc_i, svstate_i, instructions):
+    def run_test(self, instructions):
         """run_hdl_state - runs a TestIssuer nmigen HDL simulation
         """
 
@@ -313,14 +229,14 @@ class HDLRunner(StateRunner):
         yield from setup_regs(pdecode2, core, self.test)
 
         # set PC and SVSTATE
-        yield pc_i.eq(pc)
+        yield self.pc_i.eq(pc)
         yield self.issuer.pc_i.ok.eq(1)
 
         # copy initial SVSTATE
         initial_svstate = copy(self.test.svstate)
         if isinstance(initial_svstate, int):
             initial_svstate = SVP64State(initial_svstate)
-        yield svstate_i.eq(initial_svstate.value)
+        yield self.svstate_i.eq(initial_svstate.value)
         yield self.issuer.svstate_i.ok.eq(1)
         yield
 
@@ -418,7 +334,9 @@ class TestRunner(FHDLTestCase):
         # StateRunner.setup_for_test()
 
         if self.run_hdl:
-            hdlrun = HDLRunner(self, m, pspec)
+            pc_i = Signal(32)
+            svstate_i = Signal(64)
+            hdlrun = HDLRunner(self, m, pspec, pc_i, svstate_i)
 
         if self.run_sim:
             simrun = SimRunner(self, m, pspec)
@@ -431,8 +349,8 @@ class TestRunner(FHDLTestCase):
         # and become HDLRunner.pc_i and HDLRunner.svstate_i
         if self.run_hdl:
 
-            pc_i = Signal(32)
-            svstate_i = Signal(64)
+            #pc_i = Signal(32)
+            #svstate_i = Signal(64)
 
             comb += hdlrun.issuer.pc_i.data.eq(pc_i)
             comb += hdlrun.issuer.svstate_i.data.eq(svstate_i)
@@ -494,10 +412,12 @@ class TestRunner(FHDLTestCase):
                     # 1. HDL
                     ##########
                     if self.run_hdl:
+                        hdl_states = yield from hdlrun.run_test(instructions)
+                    """
                        hdl_states = yield from hdlrun.run_test(
                                                            pc_i, svstate_i,
                                                            instructions)
-
+                    """
                     ##########
                     # 2. Simulator
                     ##########
