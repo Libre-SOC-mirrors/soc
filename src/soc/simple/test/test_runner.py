@@ -325,6 +325,8 @@ class TestRunner(FHDLTestCase):
         intclk = ClockSignal("coresync")
         comb += intclk.eq(ClockSignal())
 
+        # TODO these should probably move into HDLRunner's constructor
+        # and become HDLRunner.pc_i and HDLRunner.svstate_i
         if self.run_hdl:
 
             pc_i = Signal(32)
@@ -342,6 +344,9 @@ class TestRunner(FHDLTestCase):
 
             ###### PREPARATION PHASE AT START OF RUNNING #######
             # StateRunner.setup_during_test()
+
+            if self.run_sim:
+                simrun.setup_during_test() # TODO, some arguments?
 
             if self.run_hdl:
                 # start in stopped
