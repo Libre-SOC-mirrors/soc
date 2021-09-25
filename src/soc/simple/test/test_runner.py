@@ -394,7 +394,7 @@ class TestRunner(FHDLTestCase):
             # there is a fallback which can be "yielded".
 
             if self.run_sim:
-                simrun.setup_during_test() # TODO, some arguments?
+                yield from simrun.setup_during_test() # TODO, some arguments?
 
             if self.run_hdl:
                 yield from hdlrun.setup_during_test()
@@ -410,7 +410,7 @@ class TestRunner(FHDLTestCase):
                     # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
                     if self.run_sim:
-                        simrun.prepare_for_test(test)
+                        yield from simrun.prepare_for_test(test)
 
                     if self.run_hdl:
                         yield from hdlrun.prepare_for_test(test)
@@ -501,20 +501,20 @@ class TestRunner(FHDLTestCase):
                 # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
                 if self.run_sim:
-                    simrun.end_test() # TODO, some arguments?
+                    yield from simrun.end_test() # TODO, some arguments?
 
                 if self.run_hdl:
                     yield from hdlrun.end_test()
 
-        ###### END OF EVERYTHING (but none needs doing, still call fn) #######
-        # StateRunner.cleanup()
-        # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
+            ###### END OF EVERYTHING (but none needs doing, still call fn) ####
+            # StateRunner.cleanup()
+            # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
-        if self.run_sim:
-            simrun.cleanup() # TODO, some arguments?
+            if self.run_sim:
+                yield from simrun.cleanup() # TODO, some arguments?
 
-        if self.run_hdl:
-            hdlrun.cleanup()
+            if self.run_hdl:
+                yield from hdlrun.cleanup()
 
         styles = {
             'dec': {'base': 'dec'},
