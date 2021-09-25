@@ -462,6 +462,10 @@ class TestRunner(FHDLTestCase):
                     # 3. Compare
                     ###############
 
+                    # TODO: here just grab one entry from list_of_sim_runners
+                    # (doesn't matter which one, honestly)
+                    # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
+
                     if self.run_sim:
                         last_sim = copy(sim_states[-1])
                     elif self.run_hdl:
