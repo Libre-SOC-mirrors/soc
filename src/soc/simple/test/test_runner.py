@@ -460,6 +460,9 @@ class TestRunner(FHDLTestCase):
                 ###### END OF A TEST #######
                 # StateRunner.end_test()
 
+                if self.run_sim:
+                    simrun.end_test() # TODO, some arguments?
+
                 if self.run_hdl:
                     # stop at end
                     yield from set_dmi(hdlrun.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
@@ -494,6 +497,10 @@ class TestRunner(FHDLTestCase):
 
         ###### END OF EVERYTHING (but none needs doing, still call fn) #######
         # StateRunner.cleanup()
+
+        if self.run_sim:
+            simrun.cleanup() # TODO, some arguments?
+
 
         styles = {
             'dec': {'base': 'dec'},
