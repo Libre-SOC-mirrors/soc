@@ -381,6 +381,8 @@ class TestRunner(FHDLTestCase):
             simrun = SimRunner(self, m, pspec)
 
         # run core clock at same rate as test clock
+        # XXX this has to stay here! TODO, work out why,
+        # but Simulation-only fails without it
         intclk = ClockSignal("coresync")
         comb += intclk.eq(ClockSignal())
 
