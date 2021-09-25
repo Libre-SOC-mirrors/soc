@@ -126,6 +126,7 @@ def get_dmi(dmi, addr):
 
 class SimRunner(StateRunner):
     def __init__(self, dut, m, pspec):
+        super().__init__("sim", SimRunner)
         self.dut = dut
 
         regreduce_en = pspec.regreduce_en == True
@@ -182,6 +183,8 @@ class SimRunner(StateRunner):
 
 class HDLRunner(StateRunner):
     def __init__(self, dut, m, pspec):
+        super().__init__("hdl", HDLRunner)
+
         self.dut = dut
         self.pc_i = Signal(32)
         self.svstate_i = Signal(64)
