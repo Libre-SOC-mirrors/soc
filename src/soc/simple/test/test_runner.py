@@ -373,12 +373,16 @@ class TestRunner(FHDLTestCase):
         ###### SETUP PHASE #######
         # StateRunner.setup_for_test()
 
+        state_list = []
+
         # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
         if self.run_hdl:
             hdlrun = HDLRunner(self, m, pspec)
+            state_list.append(hdlrun)
 
         if self.run_sim:
             simrun = SimRunner(self, m, pspec)
+            state_list.append(simrun)
 
         # run core clock at same rate as test clock
         # XXX this has to stay here! TODO, work out why,
@@ -400,11 +404,8 @@ class TestRunner(FHDLTestCase):
             # dummy "yield" functions so if they're not provided at least
             # there is a fallback which can be "yielded".
 
-            if self.run_sim:
-                yield from simrun.setup_during_test() # TODO, some arguments?
-
-            if self.run_hdl:
-                yield from hdlrun.setup_during_test()
+            for runner in state_list:
+                yield from runner.setup_during_test()
 
             # get each test, completely reset the core, and run it
 
@@ -416,11 +417,8 @@ class TestRunner(FHDLTestCase):
                     # StateRunner.prepare_for_test()
                     # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
-                    if self.run_sim:
-                        yield from simrun.prepare_for_test(test)
-
-                    if self.run_hdl:
-                        yield from hdlrun.prepare_for_test(test)
+                    for runner in state_list:
+                        yield from runner.prepare_for_test(test)
 
                     print(test.name)
                     program = test.program
@@ -511,21 +509,15 @@ class TestRunner(FHDLTestCase):
                 # StateRunner.end_test()
                 # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
-                if self.run_sim:
-                    yield from simrun.end_test() # TODO, some arguments?
-
-                if self.run_hdl:
-                    yield from hdlrun.end_test()
+                for runner in state_list:
+                    yield from runner.end_test() # TODO, some arguments?
 
             ###### END OF EVERYTHING (but none needs doing, still call fn) ####
             # StateRunner.cleanup()
             # TODO https://bugs.libre-soc.org/show_bug.cgi?id=686#c73
 
-            if self.run_sim:
-                yield from simrun.cleanup() # TODO, some arguments?
-
-            if self.run_hdl:
-                yield from hdlrun.cleanup()
+            for runner in state_list:
+                yield from runner.cleanup() # TODO, some arguments?
 
         styles = {
             'dec': {'base': 'dec'},
