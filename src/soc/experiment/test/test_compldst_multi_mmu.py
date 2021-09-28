@@ -24,67 +24,60 @@ from soc.config.test.test_loadstore import TestMemPspec
 from soc.experiment.mmu import MMU
 
 ########################################
-
-def dcbz(dut, src1, src2, src3, imm, imm_ok=True, update=False,
-          byterev=True):
-    print("DCBZ", src1, src2, src3, imm, imm_ok, update)
-    yield dut.oper_i.insn_type.eq(MicrOp.OP_DCBZ)
+# copied from compldst_multi.py
+# for debugging -- remove once done
+def load_part(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
+         byterev=True):
+    print("LD_part", src1, src2, imm, imm_ok, update)
+    yield dut.oper_i.insn_type.eq(MicrOp.OP_LOAD)
     yield dut.oper_i.data_len.eq(2)  # half-word
     yield dut.oper_i.byte_reverse.eq(byterev)
     yield dut.src1_i.eq(src1)
     yield dut.src2_i.eq(src2)
-    yield dut.src3_i.eq(src3)
-    yield dut.oper_i.imm_data.data.eq(imm)
+    yield dut.oper_i.zero_a.eq(zero_a)
+    yield dut.oper_i.imm_data.imm.eq(imm)
     yield dut.oper_i.imm_data.ok.eq(imm_ok)
-    #FIXME: -- yield dut.oper_i.update.eq(update)
     yield dut.issue_i.eq(1)
     yield
     yield dut.issue_i.eq(0)
+    yield
 
-    if imm_ok:
-        active_rel = 0b101
-    else:
-        active_rel = 0b111
-     # wait for all active rel signals to come up
-    # guess: bug is here
-    #while True:
-    #    rel = yield dut.rd.rel_o
-    #    if rel == active_rel:
-    #        break
-    #    yield
-    #yield dut.rd.go_i.eq(active_rel)
-    #yield
-    #yield dut.rd.go_i.eq(0)
+    # set up read-operand flags
+    rd = 0b00
+    if not imm_ok:  # no immediate means RB register needs to be read
+        rd |= 0b10
+    if not zero_a:  # no zero-a means RA needs to be read
+        rd |= 0b01
 
-    #yield from wait_for(dut.adr_rel_o, False, test1st=True)
-    # yield from wait_for(dut.adr_rel_o)
-    # yield dut.ad.go.eq(1)
-    # yield
-    # yield dut.ad.go.eq(0)
+    # wait for the operands (RA, RB, or both)
+    if rd:
+        yield dut.rd.go.eq(rd)
+        yield from wait_for(dut.rd.rel_o)
+        yield dut.rd.go.eq(0)
 
-    #if update:
-    #    yield from wait_for(dut.wr.rel_o[1])
-    #    yield dut.wr.go.eq(0b10)
-    #    yield
-    #    addr = yield dut.addr_o
-    #    print("addr", addr)
-    #    yield dut.wr.go.eq(0)
-    #else:
-    #    addr = None
-
-    # commented out for debugging
-    #yield from wait_for(dut.sto_rel_o)
-    #yield dut.go_st_i.eq(1)
-    #yield
-    #yield dut.go_st_i.eq(0)
-    #yield from wait_for(dut.busy_o, False)
-    # wait_for(dut.stwd_mem_o)
-    #yield
-    #return addr
+# if RA = 0 then b <- 0     RA needs to be read if RA = 0
+# else           b <-(RA)
+# EA <- b + (RB)            RB needs to be read
+# verify that EA is correct first
+def dcbz(dut, ra, ra_needed, rb):
+    print("LD_part", ra, ra_needed, rb)
+    yield dut.oper_i.insn_type.eq(MicrOp.OP_DCBZ)
+    #yield dut.oper_i.data_len.eq(2)  # half-word
+    #yield dut.oper_i.byte_reverse.eq(byterev)
+    yield dut.src1_i.eq(ra)
+    yield dut.src2_i.eq(rb)
+    #???yield dut.oper_i.zero_a.eq(zero_a)
+    #yield dut.oper_i.imm_data.imm.eq(imm)
+    #yield dut.oper_i.imm_data.ok.eq(imm_ok)
+    yield dut.issue_i.eq(1)
+    yield
+    yield dut.issue_i.eq(0)
+    yield
 
 
 def ldst_sim(dut):
-    yield from dcbz(dut, 4, 0, 3, 2) # FIXME
+    yield from dcbz(dut, 4, True, 3) # EA=7
+    #yield from load_part(dut, 4, 0, 2)
     yield
 
 ########################################
