@@ -59,16 +59,12 @@ def load_part(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
 # else           b <-(RA)
 # EA <- b + (RB)            RB needs to be read
 # verify that EA is correct first
-def dcbz(dut, ra, ra_needed, rb):
+def dcbz(dut, ra, zero_a, rb):
     print("LD_part", ra, ra_needed, rb)
     yield dut.oper_i.insn_type.eq(MicrOp.OP_DCBZ)
-    #yield dut.oper_i.data_len.eq(2)  # half-word
-    #yield dut.oper_i.byte_reverse.eq(byterev)
     yield dut.src1_i.eq(ra)
     yield dut.src2_i.eq(rb)
-    #???yield dut.oper_i.zero_a.eq(zero_a)
-    #yield dut.oper_i.imm_data.imm.eq(imm)
-    #yield dut.oper_i.imm_data.ok.eq(imm_ok)
+    yield dut.oper_i.zero_a.eq(zero_a)
     yield dut.issue_i.eq(1)
     yield
     yield dut.issue_i.eq(0)
@@ -76,7 +72,7 @@ def dcbz(dut, ra, ra_needed, rb):
 
 
 def ldst_sim(dut):
-    yield from dcbz(dut, 4, True, 3) # EA=7
+    yield from dcbz(dut, 4, 0, 3) # EA=7
     #yield from load_part(dut, 4, 0, 2)
     yield
 
