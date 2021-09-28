@@ -60,7 +60,7 @@ def load_part(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
 # EA <- b + (RB)            RB needs to be read
 # verify that EA is correct first
 def dcbz(dut, ra, zero_a, rb):
-    print("LD_part", ra, ra_needed, rb)
+    print("LD_part", ra, zero_a, rb)
     yield dut.oper_i.insn_type.eq(MicrOp.OP_DCBZ)
     yield dut.src1_i.eq(ra)
     yield dut.src2_i.eq(rb)
