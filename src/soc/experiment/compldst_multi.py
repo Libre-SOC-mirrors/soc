@@ -58,6 +58,8 @@ the nested FSMs below are *combinatorial*).
 
     * A third FSM activates to cover ST.  it activates if op_is_st is true
 
+    * TODO document DCBZ (not complete yet)
+
     * The "overall" (fourth) FSM coordinates the progression and completion
       of the three other FSMs, firing "WR_RESET" which switches off "busy"
 
@@ -523,6 +525,9 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += pi.data_len.eq(oper_r.data_len)  # data_len
         # address: use sync to avoid long latency
         sync += pi.addr.data.eq(addr_r)           # EA from adder
+        sync += Display("EA from adder %i op_is_dcbz %i",addr_r,op_is_dcbz)
+        sync += pi.is_dcbz.eq(op_is_dcbz) # set dcbz
+
         sync += pi.addr.ok.eq(alu_ok & lsd_l.q)  # "do address stuff" (once)
         comb += self.exc_o.eq(pi.exc_o)  # exception occurred
         comb += addr_ok.eq(self.pi.addr_ok_o)  # no exc, address fine
