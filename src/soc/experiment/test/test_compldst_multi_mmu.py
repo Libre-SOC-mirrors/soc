@@ -22,38 +22,19 @@ from soc.experiment.compldst_multi import LDSTCompUnit
 from soc.config.test.test_loadstore import TestMemPspec
 
 from soc.experiment.mmu import MMU
+from nmutil.util import Display
 
-########################################
-# copied from compldst_multi.py
-# for debugging -- remove once done
-def load_part(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
-         byterev=True):
-    print("LD_part", src1, src2, imm, imm_ok, update)
-    yield dut.oper_i.insn_type.eq(MicrOp.OP_LOAD)
-    yield dut.oper_i.data_len.eq(2)  # half-word
-    yield dut.oper_i.byte_reverse.eq(byterev)
-    yield dut.src1_i.eq(src1)
-    yield dut.src2_i.eq(src2)
-    yield dut.oper_i.zero_a.eq(zero_a)
-    yield dut.oper_i.imm_data.imm.eq(imm)
-    yield dut.oper_i.imm_data.ok.eq(imm_ok)
-    yield dut.issue_i.eq(1)
-    yield
-    yield dut.issue_i.eq(0)
-    yield
-
-    # set up read-operand flags
-    rd = 0b00
-    if not imm_ok:  # no immediate means RB register needs to be read
-        rd |= 0b10
-    if not zero_a:  # no zero-a means RA needs to be read
-        rd |= 0b01
-
-    # wait for the operands (RA, RB, or both)
-    if rd:
-        yield dut.rd.go.eq(rd)
-        yield from wait_for(dut.rd.rel_o)
-        yield dut.rd.go.eq(0)
+def wait_for_debug(sig, event, wait=True, test1st=False):
+    v = (yield sig)
+    print("wait for", sig, v, wait, test1st)
+    if test1st and bool(v) == wait:
+        return
+    while True:
+        yield
+        v = (yield sig)
+        yield Display("waiting for "+event)
+        if bool(v) == wait:
+            break
 
 # if RA = 0 then b <- 0     RA needs to be read if RA = 0
 # else           b <-(RA)
@@ -70,10 +51,20 @@ def dcbz(dut, ra, zero_a, rb):
     yield dut.issue_i.eq(0)
     yield
 
+    # set up operand flags
+    rd = 0b10
+    if not zero_a:  # no zero-a means RA needs to be read
+        rd |= 0b01
+
+    # wait for the operands (RA, RB, or both)
+    if rd:
+        yield dut.rd.go_i.eq(rd)
+        yield from wait_for_debug(dut.rd.rel_o,"operands (RA, RB, or both)")
+        yield dut.rd.go_i.eq(0)
+
 
 def ldst_sim(dut):
     yield from dcbz(dut, 4, 0, 3) # EA=7
-    #yield from load_part(dut, 4, 0, 2)
     yield
 
 ########################################
