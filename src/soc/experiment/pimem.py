@@ -100,7 +100,6 @@ class PortInterface(RecordObject):
         self.is_ld_i    = Signal(reset_less=True)
         self.is_st_i    = Signal(reset_less=True)
         self.is_dcbz_i  = Signal(reset_less=True)
-        ## self.is_dcbz = self.is_dcbz_i # renamed signal hack
 
         # LD/ST data length (TODO: other things may be needed)
         self.data_len = Signal(4, reset_less=True)
@@ -239,7 +238,7 @@ class PortInterfaceBase(Elaboratable):
         # activate mode: only on "edge"
         comb += ld_active.s.eq(rising_edge(m, lds))  # activate LD mode
         comb += st_active.s.eq(rising_edge(m, sts))  # activate ST mode
-        comb += dcbz_active.s.eq(rising_edge(m, dcbzs))  # activate ST mode
+        comb += dcbz_active.s.eq(rising_edge(m, dcbzs))  # activate DCBZ mode
 
         # LD/ST requested activates "busy" (only if not already busy)
         with m.If(self.pi.is_ld_i | self.pi.is_st_i):
@@ -260,6 +259,7 @@ class PortInterfaceBase(Elaboratable):
         # if now in "DCBZ" mode: wait for addr_ok, then send the address out
         # to memory, acknowledge address, and send out LD data
         with m.If(dcbz_active.q):
+            ##comb += Display("dcbz active")
             self.set_dcbz_addr(m, pi.addr.data)
 
         # if now in "ST" mode: likewise do the same but with "ST"
