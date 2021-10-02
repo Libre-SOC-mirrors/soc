@@ -119,6 +119,17 @@ class LoadStore1(PortInterfaceBase):
         #self.nia           = Signal(64)
         #self.srr1          = Signal(16)
 
+    def set_dcbz_addr(self, m, addr):
+        m.d.comb += self.req.load.eq(0) #not a load operation
+        m.d.comb += self.req.dcbz.eq(1)
+        #m.d.comb += self.req.byte_sel.eq(mask)
+        m.d.comb += self.req.addr.eq(addr)
+        m.d.comb += Display("set_dcbz_addr %i",addr)
+        #m.d.comb += self.req.priv_mode.eq(~msr_pr) # not-problem  ==> priv
+        #m.d.comb += self.req.virt_mode.eq(msr_pr) # problem-state ==> virt
+        #m.d.comb += self.req.align_intr.eq(misalign)
+        return None
+
     def set_wr_addr(self, m, addr, mask, misalign, msr_pr):
         m.d.comb += self.req.load.eq(0) # store operation
         m.d.comb += self.req.byte_sel.eq(mask)
