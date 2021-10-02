@@ -260,7 +260,12 @@ class PortInterfaceBase(Elaboratable):
         # to memory, acknowledge address, and send out LD data
         with m.If(dcbz_active.q):
             ##comb += Display("dcbz active")
-            self.set_dcbz_addr(m, pi.addr.data)
+            # XXX Please don't do it this way, not without discussion
+            # the exact same address is required to be set by both
+            # dcbz and stores, so use the exact same function.
+            # it would be better to add an extra argument to
+            # set_wr_addr to indicate "dcbz mode".
+            self.___use_wr_addr_instead_set_dcbz_addr(m, pi.addr.data)
 
         # if now in "ST" mode: likewise do the same but with "ST"
         # to memory, acknowledge address, and send out LD data
