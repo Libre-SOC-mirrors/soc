@@ -110,7 +110,7 @@ class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
         from soc.experiment.l0_cache import TstL0CacheBuffer
         from soc.fu.ldst.pipe_data import LDSTPipeSpec
         regspec = LDSTPipeSpec.regspec
-        self.l0 = l0 = TstL0CacheBuffer(pspec)
+        self.l0 = l0 = TstL0CacheBuffer(pspec) #this is wrong, see setup_mmu
         self.mmu = MMU()
         pi = l0.l0.dports[0]
         LDSTCompUnit.__init__(self, pi, regspec, 4)
