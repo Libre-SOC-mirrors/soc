@@ -100,7 +100,7 @@ class PortInterface(RecordObject):
         self.is_ld_i    = Signal(reset_less=True)
         self.is_st_i    = Signal(reset_less=True)
         self.is_dcbz_i  = Signal(reset_less=True)
-        self.is_dcbz = self.is_dcbz_i # renamed signal hack
+        ## self.is_dcbz = self.is_dcbz_i # renamed signal hack
 
         # LD/ST data length (TODO: other things may be needed)
         self.data_len = Signal(4, reset_less=True)
@@ -134,7 +134,7 @@ class PortInterface(RecordObject):
         return [self.is_ld_i.eq(inport.is_ld_i),
                 self.is_st_i.eq(inport.is_st_i),
                 self.is_nc.eq(inport.is_nc),
-                self.is_dcbz.eq(inport.is_dcbz),
+                self.is_dcbz_i.eq(inport.is_dcbz_i),
                 self.data_len.eq(inport.data_len),
                 self.go_die_i.eq(inport.go_die_i),
                 self.addr.data.eq(inport.addr.data),

@@ -138,11 +138,6 @@ class LoadStore1(PortInterfaceBase):
         m.d.comb += self.req.virt_mode.eq(msr_pr) # problem-state ==> virt
         m.d.comb += self.req.align_intr.eq(misalign)
 
-        dcbz = self.pi.is_dcbz
-        with m.If(dcbz):
-            m.d.comb += Display("set_wr_addr: is_dcbz")
-        m.d.comb += self.req.dcbz.eq(dcbz)
-
         # option to disable the cache entirely for write
         if self.disable_cache:
             m.d.comb += self.req.nc.eq(1)

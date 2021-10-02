@@ -69,7 +69,7 @@ def pi_st(port1, addr, data, datalen, msr_pr=0):
     # can go straight to reset.
     yield port1.is_st_i.eq(0)  # end
     yield port1.addr.ok.eq(0)  # set !ok
-    yield port1.is_dcbz.eq(0)  # reset dcbz too
+    yield port1.is_dcbz_i.eq(0)  # reset dcbz too
 
 
 # copy of pi_st
@@ -82,7 +82,7 @@ def pi_dcbz(port1, addr, msr_pr=0):
     yield port1.is_st_i.eq(1)  # indicate ST
     yield port1.msr_pr.eq(msr_pr)  # MSR PR bit (1==>virt, 0==>real)
 
-    yield port1.is_dcbz.eq(1) # set dcbz
+    yield port1.is_dcbz_i.eq(1) # set dcbz #FIXME
 
     yield port1.addr.data.eq(addr)  # set address
     yield port1.addr.ok.eq(1)  # set ok
@@ -104,7 +104,7 @@ def pi_dcbz(port1, addr, msr_pr=0):
     # can go straight to reset.
     yield port1.is_st_i.eq(0)  # end
     yield port1.addr.ok.eq(0)  # set !ok
-    yield port1.is_dcbz.eq(0)  # reset dcbz too
+    yield port1.is_dcbz_i.eq(0)  # reset dcbz too
 
 
 def pi_ld(port1, addr, datalen, msr_pr=0):
