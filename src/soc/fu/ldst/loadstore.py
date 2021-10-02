@@ -119,7 +119,12 @@ class LoadStore1(PortInterfaceBase):
         #self.nia           = Signal(64)
         #self.srr1          = Signal(16)
 
-    def set_dcbz_addr(self, m, addr):
+    # XXX please don't do it this way (and ask in future).
+    # the exact same logic is required for setting store addresses
+    # as for dcbz addresses, therefore why duplicate code?
+    # it would be better to add an argument to set_wr_addr to
+    # specifiy that it requires dcbz mode to be set.
+    def __please_remove_and_use_set_wr_addr_instead_set_dcbz_addr(self, m, addr):
         m.d.comb += self.req.load.eq(0) #not a load operation
         m.d.comb += self.req.dcbz.eq(1)
         #m.d.comb += self.req.byte_sel.eq(mask)
@@ -130,6 +135,7 @@ class LoadStore1(PortInterfaceBase):
         #m.d.comb += self.req.align_intr.eq(misalign)
         return None
 
+    # XXX please add a dcbz argument to all set_wr_addr functions instead.
     def set_wr_addr(self, m, addr, mask, misalign, msr_pr):
         m.d.comb += self.req.load.eq(0) # store operation
         m.d.comb += self.req.byte_sel.eq(mask)
