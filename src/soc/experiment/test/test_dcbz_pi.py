@@ -8,11 +8,7 @@ from nmigen.cli import rtlil
 from nmutil.mask import Mask, masked
 from nmutil.util import Display
 from random import randint, seed
-
-if True:
-    from nmigen.back.pysim import Simulator, Delay, Settle
-else:
-    from nmigen.sim.cxxsim import Simulator, Delay, Settle
+from nmigen.sim import Simulator, Delay, Settle
 from nmutil.util import wrap
 
 from soc.config.test.test_pi2ls import pi_ld, pi_st, pi_ldst, pi_dcbz
@@ -112,7 +108,7 @@ def setup_mmu():
 
 ### test case for dcbz
 
-def _test_dcbz_addr_zero(dut, mem):
+def _test_dcbz_addr_100e0(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
     global stop
@@ -140,12 +136,12 @@ def _test_dcbz_addr_zero(dut, mem):
     ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
     print("ld_data after dcbz")
     print(ld_data)
+    assert ld_data == 0
 
     yield
     stop = True
 
-#FIXME: rename
-def test_dcbz_addr_zero():
+def test_dcbz_addr_100e0():
 
     m, cmpi = setup_mmu()
 
@@ -166,7 +162,7 @@ def test_dcbz_addr_zero():
            0x1000000:   # PROCESS_TABLE_3
                         # RTS1 = 0x2 RPDB = 0x300 RTS2 = 0x5 RPDS = 13
            b(0x40000000000300ad),
-           
+
            0x10004: 0
 
     }
@@ -175,10 +171,10 @@ def test_dcbz_addr_zero():
     sim = Simulator(m)
     sim.add_clock(1e-6)
 
-    sim.add_sync_process(wrap(_test_dcbz_addr_zero(m, mem)))
+    sim.add_sync_process(wrap(_test_dcbz_addr_100e0(m, mem)))
     sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
     with sim.write_vcd('test_dcbz_addr_zero.vcd'):
         sim.run()
 
 if __name__ == '__main__':
-    test_dcbz_addr_zero()
+    test_dcbz_addr_100e0()
