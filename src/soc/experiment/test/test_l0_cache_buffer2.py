@@ -25,7 +25,7 @@ class TestCachedMemoryPortInterface(PortInterfaceBase):
         super().__init__(regwid, addrwid)
         self.ldst = LDSTSplitter(32, 48, 4)
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr_pr):
+    def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz):
         m.d.comb += self.ldst.addr_i.eq(addr)
 
     def set_rd_addr(self, m, addr, mask, misalign, msr_pr):
