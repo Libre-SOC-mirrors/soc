@@ -96,10 +96,9 @@ class PortInterface(RecordObject):
 
         RecordObject.__init__(self, name=name)
 
-        # distinguish op type (ld/st/dcbz)
+        # distinguish op type (ld/st)
         self.is_ld_i    = Signal(reset_less=True)
         self.is_st_i    = Signal(reset_less=True)
-        self.is_dcbz_i  = Signal(reset_less=True)
 
         # LD/ST data length (TODO: other things may be needed)
         self.data_len = Signal(4, reset_less=True)
@@ -119,6 +118,7 @@ class PortInterface(RecordObject):
         # additional "modes"
         self.is_nc         = Signal()  # no cacheing
         self.msr_pr        = Signal()  # 1==virtual, 0==privileged
+        self.is_dcbz_i     = Signal(reset_less=True)
 
         # mmu
         self.mmu_done          = Signal() # keep for now
@@ -177,7 +177,6 @@ class PortInterfaceBase(Elaboratable):
     def set_rd_addr(self, m, addr, mask, misalign, msr_pr): pass
     def set_wr_data(self, m, data, wen): pass
     def get_rd_data(self, m): pass
-    def set_dcbz_addr(self, m, addr): pass
 
     def elaborate(self, platform):
         m = Module()
@@ -187,8 +186,6 @@ class PortInterfaceBase(Elaboratable):
         m.submodules.st_active = st_active = SRLatch(False, name="st_active")
         m.submodules.st_done = st_done = SRLatch(False, name="st_done")
         m.submodules.ld_active = ld_active = SRLatch(False, name="ld_active")
-        dcbz_active = SRLatch(False, name="dcbz_active")
-        m.submodules.dcbz_active = dcbz_active # this one is new and untested
         m.submodules.reset_l = reset_l = SRLatch(True, name="reset")
         m.submodules.adrok_l = adrok_l = SRLatch(False, name="addr_acked")
         m.submodules.busy_l = busy_l = SRLatch(False, name="busy")
@@ -196,13 +193,10 @@ class PortInterfaceBase(Elaboratable):
 
         self.busy_l = busy_l
 
-        comb += Display("PortInterfaceBase dcbz_active.q=%i",dcbz_active.q)
-
         sync += st_done.s.eq(0)
         comb += st_done.r.eq(0)
         comb += st_active.r.eq(0)
         comb += ld_active.r.eq(0)
-        comb += dcbz_active.r.eq(0)
         comb += cyc_l.s.eq(0)
         comb += cyc_l.r.eq(0)
         comb += busy_l.s.eq(0)
@@ -215,11 +209,9 @@ class PortInterfaceBase(Elaboratable):
 
         lds = Signal(reset_less=True)
         sts = Signal(reset_less=True)
-        dcbzs = Signal(reset_less=True)
         pi = self.pi
         comb += lds.eq(pi.is_ld_i)  # ld-req signals
         comb += sts.eq(pi.is_st_i)  # st-req signals
-        comb += dcbzs.eq(pi.is_dcbz_i)  # dcbz-req signals (new, untested)
         pr = pi.msr_pr # MSR problem state: PR=1 ==> virt, PR==0 ==> priv
 
         # detect busy "edge"
@@ -238,7 +230,6 @@ class PortInterfaceBase(Elaboratable):
         # activate mode: only on "edge"
         comb += ld_active.s.eq(rising_edge(m, lds))  # activate LD mode
         comb += st_active.s.eq(rising_edge(m, sts))  # activate ST mode
-        comb += dcbz_active.s.eq(rising_edge(m, dcbzs))  # activate DCBZ mode
 
         # LD/ST requested activates "busy" (only if not already busy)
         with m.If(self.pi.is_ld_i | self.pi.is_st_i):
@@ -264,8 +255,8 @@ class PortInterfaceBase(Elaboratable):
             comb += lenexp.len_i.eq(pi.data_len)
             comb += lenexp.addr_i.eq(lsbaddr)
             with m.If(pi.addr.ok):
-                is_dcbz = 0 # fixme
-                self.set_wr_addr(m, pi.addr.data, lenexp.lexp_o, misalign, pr, is_dcbz)
+                self.set_wr_addr(m, pi.addr.data, lenexp.lexp_o, misalign, pr,
+                                 pi.is_dcbz_i)
                 with m.If(adrok_l.qn):
                     comb += pi.addr_ok_o.eq(1)  # acknowledge addr ok
                     sync += adrok_l.s.eq(1)       # and pull "ack" latch
@@ -308,7 +299,6 @@ class PortInterfaceBase(Elaboratable):
         with m.If(reset_l.q):
             comb += ld_active.r.eq(1)   # leave the LD active for 1 cycle
             comb += st_active.r.eq(1)   # leave the ST active for 1 cycle
-            comb += dcbz_active.r.eq(1)   # leave the DCBZ active for 1 cycle
             comb += reset_l.r.eq(1)     # clear reset
             comb += adrok_l.r.eq(1)     # address reset
             comb += st_done.r.eq(1)     # store done reset
