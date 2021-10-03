@@ -173,7 +173,7 @@ class PortInterfaceBase(Elaboratable):
     def connect_port(self, inport):
         return self.pi.connect_port(inport)
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr_pr): pass
+    def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz): pass
     def set_rd_addr(self, m, addr, mask, misalign, msr_pr): pass
     def set_wr_data(self, m, data, wen): pass
     def get_rd_data(self, m): pass
@@ -256,17 +256,6 @@ class PortInterfaceBase(Elaboratable):
                 comb += pi.addr_ok_o.eq(1)  # acknowledge addr ok
                 sync += adrok_l.s.eq(1)       # and pull "ack" latch
 
-        # if now in "DCBZ" mode: wait for addr_ok, then send the address out
-        # to memory, acknowledge address, and send out LD data
-        #with m.If(dcbz_active.q):
-            ##comb += Display("dcbz active")
-            # XXX Please don't do it this way, not without discussion
-            # the exact same address is required to be set by both
-            # dcbz and stores, so use the exact same function.
-            # it would be better to add an extra argument to
-            # set_wr_addr to indicate "dcbz mode".
-            #self.___use_wr_addr_instead_set_dcbz_addr(m, pi.addr.data)
-
         # if now in "ST" mode: likewise do the same but with "ST"
         # to memory, acknowledge address, and send out LD data
         with m.If(st_active.q):
@@ -275,7 +264,8 @@ class PortInterfaceBase(Elaboratable):
             comb += lenexp.len_i.eq(pi.data_len)
             comb += lenexp.addr_i.eq(lsbaddr)
             with m.If(pi.addr.ok):
-                self.set_wr_addr(m, pi.addr.data, lenexp.lexp_o, misalign, pr)
+                is_dcbz = 0 # fixme
+                self.set_wr_addr(m, pi.addr.data, lenexp.lexp_o, misalign, pr, is_dcbz)
                 with m.If(adrok_l.qn):
                     comb += pi.addr_ok_o.eq(1)  # acknowledge addr ok
                     sync += adrok_l.s.eq(1)       # and pull "ack" latch
