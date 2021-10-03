@@ -17,7 +17,6 @@ def wait_busy(port, no=False,debug=None):
             break
         yield
         cnt += 1
-        
 
 
 def wait_addr(port,debug=None):
