@@ -24,6 +24,8 @@ from soc.config.test.test_loadstore import TestMemPspec
 from soc.experiment.mmu import MMU
 from nmutil.util import Display
 
+from soc.config.loadstore import ConfigMemoryPortInterface
+
 def wait_for_debug(sig, event, wait=True, test1st=False):
     v = (yield sig)
     print("wait for", sig, v, wait, test1st)
@@ -110,10 +112,16 @@ class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
         from soc.experiment.l0_cache import TstL0CacheBuffer
         from soc.fu.ldst.pipe_data import LDSTPipeSpec
         regspec = LDSTPipeSpec.regspec
-        self.l0 = l0 = TstL0CacheBuffer(pspec) #this is wrong, see setup_mmu
+
+        # use a LoadStore1 here
+
+        cmpi = ConfigMemoryPortInterface(pspec)
+        self.cmpi = cmpi
+        ldst = cmpi.pi
+        self.l0 = ldst
+
         self.mmu = MMU()
-        pi = l0.l0.dports[0]
-        LDSTCompUnit.__init__(self, pi, regspec, 4)
+        LDSTCompUnit.__init__(self, ldst.pi, regspec, 4)
 
     def elaborate(self, platform):
         m = LDSTCompUnit.elaborate(self, platform)
@@ -123,11 +131,12 @@ class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
         m.d.comb += self.ad.go_i.eq(self.ad.rel_o)
 
         # link mmu and dcache together
-        dcache = self.l0.pimem.dcache
+        dcache = self.l0.dcache
         mmu = self.mmu
         m.d.comb += dcache.m_in.eq(mmu.d_out) # MMUToDCacheType
         m.d.comb += mmu.d_in.eq(dcache.m_out) # DCacheToMMUType
 
+        # TODO: link wishbone bus
 
         return m
 
