@@ -687,7 +687,7 @@ def load(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
     yield dut.src1_i.eq(src1)
     yield dut.src2_i.eq(src2)
     yield dut.oper_i.zero_a.eq(zero_a)
-    yield dut.oper_i.imm_data.imm.eq(imm)
+    yield dut.oper_i.imm_data.data.eq(imm)
     yield dut.oper_i.imm_data.ok.eq(imm_ok)
     yield dut.issue_i.eq(1)
     yield
@@ -703,9 +703,9 @@ def load(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
 
     # wait for the operands (RA, RB, or both)
     if rd:
-        yield dut.rd.go.eq(rd)
+        yield dut.rd.go_i.eq(rd)
         yield from wait_for(dut.rd.rel_o)
-        yield dut.rd.go.eq(0)
+        yield dut.rd.go_i.eq(0)
 
     yield from wait_for(dut.adr_rel_o, False, test1st=True)
     # yield dut.ad.go.eq(1)
