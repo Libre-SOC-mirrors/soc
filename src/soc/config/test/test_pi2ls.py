@@ -43,12 +43,13 @@ def wait_ldok(port):
         yield
 
 
-def pi_st(port1, addr, data, datalen, msr_pr=0):
+def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
 
     # have to wait until not busy
     yield from wait_busy(port1, no=False)    # wait until not busy
 
     # set up a ST on the port.  address first:
+    yield port1.is_dcbz_i.eq(is_dcbz)  # reset dcbz too
     yield port1.is_st_i.eq(1)  # indicate ST
     yield port1.data_len.eq(datalen)  # ST length (1/2/4/8)
     yield port1.msr_pr.eq(msr_pr)  # MSR PR bit (1==>virt, 0==>real)
@@ -72,40 +73,7 @@ def pi_st(port1, addr, data, datalen, msr_pr=0):
     yield port1.is_dcbz_i.eq(0)  # reset dcbz too
 
 
-# copy of pi_st
-def pi_dcbz(port1, addr, msr_pr=0):
-
-    # have to wait until not busy
-    yield from wait_busy(port1, no=False,debug="busy")    # wait until not busy
-
-    # set up a ST on the port.  address first:
-    yield port1.is_st_i.eq(1)  # indicate ST
-    yield port1.msr_pr.eq(msr_pr)  # MSR PR bit (1==>virt, 0==>real)
-
-    yield port1.is_dcbz_i.eq(1) # set dcbz #FIXME
-
-    yield port1.addr.data.eq(addr)  # set address
-    yield port1.addr.ok.eq(1)  # set ok
-    yield Settle()
-
-    # guess: this is not needed
-    # yield from wait_addr(port1,debug="addr")             # wait until addr ok
-
-    # just write some dummy data -- remove
-    print("dummy write begin")
-    yield port1.st.data.eq(0)
-    yield port1.st.ok.eq(1)
-    yield
-    yield port1.st.ok.eq(0)
-    print("dummy write end")
-
-    yield from wait_busy(port1, no=True, debug="not_busy")    # wait while busy
-
-    # can go straight to reset.
-    yield port1.is_st_i.eq(0)  # end
-    yield port1.addr.ok.eq(0)  # set !ok
-    yield port1.is_dcbz_i.eq(0)  # reset dcbz too
-
+# copy of pi_st removed
 
 def pi_ld(port1, addr, datalen, msr_pr=0):
 

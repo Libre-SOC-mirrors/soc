@@ -11,7 +11,7 @@ from random import randint, seed
 from nmigen.sim import Simulator, Delay, Settle
 from nmutil.util import wrap
 
-from soc.config.test.test_pi2ls import pi_ld, pi_st, pi_ldst, pi_dcbz
+from soc.config.test.test_pi2ls import pi_ld, pi_st, pi_ldst
 from soc.config.test.test_loadstore import TestMemPspec
 from soc.config.loadstore import ConfigMemoryPortInterface
 
@@ -129,7 +129,7 @@ def _test_dcbz_addr_100e0(dut, mem):
     assert ld_data == 0xf553b658ba7e1f51
 
     print("do_dcbz ===============")
-    yield from pi_dcbz(pi, addr, msr_pr=0)
+    yield from pi_st(pi, addr, data, 8, msr_pr=0, is_dcbz=1)
     print("done_dcbz ===============")
     yield
 
