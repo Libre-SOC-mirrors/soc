@@ -18,7 +18,7 @@ from openpower.consts import MSR
 from soc.experiment.compalu_multi import go_record, CompUnitRecord
 from soc.experiment.l0_cache import PortInterface
 from soc.experiment.pimem import LDSTException
-from soc.experiment.compldst_multi import LDSTCompUnit
+from soc.experiment.compldst_multi import LDSTCompUnit, load, store
 from soc.config.test.test_loadstore import TestMemPspec
 
 from soc.experiment.mmu import MMU
@@ -65,8 +65,23 @@ def dcbz(dut, ra, zero_a, rb):
         yield dut.rd.go_i.eq(0)
 
 
+
+# same thing as soc/src/soc/experiment/test/test_dcbz_pi.py
 def ldst_sim(dut):
-    yield from dcbz(dut, 4, 0, 3) # EA=7
+    yield dut.mmu.rin.prtbl.eq(0x1000000) # set process table
+    ###yield from dcbz(dut, 4, 0, 3) # EA=7
+    addr = 0x100e0
+    data = 0xf553b658ba7e1f51
+
+    yield from store(dut, addr, 0, data, 0)
+    yield
+    yield from load(dut, 4, 0, 2) #FIXME
+    """
+    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
+    assert ld_data == 0xf553b658ba7e1f51
+    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
+    assert ld_data == 0xf553b658ba7e1f51
+    """
     yield
 
 ########################################
@@ -104,6 +119,8 @@ def test_scoreboard_mmu():
         f.write(vl)
 
     run_simulation(dut, ldst_sim(dut), vcd_name='test_ldst_comp.vcd')
+    #TODO add wb runner here
+
 
 ########################################
 class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
