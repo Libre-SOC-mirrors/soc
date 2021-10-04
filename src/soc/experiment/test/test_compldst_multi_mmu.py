@@ -1,6 +1,7 @@
 # test case for LOAD / STORE Computation Unit using MMU
 
-from nmigen.compat.sim import run_simulation
+#from nmigen.compat.sim import run_simulation
+from nmigen.sim import Simulator, Delay, Settle
 from nmigen.cli import verilog, rtlil
 from nmigen import Module, Signal, Mux, Cat, Elaboratable, Array, Repl
 from nmigen.hdl.rec import Record, Layout
@@ -8,6 +9,7 @@ from nmigen.hdl.rec import Record, Layout
 from nmutil.latch import SRLatch, latchregister
 from nmutil.byterev import byte_reverse
 from nmutil.extend import exts
+from nmutil.util import wrap
 from soc.fu.regspec import RegSpecAPI
 
 from openpower.decoder.power_enums import MicrOp, Function, LDSTMode
@@ -26,6 +28,11 @@ from nmutil.util import Display
 
 from soc.config.loadstore import ConfigMemoryPortInterface
 
+def b(x): # byte-reverse function
+    return int.from_bytes(x.to_bytes(8, byteorder='little'),
+                          byteorder='big', signed=False)
+#FIXME: move to common module
+
 def wait_for_debug(sig, event, wait=True, test1st=False):
     v = (yield sig)
     print("wait for", sig, v, wait, test1st)
@@ -38,33 +45,67 @@ def wait_for_debug(sig, event, wait=True, test1st=False):
         if bool(v) == wait:
             break
 
-# if RA = 0 then b <- 0     RA needs to be read if RA = 0
-# else           b <-(RA)
-# EA <- b + (RB)            RB needs to be read
-# verify that EA is correct first
-def dcbz(dut, ra, zero_a, rb):
-    print("LD_part", ra, zero_a, rb)
-    yield dut.oper_i.insn_type.eq(MicrOp.OP_DCBZ)
-    yield dut.src1_i.eq(ra)
-    yield dut.src2_i.eq(rb)
+def load_debug(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
+         byterev=True):
+    print("LD", src1, src2, imm, imm_ok, update)
+    yield dut.oper_i.insn_type.eq(MicrOp.OP_LOAD)
+    yield dut.oper_i.data_len.eq(2)  # half-word
+    yield dut.oper_i.byte_reverse.eq(byterev)
+    yield dut.src1_i.eq(src1)
+    yield dut.src2_i.eq(src2)
     yield dut.oper_i.zero_a.eq(zero_a)
+    yield dut.oper_i.imm_data.data.eq(imm)
+    yield dut.oper_i.imm_data.ok.eq(imm_ok)
     yield dut.issue_i.eq(1)
     yield
     yield dut.issue_i.eq(0)
     yield
 
-    # set up operand flags
-    rd = 0b10
+    # set up read-operand flags
+    rd = 0b00
+    if not imm_ok:  # no immediate means RB register needs to be read
+        rd |= 0b10
     if not zero_a:  # no zero-a means RA needs to be read
         rd |= 0b01
 
     # wait for the operands (RA, RB, or both)
     if rd:
         yield dut.rd.go_i.eq(rd)
-        yield from wait_for_debug(dut.rd.rel_o,"operands (RA, RB, or both)")
+        yield from wait_for_debug(dut.rd.rel_o,"operands")
         yield dut.rd.go_i.eq(0)
 
+    yield from wait_for_debug(dut.adr_rel_o, "adr_rel_o" ,False, test1st=True)
+    yield Display("load_debug: done")
+    # yield dut.ad.go.eq(1)
+    # yield
+    # yield dut.ad.go.eq(0)
 
+    """
+    guess: hangs here
+
+    if update:
+        yield from wait_for(dut.wr.rel_o[1])
+        yield dut.wr.go.eq(0b10)
+        yield
+        addr = yield dut.addr_o
+        print("addr", addr)
+        yield dut.wr.go.eq(0)
+    else:
+        addr = None
+
+    yield from wait_for(dut.wr.rel_o[0], test1st=True)
+    yield dut.wr.go.eq(1)
+    yield
+    data = yield dut.o_data
+    print(data)
+    yield dut.wr.go.eq(0)
+    yield from wait_for(dut.busy_o)
+    yield
+    # wait_for(dut.stwd_mem_o)
+    return data, addr
+    """
+
+# removed
 
 # same thing as soc/src/soc/experiment/test/test_dcbz_pi.py
 def ldst_sim(dut):
@@ -75,7 +116,7 @@ def ldst_sim(dut):
 
     yield from store(dut, addr, 0, data, 0)
     yield
-    yield from load(dut, 4, 0, 2) #FIXME
+    yield from load_debug(dut, 4, 0, 2) #FIXME
     """
     ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
     assert ld_data == 0xf553b658ba7e1f51
@@ -153,12 +194,59 @@ class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
         m.d.comb += dcache.m_in.eq(mmu.d_out) # MMUToDCacheType
         m.d.comb += mmu.d_in.eq(dcache.m_out) # DCacheToMMUType
 
-        # TODO: link wishbone bus
-
         return m
 
+# FIXME: this is redundant code
+def wb_get(wb, mem):
+    """simulator process for getting memory load requests
+    """
+
+    global stop
+    assert(stop==False)
+
+    while not stop:
+        while True: # wait for dc_valid
+            if stop:
+                return
+            cyc = yield (wb.cyc)
+            stb = yield (wb.stb)
+            if cyc and stb:
+                break
+            yield
+        addr = (yield wb.adr) << 3
+        stop = True # hack for testing
+        if addr not in mem:
+            print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
+
+        # read or write?
+        we = (yield wb.we)
+        if we:
+            store = (yield wb.dat_w)
+            sel = (yield wb.sel)
+            data = mem.get(addr, 0)
+            # note we assume 8-bit sel, here
+            res = 0
+            for i in range(8):
+                mask = 0xff << (i*8)
+                if sel & (1<<i):
+                    res |= store & mask
+                else:
+                    res |= data & mask
+            mem[addr] = res
+            print ("    DCACHE set %x mask %x data %x" % (addr, sel, res))
+        else:
+            data = mem.get(addr, 0)
+            yield wb.dat_r.eq(data)
+            print ("    DCACHE get %x data %x" % (addr, data))
+
+        yield wb.ack.eq(1)
+        yield
+        yield wb.ack.eq(0)
+        yield
 
 def test_scoreboard_regspec_mmu():
+    
+    m = Module()
 
     units = {}
     pspec = TestMemPspec(ldst_ifacetype='mmu_cache_wb',
@@ -170,15 +258,44 @@ def test_scoreboard_regspec_mmu():
 
     dut = TestLDSTCompUnitRegSpecMMU(pspec)
 
-    # TODO: setup pagetables for MMU
+    m.submodules.dut = dut
 
-    vl = rtlil.convert(dut, ports=dut.ports())
-    with open("test_ldst_comp_mmu2.il", "w") as f:
-        f.write(vl)
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
 
-    run_simulation(dut, ldst_sim(dut), vcd_name='test_ldst_regspec.vcd')
+    sim.add_sync_process(wrap(ldst_sim(dut)))
+
+    # FIXME: this is redundant code
+    mem = {
+           0x10000:    # PARTITION_TABLE_2
+                       # PATB_GR=1 PRTB=0x1000 PRTS=0xb
+           b(0x800000000100000b),
+
+           0x30000:     # RADIX_ROOT_PTE
+                        # V = 1 L = 0 NLB = 0x400 NLS = 9
+           b(0x8000000000040009),
+
+           0x40000:     # RADIX_SECOND_LEVEL
+                        # V = 1 L = 1 SW = 0 RPN = 0
+                        # R = 1 C = 1 ATT = 0 EAA 0x7
+           b(0xc000000000000183),
+
+           0x1000000:   # PROCESS_TABLE_3
+                        # RTS1 = 0x2 RPDB = 0x300 RTS2 = 0x5 RPDS = 13
+           b(0x40000000000300ad),
+
+           0x10004: 0
+
+    }
+
+    sim.add_sync_process(wrap(wb_get(dut.cmpi.wb_bus(), mem)))
+    with sim.write_vcd('test_dcbz_addr_zero.vcd'):
+        sim.run()
 
 
 if __name__ == '__main__':
+    #FIXME: avoid using global variables
+    global stop
+    stop = False
     test_scoreboard_regspec_mmu()
     #only one test for now -- test_scoreboard_mmu()
