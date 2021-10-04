@@ -102,8 +102,6 @@ def load_debug(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
     return data, addr
     """
 
-# removed
-
 # same thing as soc/src/soc/experiment/test/test_dcbz_pi.py
 def ldst_sim(dut):
     yield dut.mmu.rin.prtbl.eq(0x1000000) # set process table
@@ -121,6 +119,7 @@ def ldst_sim(dut):
     assert ld_data == 0xf553b658ba7e1f51
     """
     yield
+    dut.stop = True # stop simulation
 
 ########################################
 
@@ -157,8 +156,6 @@ def test_scoreboard_mmu():
         f.write(vl)
 
     run_simulation(dut, ldst_sim(dut), vcd_name='test_ldst_comp.vcd')
-    #TODO add wb runner here
-
 
 ########################################
 class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
@@ -193,17 +190,17 @@ class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
 
         return m
 
-# FIXME: this is redundant code
-def wb_get(wb, mem):
+
+def wb_get(dut):
     """simulator process for getting memory load requests
     """
+    mem = dut.mem
+    wb = dut.cmpi.wb_bus()
 
-    global stop
-    assert(stop==False)
-
-    while not stop:
+    # FIXME: this is redundant code
+    while not dut.stop:
         while True: # wait for dc_valid
-            if stop:
+            if dut.stop:
                 return
             cyc = yield (wb.cyc)
             stb = yield (wb.stb)
@@ -211,7 +208,6 @@ def wb_get(wb, mem):
                 break
             yield
         addr = (yield wb.adr) << 3
-        stop = True # hack for testing
         if addr not in mem:
             print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
 
@@ -260,17 +256,15 @@ def test_scoreboard_regspec_mmu():
     sim = Simulator(m)
     sim.add_clock(1e-6)
 
-    mem = pagetables.test1
+    dut.mem = pagetables.test1
+    dut.stop = False
 
     sim.add_sync_process(wrap(ldst_sim(dut)))
-    sim.add_sync_process(wrap(wb_get(dut.cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get(dut)))
     with sim.write_vcd('test_scoreboard_regspec_mmu'):
         sim.run()
 
 
 if __name__ == '__main__':
-    #FIXME: avoid using global variables
-    global stop
-    stop = False
     test_scoreboard_regspec_mmu()
     #only one test for now -- test_scoreboard_mmu()
