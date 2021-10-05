@@ -28,97 +28,19 @@ from nmutil.util import Display
 
 from soc.config.loadstore import ConfigMemoryPortInterface
 from soc.experiment.test import pagetables
+from soc.experiment.test.test_wishbone import wb_get
 
-
-def wait_for_debug(sig, event, wait=True, test1st=False):
-    v = (yield sig)
-    print("wait for", sig, v, wait, test1st)
-    if test1st and bool(v) == wait:
-        return
-    while True:
-        yield
-        v = (yield sig)
-        yield Display("waiting for "+event)
-        if bool(v) == wait:
-            break
-
-def load_debug(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
-         byterev=True):
-    print("LD", src1, src2, imm, imm_ok, update)
-    yield dut.oper_i.insn_type.eq(MicrOp.OP_LOAD)
-    yield dut.oper_i.data_len.eq(2)  # half-word
-    yield dut.oper_i.byte_reverse.eq(byterev)
-    yield dut.src1_i.eq(src1)
-    yield dut.src2_i.eq(src2)
-    yield dut.oper_i.zero_a.eq(zero_a)
-    yield dut.oper_i.imm_data.data.eq(imm)
-    yield dut.oper_i.imm_data.ok.eq(imm_ok)
-    yield dut.issue_i.eq(1)
-    yield
-    yield dut.issue_i.eq(0)
-    yield
-
-    # set up read-operand flags
-    rd = 0b00
-    if not imm_ok:  # no immediate means RB register needs to be read
-        rd |= 0b10
-    if not zero_a:  # no zero-a means RA needs to be read
-        rd |= 0b01
-
-    # wait for the operands (RA, RB, or both)
-    if rd:
-        yield dut.rd.go_i.eq(rd)
-        yield from wait_for_debug(dut.rd.rel_o,"operands")
-        yield dut.rd.go_i.eq(0)
-
-    yield from wait_for_debug(dut.adr_rel_o, "adr_rel_o" ,False, test1st=True)
-    yield Display("load_debug: done")
-    # yield dut.ad.go.eq(1)
-    # yield
-    # yield dut.ad.go.eq(0)
-
-    """
-    guess: hangs here
-
-    if update:
-        yield from wait_for(dut.wr.rel_o[1])
-        yield dut.wr.go.eq(0b10)
-        yield
-        addr = yield dut.addr_o
-        print("addr", addr)
-        yield dut.wr.go.eq(0)
-    else:
-        addr = None
-
-    yield from wait_for(dut.wr.rel_o[0], test1st=True)
-    yield dut.wr.go.eq(1)
-    yield
-    data = yield dut.o_data
-    print(data)
-    yield dut.wr.go.eq(0)
-    yield from wait_for(dut.busy_o)
-    yield
-    # wait_for(dut.stwd_mem_o)
-    return data, addr
-    """
+########################################
 
 # same thing as soc/src/soc/experiment/test/test_dcbz_pi.py
 def ldst_sim(dut):
     yield dut.mmu.rin.prtbl.eq(0x1000000) # set process table
-    ###yield from dcbz(dut, 4, 0, 3) # EA=7
     addr = 0x100e0
     data = 0xf553b658ba7e1f51
 
     yield from store(dut, addr, 0, data, 0)
     yield
-    yield from load_debug(dut, 4, 0, 2) #FIXME
-    """
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
-    assert ld_data == 0xf553b658ba7e1f51
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
-    assert ld_data == 0xf553b658ba7e1f51
-    """
-    yield
+    #TODO
     dut.stop = True # stop simulation
 
 ########################################
@@ -191,51 +113,7 @@ class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
         return m
 
 
-def wb_get(dut):
-    """simulator process for getting memory load requests
-    """
-    mem = dut.mem
-    wb = dut.cmpi.wb_bus()
 
-    # FIXME: this is redundant code
-    while not dut.stop:
-        while True: # wait for dc_valid
-            if dut.stop:
-                return
-            cyc = yield (wb.cyc)
-            stb = yield (wb.stb)
-            if cyc and stb:
-                break
-            yield
-        addr = (yield wb.adr) << 3
-        if addr not in mem:
-            print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
-
-        # read or write?
-        we = (yield wb.we)
-        if we:
-            store = (yield wb.dat_w)
-            sel = (yield wb.sel)
-            data = mem.get(addr, 0)
-            # note we assume 8-bit sel, here
-            res = 0
-            for i in range(8):
-                mask = 0xff << (i*8)
-                if sel & (1<<i):
-                    res |= store & mask
-                else:
-                    res |= data & mask
-            mem[addr] = res
-            print ("    DCACHE set %x mask %x data %x" % (addr, sel, res))
-        else:
-            data = mem.get(addr, 0)
-            yield wb.dat_r.eq(data)
-            print ("    DCACHE get %x data %x" % (addr, data))
-
-        yield wb.ack.eq(1)
-        yield
-        yield wb.ack.eq(0)
-        yield
 
 def test_scoreboard_regspec_mmu():
 
