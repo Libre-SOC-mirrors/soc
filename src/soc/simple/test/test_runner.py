@@ -119,6 +119,9 @@ def get_dmi(dmi, addr):
 
 
 class HDLRunner(StateRunner):
+    """HDLRunner:  Implements methods for the setup, preparation, and
+    running of tests using nmigen HDL simulation.
+    """
     def __init__(self, dut, m, pspec):
         super().__init__("hdl", HDLRunner)
 
