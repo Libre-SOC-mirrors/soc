@@ -12,6 +12,9 @@ from openpower.test.state import (State, state_add, state_factory,
 from soc.fu.compunits.test.test_compunit import get_l0_mem
 
 class HDLState(State):
+    """HDLState: Obtains registers and memory from an nmigen simulator
+    object by implementing State class methods.
+    """
     def __init__(self, core):
         super().__init__()
         self.core = core
