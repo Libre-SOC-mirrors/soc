@@ -1,5 +1,3 @@
-# The license for this file is included in the `nix` directory next to this file.
-
 {
   description = "FOSS CPU/GPU/VPU/SoC all in one, see https://libre-soc.org/";
 
