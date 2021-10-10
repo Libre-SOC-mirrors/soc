@@ -4,7 +4,7 @@ from nmigen import (Module, Signal, Mux)
 from nmutil.pipemodbase import PipeModBase
 from soc.fu.div.pipe_data import DivInputData
 from soc.fu.mul.pipe_data import MulIntermediateData
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 from nmutil.util import eq32
 
 class MulMainStage1(PipeModBase):

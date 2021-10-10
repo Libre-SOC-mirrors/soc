@@ -3,7 +3,7 @@
 from nmigen import Module
 from nmutil.pipemodbase import PipeModBase
 from soc.fu.mul.pipe_data import MulIntermediateData, MulOutputData
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 
 
 class MulMainStage2(PipeModBase):

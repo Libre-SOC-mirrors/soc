@@ -10,7 +10,7 @@ from nmigen import (Module, Signal, Cat, Repl, Mux, signed)
 from nmutil.pipemodbase import PipeModBase
 from soc.fu.div.pipe_data import DivMulOutputData
 from soc.fu.mul.pipe_data import MulOutputData
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 from openpower.decoder.power_enums import MicrOp
 
 

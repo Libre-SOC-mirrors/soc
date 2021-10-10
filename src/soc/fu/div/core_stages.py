@@ -3,7 +3,7 @@
 
 from nmigen import (Module, Signal, Cat, Repl, Mux, Const, Array)
 from nmutil.pipemodbase import PipeModBase
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 from openpower.decoder.power_enums import MicrOp
 
 from openpower.decoder.power_fields import DecodeFields

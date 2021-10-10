@@ -2,7 +2,7 @@
 # and updating the condition register
 from nmigen import (Module, Signal, Cat, Const)
 from nmutil.pipemodbase import PipeModBase
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 from openpower.decoder.power_enums import MicrOp
 
 

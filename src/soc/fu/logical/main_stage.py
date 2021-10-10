@@ -13,7 +13,7 @@ from soc.fu.logical.pipe_data import LogicalInputData
 from soc.fu.logical.bpermd import Bpermd
 from soc.fu.logical.popcount import Popcount
 from soc.fu.logical.pipe_data import LogicalOutputData
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 from openpower.decoder.power_enums import MicrOp
 
 from openpower.decoder.power_fields import DecodeFields

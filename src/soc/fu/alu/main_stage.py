@@ -13,7 +13,7 @@ from nmigen import (Module, Signal, Cat, Repl, Mux, Const)
 from nmutil.pipemodbase import PipeModBase
 from nmutil.extend import exts, extz
 from soc.fu.alu.pipe_data import ALUInputData, ALUOutputData
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 from openpower.decoder.power_enums import MicrOp
 
 from openpower.decoder.power_fields import DecodeFields

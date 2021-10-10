@@ -10,7 +10,7 @@ from nmigen import (Module, Signal, Cat, Repl, Mux, Const)
 from nmutil.pipemodbase import PipeModBase
 from soc.fu.shift_rot.pipe_data import (ShiftRotOutputData,
                                        ShiftRotInputData)
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 from openpower.decoder.power_enums import MicrOp
 from soc.fu.shift_rot.rotator import Rotator
 

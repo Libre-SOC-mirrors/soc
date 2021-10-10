@@ -6,7 +6,7 @@ from nmutil.pipemodbase import PipeModBase
 from soc.fu.common_output_stage import CommonOutputStage
 from soc.fu.logical.pipe_data import (LogicalInputData, LogicalOutputData,
                                       LogicalOutputDataFinal)
-from ieee754.part.partsig import PartitionedSignal
+from ieee754.part.partsig import SimdSignal
 from openpower.decoder.power_enums import MicrOp
 
 
