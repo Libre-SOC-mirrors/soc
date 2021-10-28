@@ -1,7 +1,7 @@
 # test case for LOAD / STORE Computation Unit using MMU
 
 #from nmigen.compat.sim import run_simulation
-from nmigen.sim import Simulator, Delay, Settle
+from nmigen.compat.sim import Simulator, Delay, Settle
 from nmigen.cli import verilog, rtlil
 from nmigen import Module, Signal, Mux, Cat, Elaboratable, Array, Repl
 from nmigen.hdl.rec import Record, Layout
