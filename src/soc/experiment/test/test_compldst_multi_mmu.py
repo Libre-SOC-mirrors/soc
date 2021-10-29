@@ -31,6 +31,86 @@ from soc.experiment.test.test_wishbone import wb_get
 
 ########################################
 
+def wait_for_debug(sig, wait=True, test1st=False):
+    v = (yield sig)
+    cnt = 0
+    print("wait for", sig, v, wait, test1st)
+    if test1st and bool(v) == wait:
+        return
+    while True:
+        cnt = cnt + 1
+        if cnt > 1000:
+            print("hang")
+            break
+        yield
+        v = (yield sig)
+        #print("...wait for", sig, v)
+        if bool(v) == wait:
+            break
+
+def store_debug(dut, src1, src2, src3, imm, imm_ok=True, update=False,
+          byterev=True,dcbz=False):
+    print("ST", src1, src2, src3, imm, imm_ok, update)
+    if dcbz:
+        yield dut.oper_i.insn_type.eq(MicrOp.OP_DCBZ)
+    else:
+        yield dut.oper_i.insn_type.eq(MicrOp.OP_STORE)
+    yield dut.oper_i.data_len.eq(2)  # half-word
+    yield dut.oper_i.byte_reverse.eq(byterev)
+    yield dut.src1_i.eq(src1)
+    yield dut.src2_i.eq(src2)
+    yield dut.src3_i.eq(src3)
+    yield dut.oper_i.imm_data.data.eq(imm)
+    yield dut.oper_i.imm_data.ok.eq(imm_ok)
+    #guess: this one was removed -- yield dut.oper_i.update.eq(update)
+    yield dut.issue_i.eq(1)
+    yield
+    yield dut.issue_i.eq(0)
+
+    if imm_ok:
+        active_rel = 0b101
+    else:
+        active_rel = 0b111
+    # wait for all active rel signals to come up
+    cnt = 0
+    while True:
+        rel = yield dut.rd.rel_o
+        cnt = cnt + 1
+        if cnt > 1000:
+            print("hang in -- wait for all active rel signals to come up")
+            break
+        if rel == active_rel:
+            break
+        yield
+    yield dut.rd.go_i.eq(active_rel)
+    yield
+    yield dut.rd.go_i.eq(0)
+
+    yield from wait_for_debug(dut.adr_rel_o, False, test1st=True)
+    # yield from wait_for(dut.adr_rel_o)
+    # yield dut.ad.go.eq(1)
+    # yield
+    # yield dut.ad.go.eq(0)
+
+    if update:
+        yield from wait_for_debug(dut.wr.rel_o[1])
+        yield dut.wr.go.eq(0b10)
+        yield
+        addr = yield dut.addr_o
+        print("addr", addr)
+        yield dut.wr.go.eq(0)
+    else:
+        addr = None
+
+    yield from wait_for_debug(dut.sto_rel_o)
+    yield dut.go_st_i.eq(1)
+    yield
+    yield dut.go_st_i.eq(0)
+    yield from wait_for_debug(dut.busy_o, False)
+    # wait_for(dut.stwd_mem_o)
+    yield
+    return addr
+
 # same thing as soc/src/soc/experiment/test/test_dcbz_pi.py
 def ldst_sim(dut):
     yield dut.mmu.rin.prtbl.eq(0x1000000) # set process table
@@ -40,11 +120,24 @@ def ldst_sim(dut):
 
     yield from store(dut, addr, 0, data, 0)
     yield
-    ld_data, data_ok, addr = yield from load(dut, addr, 0, 0)
-    print("ret")
-    print(data,data_ok,addr)
+    ld_data, data_ok, ld_addr = yield from load(dut, addr, 0, 0)
+    print(data,data_ok,ld_addr)
     assert(ld_data==data)
-    #TODO
+    yield
+
+    data = 0
+
+    print("doing dcbz/store with data 0 .....")
+    yield from store_debug(dut, addr, 0, data, 0, dcbz=True) #hangs
+
+    # TODO verify
+    ld_data, data_ok, ld_addr = yield from load(dut, addr, 0, 0)
+    print(data,data_ok,ld_addr)
+    print("ld_data is")
+    print(ld_data)
+    assert(ld_data==data)
+    print("dzbz test passed")
+
     dut.stop = True # stop simulation
 
 ########################################
