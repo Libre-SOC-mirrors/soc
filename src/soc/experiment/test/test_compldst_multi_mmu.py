@@ -35,10 +35,15 @@ from soc.experiment.test.test_wishbone import wb_get
 def ldst_sim(dut):
     yield dut.mmu.rin.prtbl.eq(0x1000000) # set process table
     addr = 0x100e0
-    data = 0xf553b658ba7e1f51
+    data = 0xFF #just a single byte for this test
+    #data = 0xf553b658ba7e1f51
 
     yield from store(dut, addr, 0, data, 0)
     yield
+    ld_data, data_ok, addr = yield from load(dut, addr, 0, 0)
+    print("ret")
+    print(data,data_ok,addr)
+    assert(ld_data==data)
     #TODO
     dut.stop = True # stop simulation
 

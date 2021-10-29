@@ -714,24 +714,24 @@ def load(dut, src1, src2, imm, imm_ok=True, update=False, zero_a=False,
 
     if update:
         yield from wait_for(dut.wr.rel_o[1])
-        yield dut.wr.go.eq(0b10)
+        yield dut.wr.go_i.eq(0b10)
         yield
         addr = yield dut.addr_o
         print("addr", addr)
-        yield dut.wr.go.eq(0)
+        yield dut.wr.go_i.eq(0)
     else:
         addr = None
 
     yield from wait_for(dut.wr.rel_o[0], test1st=True)
-    yield dut.wr.go.eq(1)
+    yield dut.wr.go_i.eq(1)
     yield
-    data = yield dut.o_data
-    print(data)
-    yield dut.wr.go.eq(0)
+    data = yield dut.o_data.o
+    data_ok = yield dut.o_data.o_ok
+    yield dut.wr.go_i.eq(0)
     yield from wait_for(dut.busy_o)
     yield
     # wait_for(dut.stwd_mem_o)
-    return data, addr
+    return data, data_ok, addr
 
 
 def ldst_sim(dut):
