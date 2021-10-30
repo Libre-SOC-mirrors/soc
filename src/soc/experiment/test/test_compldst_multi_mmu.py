@@ -241,7 +241,7 @@ def test_scoreboard_regspec_mmu():
 
     sim.add_sync_process(wrap(ldst_sim(dut)))
     sim.add_sync_process(wrap(wb_get(dut)))
-    with sim.write_vcd('test_scoreboard_regspec_mmu'):
+    with sim.write_vcd('test_scoreboard_regspec_mmu.vcd'):
         sim.run()
 
 
