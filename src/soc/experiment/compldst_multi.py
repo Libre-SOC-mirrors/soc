@@ -195,7 +195,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         self.awid = awid
         self.pi = pi
         self.cu = cu = LDSTCompUnitRecord(rwid, opsubset, name=name)
-        self.debugtest = debugtest
+        self.debugtest = debugtest # enable debug output for unit testing
 
         # POWER-compliant LD/ST has index and update: *fixed* number of ports
         self.n_src = n_src = 3   # RA, RB, RT/RS
@@ -283,6 +283,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         op_is_ld = Signal(reset_less=True)
         op_is_st = Signal(reset_less=True)
         op_is_dcbz = Signal(reset_less=True)
+        op_is_st_or_dcbz = Signal(reset_less=True)
 
         # ALU/LD data output control
         alu_valid = Signal(reset_less=True)  # ALU operands are valid
@@ -332,6 +333,8 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += op_is_st.eq(oper_r.insn_type == MicrOp.OP_STORE)   # ST
         comb += op_is_ld.eq(oper_r.insn_type == MicrOp.OP_LOAD)    # LD
         comb += op_is_dcbz.eq(oper_r.insn_type == MicrOp.OP_DCBZ)  # DCBZ
+        comb += op_is_st_or_dcbz.eq(op_is_st | op_is_dcbz)
+        # dcbz is special case of store
         #uncomment if needed
         #comb += Display("compldst_multi: op_is_dcbz = %i",
         #                (oper_r.insn_type == MicrOp.OP_DCBZ))
@@ -366,6 +369,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # src operand latch
         sync += src_l.s.eq(Repl(issue_i, self.n_src))
         sync += src_l.r.eq(reset_r)
+        #### sync += Display("reset_r = %i",reset_r)
 
         # alu latch.  use sync-delay between alu_ok and valid to generate pulse
         comb += alu_l.s.eq(reset_i)
@@ -392,7 +396,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         sync += upd_l.r.eq(reset_u)
 
         # store latch
-        comb += sto_l.s.eq(addr_ok & op_is_st)
+        comb += sto_l.s.eq(addr_ok & op_is_st_or_dcbz)
         sync += sto_l.r.eq(reset_s | p_st_go)
 
         # ld/st done.  needed to stop LD/ST from activating repeatedly
@@ -451,7 +455,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         # 1st operand read-request only when zero not active
         # 2nd operand only needed when immediate is not active
-        slg = Cat(op_is_z, op_is_imm)
+        slg = Cat(op_is_z, op_is_imm) #is this correct ?
         bro = Repl(self.busy_o, self.n_src)
         comb += self.rd.rel_o.eq(src_l.q & bro & ~slg & ~self.rdmaskn)
 
@@ -477,7 +481,8 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += cancel.eq(~self.exc_o.happened & self.shadown_i)
 
         # store release when st ready *and* all operands read (and no shadow)
-        comb += self.st.rel_o.eq(sto_l.q & busy_o & rd_done & op_is_st &
+        # dcbz is special case of store -- TODO verify shadows
+        comb += self.st.rel_o.eq(sto_l.q & busy_o & rd_done & op_is_st_or_dcbz &
                                cancel)
 
         # request write of LD result.  waits until shadow is dropped.
@@ -521,13 +526,13 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         # connect to LD/ST PortInterface.
         comb += pi.is_ld_i.eq(op_is_ld & busy_o)  # decoded-LD
-        comb += pi.is_st_i.eq(op_is_st & busy_o)  # decoded-ST
+        comb += pi.is_st_i.eq(op_is_st_or_dcbz & busy_o)  # decoded-ST
         comb += pi.is_dcbz_i.eq(op_is_dcbz & busy_o)  # decoded-DCBZ
         comb += pi.data_len.eq(oper_r.data_len)  # data_len
         # address: use sync to avoid long latency
         sync += pi.addr.data.eq(addr_r)           # EA from adder
-        sync += Display("EA from adder %i op_is_dcbz %i",addr_r,op_is_dcbz)
-        ## do not use ### sync += pi.is_dcbz.eq(op_is_dcbz) # set dcbz
+        with m.If(op_is_dcbz):
+            sync += Display("DCBZ: EA from adder %i",addr_r)
 
         sync += pi.addr.ok.eq(alu_ok & lsd_l.q)  # "do address stuff" (once)
         comb += self.exc_o.eq(pi.exc_o)  # exception occurred
