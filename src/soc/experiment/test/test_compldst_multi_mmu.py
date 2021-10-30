@@ -112,8 +112,8 @@ def store_debug(dut, src1, src2, src3, imm, imm_ok=True, update=False,
     yield dut.go_st_i.eq(1)
     yield
     yield dut.go_st_i.eq(0)
-    yield from wait_for_debug(dut.busy_o,"not_busy" ,False)
-    # wait_for(dut.stwd_mem_o)
+    yield from wait_for_debug(dut.busy_o,"not_busy" ,False) #BUG: port interface stays busy until xxx
+    ###wait_for(dut.stwd_mem_o)
     yield
     return addr
 
@@ -140,7 +140,7 @@ def ldst_sim(dut):
     print(data,data_ok,ld_addr)
     print("ld_data is")
     print(ld_data)
-    ###BROKEN### assert(ld_data==data)
+    assert(ld_data==data)
     print("dzbz test passed")
 
     dut.stop = True # stop simulation
