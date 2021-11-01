@@ -145,10 +145,11 @@ class FSMMMUStage(ControlBase):
                     with m.If(~spr[9] & ~spr[5]):
                         comb += self.debug0.eq(3)
                         #if matched update local cached value
-                        with m.If(spr[0]):
-                            sync += dsisr.eq(a_i[:32])
-                        with m.Else():
-                            sync += dar.eq(a_i)
+                        #commented out because there is a driver conflict
+                        #with m.If(spr[0]):
+                        #    sync += dsisr.eq(a_i[:32])
+                        #with m.Else():
+                        #    sync += dar.eq(a_i)
                         comb += done.eq(1)
                     # pass it over to the MMU instead
                     with m.Else():
