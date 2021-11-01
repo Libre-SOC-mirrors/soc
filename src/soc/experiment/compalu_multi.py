@@ -174,7 +174,12 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
-        setattr(m.submodules, self.alu_name, self.alu)
+        # add the ALU to the MultiCompUnit only if it is a "real" ALU
+        # see AllFunctionUnits as to why: a FunctionUnitBaseMulti
+        # only has one "real" ALU but multiple pseudo front-ends,
+        # aka "ReservationStations" (ALUProxy "fronts")
+        if isinstance(self.alu, Elaboratable):
+            setattr(m.submodules, self.alu_name, self.alu)
         m.submodules.src_l = src_l = SRLatch(False, self.n_src, name="src")
         m.submodules.opc_l = opc_l = SRLatch(sync=False, name="opc")
         m.submodules.req_l = req_l = SRLatch(False, self.n_dst, name="req")

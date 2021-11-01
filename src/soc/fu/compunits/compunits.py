@@ -48,6 +48,7 @@ from nmigen.cli import rtlil
 from soc.experiment.compalu_multi import MultiCompUnit
 from openpower.decoder.power_enums import Function
 from soc.config.test.test_loadstore import TestMemPspec
+from nmutil.concurrentunit import ReservationStations
 
 # pipeline / spec imports
 
@@ -122,18 +123,55 @@ class FunctionUnitBaseSingle(MultiCompUnit):
 ##############################################################
 # TODO: ReservationStations-based (FunctionUnitBaseConcurrent)
 
-class FunctionUnitBaseMulti:
-    pass
+class FunctionUnitBaseMulti(ReservationStations):
+    """FunctionUnitBaseMulti
+
+    similar to FunctionUnitBaseSingle except it creates a list
+    of MultiCompUnit instances all using the same ALU instance.
+
+    * :speckls:  - the specification.  contains regspec and op subset info,
+                   and contains common "stuff" like the pipeline ctx,
+                   what type of nmutil pipeline base is to be used (etc)
+    * :pipekls:  - the type of pipeline.  actually connects things together
+
+    * :num_rows: - number of ReservationStations wrapped around the FU
+
+    note that it is through MultiCompUnit.get_in/out that we *actually*
+    connect up the association between regspec variable names (defined
+    in the pipe_data).
+
+    note that the rdflags function obtains (dynamically, from instruction
+    decoding) which read-register ports are to be requested.  this is not
+    ideal (it could be a lot neater) but works for now.
+    """
+
+    def __init__(self, speckls, pipekls, num_rows):
+        id_wid = num_rows.bit_length()
+        pspec = speckls(id_wid=id_wid)           # spec (NNNPipeSpec instance)
+        opsubset = pspec.opsubsetkls             # get the operand subset class
+        regspec = pspec.regspec                  # get the regspec
+        self.alu = pipekls(pspec)                # create actual NNNBasePipe
+        self.pspec = pspec
+        super().__init__(num_rows)               # initialise fan-in/fan-out
+        self.setup_pseudoalus()
+        self.cu = []
+        for idx in range(num_rows):
+            alu_name = "alu_%s%d" % (self.fnunit.name.lower(), idx)
+            palu = self.pseudoalus[idx]
+            cu = MultiCompUnit(regspec, palu, opsubset, name=alu_name)
+            cu.fnunit = self.fnunit
+            self.cu.append(cu)
 
 
 ######################################################################
 ###### actual Function Units: these are "single" stage pipelines #####
 
+#class ALUFunctionUnit(FunctionUnitBaseMulti):
 class ALUFunctionUnit(FunctionUnitBaseSingle):
     fnunit = Function.ALU
 
     def __init__(self, idx):
-        super().__init__(ALUPipeSpec, ALUBasePipe, idx)
+        super().__init__(ALUPipeSpec, ALUBasePipe, 1)
 
 
 class LogicalFunctionUnit(FunctionUnitBaseSingle):
@@ -268,10 +306,17 @@ class AllFunctionUnits(Elaboratable):
 
         # create dictionary of Function Units
         self.fus = {}
+        self.actual_alus = {}
         for name, qty in units.items():
             kls = alus[name]
-            for i in range(qty):
-                self.fus["%s%d" % (name, i)] = kls(i)
+            if issubclass(kls, FunctionUnitBaseMulti):
+                fu = kls(qty) # create just the one ALU but many "fronts"
+                self.actual_alus[name] = fu # to be made a module of AllFUs
+                for i in range(qty):
+                    self.fus["%s%d" % (name, i)] = fu.cu[i]
+            else:
+                for i in range(qty):
+                    self.fus["%s%d" % (name, i)] = kls(i)
 
         # debug print for MMU ALU
         if microwatt_mmu:
@@ -300,8 +345,12 @@ class AllFunctionUnits(Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
+        # add MultiCompUnit modules (Single CompUnits add their own ALU)
         for (name, fu) in self.fus.items():
             setattr(m.submodules, name, fu)
+        # if any ReservationStations, there is only one ALU per RS so add that
+        for (name, alu) in self.actual_alus.items():
+            setattr(m.submodules, name, alu)
         return m
 
     def __iter__(self):
