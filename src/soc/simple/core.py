@@ -163,6 +163,9 @@ class NonProductionCore(Elaboratable):
 
         # connect decoders
         for k, v in self.decoders.items():
+            # connect each satellite decoder and give it the instruction.
+            # as subset decoders this massively reduces wire fanout given
+            # the large number of ALUs
             setattr(m.submodules, "dec_%s" % v.fn_name, v)
             comb += v.dec.raw_opcode_in.eq(self.raw_insn_i)
             comb += v.dec.bigendian.eq(self.bigendian_i)
