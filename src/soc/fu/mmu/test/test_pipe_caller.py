@@ -82,6 +82,8 @@ class TestRunner(unittest.TestCase):
     def __init__(self, test_data):
         super().__init__("run_all")
         self.test_data = test_data
+        #hack here -- all unit tests are affected
+        self.run_all()
 
     def check_fsm_outputs(self, alu, dec2, sim, code, pia_res):
 
