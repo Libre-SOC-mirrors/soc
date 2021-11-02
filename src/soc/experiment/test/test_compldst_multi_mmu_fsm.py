@@ -33,6 +33,13 @@ from soc.experiment.test.test_wishbone import wb_get
 from soc.fu.mmu.pipe_data import MMUPipeSpec
 from soc.fu.mmu.fsm import FSMMMUStage
 
+#for sending instructions to the FSM
+from openpower.consts import MSR
+from openpower.decoder.power_fields import DecodeFields
+from openpower.decoder.power_fieldsn import SignalBitRange
+from openpower.decoder.power_decoder2 import decode_spr_num
+from openpower.decoder.power_enums import MicrOp
+
 def ldst_sim(dut):
     yield dut.mmu.rin.prtbl.eq(0x1000000) # set process table
     addr = 0x100e0
@@ -46,6 +53,15 @@ def ldst_sim(dut):
     assert(ld_data==data)
     yield
 
+    ##### not yet complete
+    yield dut.fsm.p.i_data.ctx.op.eq(MicrOp.OP_TLBIE)
+    yield
+    yield
+    yield
+    yield
+
+    """
+    -- not testing dzbz here --
     data = 0
 
     print("doing dcbz/store with data 0 .....")
@@ -57,6 +73,7 @@ def ldst_sim(dut):
     print(ld_data)
     assert(ld_data==data)
     print("dzbz test passed")
+    """
 
     dut.stop = True # stop simulation
 
