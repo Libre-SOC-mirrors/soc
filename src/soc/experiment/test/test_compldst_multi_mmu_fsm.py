@@ -40,6 +40,17 @@ from openpower.decoder.power_fieldsn import SignalBitRange
 from openpower.decoder.power_decoder2 import decode_spr_num
 from openpower.decoder.power_enums import MicrOp
 
+def test_TLBIE(dut):
+    yield dut.fsm.p.i_data.ctx.op.eq(MicrOp.OP_TLBIE)
+    yield dut.fsm.p.valid_i.eq(1)
+    yield
+    yield dut.fsm.p.valid_i.eq(0)
+    yield
+    yield
+    yield
+    yield
+    yield Display("OP_TLBIE test done")
+
 def ldst_sim(dut):
     yield dut.mmu.rin.prtbl.eq(0x1000000) # set process table
     addr = 0x100e0
@@ -52,13 +63,8 @@ def ldst_sim(dut):
     print(data,data_ok,ld_addr)
     assert(ld_data==data)
     yield
+    yield from test_TLBIE(dut)
 
-    ##### not yet complete
-    yield dut.fsm.p.i_data.ctx.op.eq(MicrOp.OP_TLBIE)
-    yield
-    yield
-    yield
-    yield
 
     """
     -- not testing dzbz here --

@@ -24,7 +24,7 @@ from soc.experiment.mem_types import LoadStore1ToMMUType
 from soc.experiment.mem_types import MMUToLoadStore1Type
 
 from soc.fu.ldst.loadstore import LoadStore1, TestSRAMLoadStore1
-
+from nmutil.util import Display
 
 class FSMMMUStage(ControlBase):
     """FSM MMU
@@ -206,6 +206,7 @@ class FSMMMUStage(ControlBase):
                     # note that the spr is *not* an actual spr number, it's
                     # just that those bits happen to match with field bits
                     # RIC, PRS, R
+                    comb += Display("TLBIE: %i %i",spr,l_out.done)
                     comb += valid.eq(1)   # start "pulse"
                     comb += l_in.valid.eq(blip)   # start
                     comb += l_in.tlbie.eq(1)   # mtspr mode
