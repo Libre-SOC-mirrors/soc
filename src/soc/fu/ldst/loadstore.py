@@ -212,6 +212,7 @@ class LoadStore1(PortInterfaceBase):
                         comb += exception.eq(1)
                         sync += self.state.eq(State.IDLE)
                         sync += ldst_r.eq(0)
+                        sync += Display("cache error -> update dsisr")
                         sync += self.dsisr[63 - 38].eq(~self.load)
                         # XXX there is no architected bit for this
                         # (probably should be a machine check in fact)
@@ -254,6 +255,7 @@ class LoadStore1(PortInterfaceBase):
                 with m.If(m_in.err):
                     # MMU RADIX exception thrown
                     comb += exception.eq(1)
+                    sync += Display("MMU RADIX exception thrown")
                     sync += self.dsisr[63 - 33].eq(m_in.invalid)
                     sync += self.dsisr[63 - 36].eq(m_in.perm_error)
                     sync += self.dsisr[63 - 38].eq(self.load)
@@ -266,6 +268,7 @@ class LoadStore1(PortInterfaceBase):
         # alignment error: store address in DAR
         with m.If(self.align_intr):
             comb += exc.happened.eq(1)
+            sync += Display("alignment error: store address in DAR %x", self.addr)
             sync += self.dar.eq(self.addr)
 
         # happened, alignment, instr_fault, invalid.
