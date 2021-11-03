@@ -127,7 +127,7 @@ class FSMMMUStage(ControlBase):
             # enabled ("valid") and we twiddle our thumbs until it
             # responds ("done").
 
-            # FIXME: properly implement MicrOp.OP_MTSPR and MicrOp.OP_MFSPR
+            # WIP: properly implement MicrOp.OP_MTSPR and MicrOp.OP_MFSPR
 
             with m.Switch(op.insn_type):
                 with m.Case(MicrOp.OP_MTSPR):
@@ -153,6 +153,7 @@ class FSMMMUStage(ControlBase):
                         comb += done.eq(1)
                     # pass it over to the MMU instead
                     with m.Else():
+                        # PGTBL and PID
                         comb += self.debug0.eq(4)
                         # blip the MMU and wait for it to complete
                         comb += valid.eq(1)   # start "pulse"
@@ -163,43 +164,9 @@ class FSMMMUStage(ControlBase):
                         comb += done.eq(1) # FIXME l_out.done
 
                 with m.Case(MicrOp.OP_MFSPR):
-                    # subset SPR: first check a few bits
-                    #with m.If(~spr[9] & ~spr[5]):
-                    #    comb += self.debug0.eq(5)
-                        #with m.If(spr[0]):
-                        #    comb += o.data.eq(dsisr)
-                        #with m.Else():
-                        #    comb += o.data.eq(dar)
-                    #do NOT return cached values
                     comb += o.data.eq(spr1_i)
                     comb += o.ok.eq(1)
                     comb += done.eq(1)
-                    # pass it over to the MMU instead
-                    #with m.Else():
-                    #    comb += self.debug0.eq(6)
-                    #    # blip the MMU and wait for it to complete
-                    #    comb += valid.eq(1)   # start "pulse"
-                    #    comb += l_in.valid.eq(blip)   # start
-                    #    comb += l_in.mtspr.eq(0)   # mfspr!=mtspr
-                    #    comb += l_in.sprn.eq(spr)  # which SPR
-                    #    comb += l_in.rs.eq(a_i)    # incoming operand (RS)
-                    #    comb += o.data.eq(l_out.sprval) # SPR from MMU
-                    #    comb += o.ok.eq(l_out.done) # only when l_out valid
-                    #    comb += done.eq(1) # FIXME l_out.done
-
-                # XXX this one is going to have to go through LDSTCompUnit
-                # because it's LDST that has control over dcache
-                # (through PortInterface).  or, another means is devised
-                # so as not to have double-drivers of d_in.valid and addr
-                #
-                #with m.Case(MicrOp.OP_DCBZ):
-                #    # activate dcbz mode (spec: v3.0B p850)
-                #    comb += valid.eq(1)   # start "pulse"
-                #    comb += d_in.valid.eq(blip)     # start
-                #    comb += d_in.dcbz.eq(1)         # dcbz mode
-                #    comb += d_in.addr.eq(a_i + b_i) # addr is (RA|0) + RB
-                #    comb += done.eq(d_out.store_done)     # TODO
-                #    comb += self.debug0.eq(1)
 
                 with m.Case(MicrOp.OP_TLBIE):
                     # pass TLBIE request to MMU (spec: v3.0B p1034)
