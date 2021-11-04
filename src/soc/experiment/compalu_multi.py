@@ -269,6 +269,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
             name = "data_r%d" % i
             lro = self.get_out(i)
             ok = Const(1, 1)
+            data_r_ok = Const(1, 1)
             if isinstance(lro, Record):
                 data_r = Record.like(lro, name=name)
                 print("wr fields", i, lro, data_r.fields)
@@ -276,9 +277,15 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
                 fname = find_ok(data_r.fields)
                 if fname:
                     ok = getattr(lro, fname)
+                    data_r_ok = getattr(data_r, fname)
+                # write-ok based on incoming output *and* whether the latched
+                # data was ok.
+                # XXX fails - wrok.append((ok|data_r_ok) & self.busy_o)
+                wrok.append(ok & self.busy_o)
             else:
+                # really should retire this but it's part of unit tests
                 data_r = Signal.like(lro, name=name, reset_less=True)
-            wrok.append(ok & self.busy_o)
+                wrok.append(ok & self.busy_o)
             with m.If(alu_pulse):
                 m.d.sync += data_r.eq(lro)
             with m.If(self.issue_i):
