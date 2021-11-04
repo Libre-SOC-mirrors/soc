@@ -48,7 +48,7 @@ from nmigen.cli import rtlil
 from soc.experiment.compalu_multi import MultiCompUnit
 from openpower.decoder.power_enums import Function
 from soc.config.test.test_loadstore import TestMemPspec
-from nmutil.concurrentunit import ReservationStations
+from nmutil.concurrentunit import ReservationStations2
 
 # pipeline / spec imports
 
@@ -123,7 +123,7 @@ class FunctionUnitBaseSingle(MultiCompUnit):
 ##############################################################
 # TODO: ReservationStations-based (FunctionUnitBaseConcurrent)
 
-class FunctionUnitBaseMulti(ReservationStations):
+class FunctionUnitBaseMulti(ReservationStations2):
     """FunctionUnitBaseMulti
 
     similar to FunctionUnitBaseSingle except it creates a list
@@ -150,10 +150,9 @@ class FunctionUnitBaseMulti(ReservationStations):
         pspec = speckls(id_wid=id_wid)           # spec (NNNPipeSpec instance)
         opsubset = pspec.opsubsetkls             # get the operand subset class
         regspec = pspec.regspec                  # get the regspec
-        self.alu = pipekls(pspec)                # create actual NNNBasePipe
+        alu = pipekls(pspec)                # create actual NNNBasePipe
         self.pspec = pspec
-        super().__init__(num_rows)               # initialise fan-in/fan-out
-        self.setup_pseudoalus()
+        super().__init__(alu, num_rows)       # initialise fan-in/fan-out
         self.cu = []
         for idx in range(num_rows):
             alu_name = "alu_%s%d" % (self.fnunit.name.lower(), idx)
