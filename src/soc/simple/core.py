@@ -449,7 +449,7 @@ class NonProductionCore(Elaboratable):
                 pick = fu.wr.rel_o[idx] & fu_active  # & wrflag
                 comb += wrpick.i[pi].eq(pick)
                 # create a single-pulse go write from the picker output
-                wr_pick = Signal()
+                wr_pick = Signal(name="wpick_%s_%s_%d" % (funame, regname, idx))
                 comb += wr_pick.eq(wrpick.o[pi] & wrpick.en_o)
                 comb += fu.go_wr_i[idx].eq(rising_edge(m, wr_pick))
 
