@@ -25,6 +25,23 @@ from openpower.test.ldst.ldst_cases import LDSTTestCase
 from openpower.test.ldst.ldst_exc_cases import LDSTExceptionTestCase
 #from openpower.simulator.test_sim import (GeneralTestCases, AttnTestCase)
 
+from openpower.simulator.program import Program
+from openpower.endian import bigendian
+from openpower.test.common import TestAccumulatorBase
+
+class MMUTestCase(TestAccumulatorBase):
+
+    def case_1_dcbz(self):
+        lst = ["dcbz 1, 2",
+               "dcbz 1, 3"]
+        initial_regs = [0] * 32
+        initial_regs[1] = 0x0004
+        initial_regs[2] = 0x0008
+        initial_regs[3] = 0x0007
+        initial_mem = {}
+        self.add_case(Program(lst, bigendian), initial_regs,
+                             initial_mem=initial_mem)
+
 if __name__ == "__main__":
     svp64 = True
     if len(sys.argv) == 2:
@@ -36,22 +53,10 @@ if __name__ == "__main__":
 
     unittest.main(exit=False)
     suite = unittest.TestSuite()
-    #suite.addTest(TestRunner(GeneralTestCases.test_data, svp64=svp64,
-    #                          microwatt_mmu=True))
-    #suite.addTest(TestRunner(MMUTestCase().test_data, svp64=svp64,
-    #                          microwatt_mmu=True))
 
-    # without ROM set
-    #suite.addTest(TestRunner(MMUTestCaseROM().test_data, svp64=svp64,
-    #                          microwatt_mmu=True))
-
-    # LD/ST tests should all still work
-    suite.addTest(TestRunner(LDSTTestCase().test_data, svp64=svp64,
-                              microwatt_mmu=True))
-
-    # LD/ST exception cases
-    suite.addTest(TestRunner(LDSTExceptionTestCase().test_data, svp64=svp64,
-                              microwatt_mmu=True))
+    # MMU/DCache integration tests
+    suite.addTest(TestRunner(MMUTestCase().test_data, svp64=svp64,
+                              microwatt_mmu=False))
 
     runner = unittest.TextTestRunner()
     runner.run(suite)
