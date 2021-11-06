@@ -532,7 +532,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # address: use sync to avoid long latency
         sync += pi.addr.data.eq(addr_r)           # EA from adder
         with m.If(op_is_dcbz):
-            sync += Display("DCBZ: EA from adder %i",addr_r)
+            sync += Display("MMUTEST.DCBZ: EA from adder %i",addr_r)
 
         sync += pi.addr.ok.eq(alu_ok & lsd_l.q)  # "do address stuff" (once)
         comb += self.exc_o.eq(pi.exc_o)  # exception occurred

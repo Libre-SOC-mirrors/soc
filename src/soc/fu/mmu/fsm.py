@@ -131,6 +131,7 @@ class FSMMMUStage(ControlBase):
 
             with m.Switch(op.insn_type):
                 with m.Case(MicrOp.OP_MTSPR):
+                    comb += Display("MMUTEST: OP_MTSPR: spr=%i",spr);
                     # despite redirection this FU **MUST** behave exactly
                     # like the SPR FU.  this **INCLUDES** updating the SPR
                     # regfile because the CSV file entry for OP_MTSPR
@@ -164,11 +165,13 @@ class FSMMMUStage(ControlBase):
                         comb += done.eq(1) # FIXME l_out.done
 
                 with m.Case(MicrOp.OP_MFSPR):
+                    comb += Display("MMUTEST: OP_MFSPR: spr=%i",spr);
                     comb += o.data.eq(spr1_i)
                     comb += o.ok.eq(1)
                     comb += done.eq(1)
 
                 with m.Case(MicrOp.OP_TLBIE):
+                    comb += Display("MMUTEST: OP_TLBIE: insn_bits=%i",spr);
                     # pass TLBIE request to MMU (spec: v3.0B p1034)
                     # note that the spr is *not* an actual spr number, it's
                     # just that those bits happen to match with field bits
