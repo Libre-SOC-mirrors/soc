@@ -132,16 +132,28 @@ class DivState:
 
 class FSMDivCoreStage(ControlBase):
     def __init__(self, pspec):
-        super().__init__()
-        self.pspec = pspec
-        self.p.i_data = CoreInputData(pspec)
-        self.n.o_data = CoreOutputData(pspec)
-        self.saved_input_data = CoreInputData(pspec)
+        self.pspec = pspec # store now: used in ispec and ospec
+        super().__init__(stage=self)
+        self.saved_input_data = self.ispec()
         self.empty = Signal(reset=1)
         self.saved_state = DivState(64, name="saved_state")
         self.div_state_next = DivStateNext(64)
         self.div_state_init = DivStateInit(64)
         self.divisor = Signal(unsigned(64))
+
+    def ispec(self):
+        return CoreInputData(self.pspec)
+
+    def ospec(self):
+        return CoreOutputData(self.pspec)
+
+    # an extremely rare (and catastrophic) coredump in the binary executable
+    # known as "python 3.7" requires the addition of this function.
+    # no, that's not a "crash which most n00bs call an exception", being
+    # thrown: that's an *actual* coredump created by /usr/bin/python3.7 which
+    # actually segfaults if this function is not added.  no idea why.
+    def setup(self, m, i):
+        pass
 
     def elaborate(self, platform):
         m = super().elaborate(platform)
