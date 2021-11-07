@@ -184,7 +184,7 @@ class SPRRegs(RegFileMem):
 
 # class containing all regfiles: int, cr, xer, fast, spr
 class RegFiles:
-    def __init__(self, pspec):
+    def __init__(self, pspec, make_hazard_vecs=False):
         # test is SVP64 is to be enabled
         svp64_en = hasattr(pspec, "svp64") and (pspec.svp64 == True)
 
@@ -192,7 +192,9 @@ class RegFiles:
         regreduce_en = hasattr(pspec, "regreduce") and \
                       (pspec.regreduce == True)
 
-        self.rf = {}
+        self.rf = {} # register file dict
+        self.wv = {} # global write vectors
+        self.rv = {} # global read vectors
         # create regfiles here, Factory style
         for (name, kls) in [('int', IntRegs),
                             ('cr', CRRegs),
@@ -204,16 +206,47 @@ class RegFiles:
             # also add these as instances, self.state, self.fast, self.cr etc.
             setattr(self, name, rf)
 
+            # create a read-hazard and write-hazard vectors for this regfile
+            if make_hazard_vecs:
+                self.rv[name] = self.make_hazard_vec(rf, "rd")
+                self.wv[name] = self.make_hazard_vec(rf, "wr")
+
+    def make_hazard_vec(self, rf, name):
+        if isinstance(rf, VirtualRegPort):
+            vec = RegFileArray(rf.bitwidth, 1)
+        else:
+            vec = RegFileArray(rf.depth, 1)
+        if name in ['int', 'cr', 'xer']:
+            n_wrs = 3
+        elif name in ['fast']:
+            n_wrs = 2
+        else:
+            n_wrs = 1
+        # add write ports
+        vec.w_ports = {}
+        for i in range(n_wrs):
+            pname = "wr%d" % i
+            vec.w_ports[pname] = vec.write_port("%s_%s" % (name, pname))
+        # add read port
+        vec.r_ports = {}
+        pname = "rd%d" % 0
+        vec.r_ports[pname] = vec.read_port("%s_%s" % (name, pname))
+        return vec
+
     def elaborate_into(self, m, platform):
         for (name, rf) in self.rf.items():
             setattr(m.submodules, name, rf)
+        for (name, rv) in self.rv.items():
+            setattr(m.submodules, "rv_"+name, rv)
+        for (name, wv) in self.wv.items():
+            setattr(m.submodules, "wv_"+name, wv)
         return m
 
 if __name__ == '__main__':
     m = Module()
     from soc.config.test.test_loadstore import TestMemPspec
     pspec = TestMemPspec()
-    rf = RegFiles(pspec)
+    rf = RegFiles(pspec, make_hazard_vecs=True)
     rf.elaborate_into(m, None)
     vl = rtlil.convert(m)
     with open("test_regfiles.il", "w") as f:
