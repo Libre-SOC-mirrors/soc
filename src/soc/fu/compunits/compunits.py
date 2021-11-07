@@ -152,10 +152,11 @@ class FunctionUnitBaseMulti(ReservationStations2):
         regspec = pspec.regspec                  # get the regspec
         alu = pipekls(pspec)                # create actual NNNBasePipe
         self.pspec = pspec
-        super().__init__(alu, num_rows)       # initialise fan-in/fan-out
+        alu_name = self.fnunit.name.lower()
+        super().__init__(alu, num_rows, alu_name)   # initialise fan-in/fan-out
         self.cu = []
         for idx in range(num_rows):
-            alu_name = "alu_%s%d" % (self.fnunit.name.lower(), idx)
+            alu_name = "alu_%s%d" % (alu_name, idx)
             palu = self.pseudoalus[idx]
             cu = MultiCompUnit(regspec, palu, opsubset, name=alu_name)
             cu.fnunit = self.fnunit
@@ -165,36 +166,40 @@ class FunctionUnitBaseMulti(ReservationStations2):
 ######################################################################
 ###### actual Function Units: these are "single" stage pipelines #####
 
-#class ALUFunctionUnit(FunctionUnitBaseMulti):
-class ALUFunctionUnit(FunctionUnitBaseSingle):
+#class ALUFunctionUnit(FunctionUnitBaseSingle):
+class ALUFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.ALU
 
     def __init__(self, idx):
         super().__init__(ALUPipeSpec, ALUBasePipe, 1)
 
 
-class LogicalFunctionUnit(FunctionUnitBaseSingle):
+#class LogicalFunctionUnit(FunctionUnitBaseSingle):
+class LogicalFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.LOGICAL
 
     def __init__(self, idx):
         super().__init__(LogicalPipeSpec, LogicalBasePipe, idx)
 
 
-class CRFunctionUnit(FunctionUnitBaseSingle):
+#class CRFunctionUnit(FunctionUnitBaseSingle):
+class CRFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.CR
 
     def __init__(self, idx):
         super().__init__(CRPipeSpec, CRBasePipe, idx)
 
 
-class BranchFunctionUnit(FunctionUnitBaseSingle):
+#class BranchFunctionUnit(FunctionUnitBaseSingle):
+class BranchFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.BRANCH
 
     def __init__(self, idx):
         super().__init__(BranchPipeSpec, BranchBasePipe, idx)
 
 
-class ShiftRotFunctionUnit(FunctionUnitBaseSingle):
+#class ShiftRotFunctionUnit(FunctionUnitBaseSingle):
+class ShiftRotFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.SHIFT_ROT
 
     def __init__(self, idx):
@@ -222,7 +227,8 @@ class DivPipeFunctionUnit(FunctionUnitBaseSingle):
         super().__init__(DivPipeSpecDivPipeCore, DivBasePipe, idx)
 
 
-class MulFunctionUnit(FunctionUnitBaseSingle):
+#class MulFunctionUnit(FunctionUnitBaseSingle):
+class MulFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.MUL
 
     def __init__(self, idx):
