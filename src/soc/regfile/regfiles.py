@@ -31,6 +31,9 @@ from openpower.decoder.power_enums import SPRfull, SPRreduced
 # XXX MAKE DAMN SURE TO KEEP THESE UP-TO-DATE if changing/adding regs
 from openpower.consts import StateRegsEnum, XERRegsEnum, FastRegsEnum
 
+from nmigen import Module
+from nmigen.cli import rtlil
+
 
 # "State" Regfile
 class StateRegs(RegFileArray, StateRegsEnum):
@@ -205,4 +208,14 @@ class RegFiles:
         for (name, rf) in self.rf.items():
             setattr(m.submodules, name, rf)
         return m
+
+if __name__ == '__main__':
+    m = Module()
+    from soc.config.test.test_loadstore import TestMemPspec
+    pspec = TestMemPspec()
+    rf = RegFiles(pspec)
+    rf.elaborate_into(m, None)
+    vl = rtlil.convert(m)
+    with open("test_regfiles.il", "w") as f:
+        f.write(vl)
 
