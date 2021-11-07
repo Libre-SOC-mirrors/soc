@@ -21,6 +21,7 @@ from soc.simple.test.test_runner import TestRunner
 # test with ALU data and Logical data
 from openpower.test.alu.alu_cases import ALUTestCase
 from openpower.test.div.div_cases import DivTestCases
+from openpower.test.mul.mul_cases import MulTestCases2Arg
 from openpower.test.logical.logical_cases import LogicalTestCase
 from openpower.test.shift_rot.shift_rot_cases import ShiftRotTestCase
 from openpower.test.shift_rot.shift_rot_cases2 import ShiftRotTestCase2
@@ -46,7 +47,7 @@ if __name__ == "__main__":
     if not testing:
         testing = ['general', 'ldst', 'cr', 'shiftrot', 'shiftrot2',
                    'logical', 'alu',
-                   'branch', 'div']
+                   'branch', 'div', 'mul']
 
     print ("SVP64 test mode enabled", svp64, testing)
 
@@ -56,6 +57,7 @@ if __name__ == "__main__":
     # dictionary  of data for tests
     tests = {'hello': HelloTestCases.test_data,
              'div': DivTestCases().test_data,
+             'mul': MulTestCases2Arg().test_data,
              'attn': AttnTestCase.test_data,
              'general': GeneralTestCases.test_data,
              'ldst': LDSTTestCase().test_data,
