@@ -215,11 +215,9 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         # is enough, when combined with when read-phase is done (rst_l.q)
         wr_any = Signal(reset_less=True)
         req_done = Signal(reset_less=True)
-        m.d.comb += self.done_o.eq(self.busy_o &
-                                   ~((self.wr.rel_o & ~self.wrmask).bool()))
+        m.d.comb += self.done_o.eq(self.busy_o & ~(self.wr.rel_o).bool())
         m.d.comb += wr_any.eq(self.wr.go_i.bool() | prev_wr_go.bool())
-        m.d.comb += req_done.eq(wr_any & ~self.alu.n.i_ready &
-                                ((req_l.q & self.wrmask) == 0))
+        m.d.comb += req_done.eq(wr_any & ~self.alu.n.i_ready & (req_l.q == 0))
         # argh, complicated hack: if there are no regs to write,
         # instead of waiting for regs that are never going to happen,
         # we indicate "done" when the ALU is "done"
@@ -360,7 +358,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
 
         # write-release gated by busy and by shadow (and write-mask)
         brd = Repl(self.busy_o & self.shadown_i, self.n_dst)
-        m.d.comb += self.wr.rel_o.eq(req_l.q & brd & self.wrmask)
+        m.d.comb += self.wr.rel_o.eq(req_l.q & brd)
 
         # output the data from the latch on go_write
         for i in range(self.n_dst):
