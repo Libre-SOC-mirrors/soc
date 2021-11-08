@@ -863,7 +863,6 @@ class TestIssuerInternal(Elaboratable):
         # temporaries
         core_busy_o = ~core.p.o_ready                # core is busy
         core_ivalid_i = core.p.i_valid              # instruction is valid
-        insn_type = core.i.e.do.insn_type           # instruction MicroOp type
 
         with m.FSM(name="exec_fsm"):
 
