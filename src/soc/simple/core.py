@@ -70,6 +70,23 @@ def sort_fuspecs(fuspecs):
 
 
 class CoreInput:
+    """CoreInput: this is the input specification for Signals coming into core.
+
+    * state.  this contains PC, MSR, and SVSTATE. this is crucial information.
+      (TODO: bigendian_i should really be read from the relevant MSR bit)
+
+    * the previously-decoded instruction goes into the Decode2Execute1Type
+      data structure. no need for Core to re-decode that.  however note
+      that *satellite* decoders *are* part of Core.
+
+    * the raw instruction. this is used by satellite decoders internal to
+      Core, to provide Function-Unit-specific information.  really, they
+      should be part of the actual ALU itself (in order to reduce wires),
+      but hey.
+
+    * other stuff is related to SVP64.  the 24-bit SV REMAP field containing
+      Vector context, etc.
+    """
     def __init__(self, pspec, svp64_en, regreduce_en):
         self.pspec = pspec
         self.svp64_en = svp64_en
