@@ -733,26 +733,26 @@ class TestIssuerInternal(Elaboratable):
 
                         # pass predicate mask bits through to satellite decoders
                         # TODO: for SIMD this will be *multiple* bits
-                        sync += core.sv_pred_sm.eq(self.srcmask[0])
-                        sync += core.sv_pred_dm.eq(self.dstmask[0])
+                        sync += core.i.sv_pred_sm.eq(self.srcmask[0])
+                        sync += core.i.sv_pred_dm.eq(self.dstmask[0])
 
             # after src/dst step have been updated, we are ready
             # to decode the instruction
             with m.State("DECODE_SV"):
                 # decode the instruction
-                sync += core.e.eq(pdecode2.e)
-                sync += core.state.eq(cur_state)
-                sync += core.raw_insn_i.eq(dec_opcode_i)
-                sync += core.bigendian_i.eq(self.core_bigendian_i)
+                sync += core.i.e.eq(pdecode2.e)
+                sync += core.i.state.eq(cur_state)
+                sync += core.i.raw_insn_i.eq(dec_opcode_i)
+                sync += core.i.bigendian_i.eq(self.core_bigendian_i)
                 if self.svp64_en:
-                    sync += core.sv_rm.eq(pdecode2.sv_rm)
+                    sync += core.i.sv_rm.eq(pdecode2.sv_rm)
                     # set RA_OR_ZERO detection in satellite decoders
-                    sync += core.sv_a_nz.eq(pdecode2.sv_a_nz)
+                    sync += core.i.sv_a_nz.eq(pdecode2.sv_a_nz)
                     # and svp64 detection
-                    sync += core.is_svp64_mode.eq(is_svp64_mode)
+                    sync += core.i.is_svp64_mode.eq(is_svp64_mode)
                     # and svp64 bit-rev'd ldst mode
                     ldst_dec = pdecode2.use_svp64_ldst_dec
-                    sync += core.use_svp64_ldst_dec.eq(ldst_dec)
+                    sync += core.i.use_svp64_ldst_dec.eq(ldst_dec)
                 # after decoding, reset any previous exception condition,
                 # allowing it to be set again during the next execution
                 sync += pdecode2.ldst_exc.eq(0)
@@ -866,10 +866,10 @@ class TestIssuerInternal(Elaboratable):
         pdecode2 = self.pdecode2
 
         # temporaries
-        core_busy_o = core.busy_o                 # core is busy
-        core_ivalid_i = core.ivalid_i             # instruction is valid
-        core_issue_i = core.issue_i               # instruction is issued
-        insn_type = core.e.do.insn_type           # instruction MicroOp type
+        core_busy_o = core.o.busy_o                 # core is busy
+        core_ivalid_i = core.i.ivalid_i             # instruction is valid
+        core_issue_i = core.i.issue_i               # instruction is issued
+        insn_type = core.i.e.do.insn_type           # instruction MicroOp type
 
         with m.FSM(name="exec_fsm"):
 
@@ -989,7 +989,7 @@ class TestIssuerInternal(Elaboratable):
             comb += dbg_rst.eq(ResetSignal())
 
         # busy/halted signals from core
-        comb += self.busy_o.eq(core.busy_o)
+        comb += self.busy_o.eq(core.o.busy_o)
         comb += pdecode2.dec.bigendian.eq(self.core_bigendian_i)
 
         # temporary hack: says "go" immediately for both address gen and ST
@@ -1043,7 +1043,7 @@ class TestIssuerInternal(Elaboratable):
 
         # connect up debug signals
         # TODO comb += core.icache_rst_i.eq(dbg.icache_rst_o)
-        comb += dbg.terminate_i.eq(core.core_terminate_o)
+        comb += dbg.terminate_i.eq(core.o.core_terminate_o)
         comb += dbg.state.pc.eq(pc)
         comb += dbg.state.svstate.eq(svstate)
         comb += dbg.state.msr.eq(cur_state.msr)

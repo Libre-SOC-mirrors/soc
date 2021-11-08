@@ -68,6 +68,57 @@ def sort_fuspecs(fuspecs):
     return res  # enumerate(res)
 
 
+class CoreInput:
+    def __init__(self, pspec, svp64_en, regreduce_en):
+        self.pspec = pspec
+        self.svp64_en = svp64_en
+        self.e = Decode2ToExecute1Type("core", opkls=IssuerDecode2ToOperand,
+                                regreduce_en=regreduce_en)
+
+        # SVP64 RA_OR_ZERO needs to know if the relevant EXTRA2/3 field is zero
+        self.sv_a_nz = Signal()
+
+        # state and raw instruction (and SVP64 ReMap fields)
+        self.state = CoreState("core")
+        self.raw_insn_i = Signal(32) # raw instruction
+        self.bigendian_i = Signal() # bigendian - TODO, set by MSR.BE
+        if svp64_en:
+            self.sv_rm = SVP64Rec(name="core_svp64_rm") # SVP64 RM field
+            self.is_svp64_mode = Signal() # set if SVP64 mode is enabled
+            self.use_svp64_ldst_dec = Signal() # use alternative LDST decoder
+            self.sv_pred_sm = Signal() # TODO: SIMD width
+            self.sv_pred_dm = Signal() # TODO: SIMD width
+
+        # issue/valid/busy signalling
+        self.ivalid_i = Signal(reset_less=True) # instruction is valid
+        self.issue_i = Signal(reset_less=True)
+
+    def eq(self, i):
+        self.e.eq(i.e)
+        self.sv_a_nz.eq(i.sv_a_nz)
+        self.state.eq(i.state)
+        self.raw_insn_i.eq(i.raw_insn_i)
+        self.bigendian_i.eq(i.bigendian_i)
+        if not self.svp64_en:
+            return
+        self.sv_rm.eq(i.sv_rm)
+        self.is_svp64_mode.eq(i.is_svp64_mode)
+        self.use_svp64_ldst_dec.eq(i.use_svp64_ldst_dec)
+        self.sv_pred_sm.eq(i.sv_pred_sm)
+        self.sv_pred_dm.eq(i.sv_pred_dm)
+
+
+class CoreOutput:
+    def __init__(self):
+        self.busy_o = Signal(name="corebusy_o", reset_less=True)
+        # start/stop and terminated signalling
+        self.core_terminate_o = Signal(reset=0)  # indicates stopped
+
+    def eq(self, i):
+        self.busy_o.eq(i.busy_o)
+        self.core_terminate_o.eq(i.core_terminate_o)
+
+
 class NonProductionCore(Elaboratable):
     def __init__(self, pspec):
         self.pspec = pspec
@@ -98,31 +149,9 @@ class NonProductionCore(Elaboratable):
         # register files (yes plural)
         self.regs = RegFiles(pspec)
 
-        # instruction decoder - needs a Trap-capable Record (captures EINT etc.)
-        self.e = Decode2ToExecute1Type("core", opkls=IssuerDecode2ToOperand,
-                                regreduce_en=self.regreduce_en)
-
-        # SVP64 RA_OR_ZERO needs to know if the relevant EXTRA2/3 field is zero
-        self.sv_a_nz = Signal()
-
-        # state and raw instruction (and SVP64 ReMap fields)
-        self.state = CoreState("core")
-        self.raw_insn_i = Signal(32) # raw instruction
-        self.bigendian_i = Signal() # bigendian - TODO, set by MSR.BE
-        if self.svp64_en:
-            self.sv_rm = SVP64Rec(name="core_svp64_rm") # SVP64 RM field
-            self.is_svp64_mode = Signal() # set if SVP64 mode is enabled
-            self.use_svp64_ldst_dec = Signal() # use alternative LDST decoder
-            self.sv_pred_sm = Signal() # TODO: SIMD width
-            self.sv_pred_dm = Signal() # TODO: SIMD width
-
-        # issue/valid/busy signalling
-        self.ivalid_i = Signal(reset_less=True) # instruction is valid
-        self.issue_i = Signal(reset_less=True)
-        self.busy_o = Signal(name="corebusy_o", reset_less=True)
-
-        # start/stop and terminated signalling
-        self.core_terminate_o = Signal(reset=0)  # indicates stopped
+        # set up input and output
+        self.i = CoreInput(pspec, self.svp64_en, self.regreduce_en)
+        self.o = CoreOutput()
 
         # create per-FU instruction decoders (subsetted)
         self.decoders = {}
@@ -138,7 +167,7 @@ class NonProductionCore(Elaboratable):
                 continue
             self.decoders[funame] = PowerDecodeSubset(None, opkls, f_name,
                                                       final=True,
-                                                      state=self.state,
+                                                      state=self.i.state,
                                             svp64_en=self.svp64_en,
                                             regreduce_en=self.regreduce_en)
             self.des[funame] = self.decoders[funame].do
@@ -167,24 +196,25 @@ class NonProductionCore(Elaboratable):
             # as subset decoders this massively reduces wire fanout given
             # the large number of ALUs
             setattr(m.submodules, "dec_%s" % v.fn_name, v)
-            comb += v.dec.raw_opcode_in.eq(self.raw_insn_i)
-            comb += v.dec.bigendian.eq(self.bigendian_i)
+            comb += v.dec.raw_opcode_in.eq(self.i.raw_insn_i)
+            comb += v.dec.bigendian.eq(self.i.bigendian_i)
             # sigh due to SVP64 RA_OR_ZERO detection connect these too
-            comb += v.sv_a_nz.eq(self.sv_a_nz)
+            comb += v.sv_a_nz.eq(self.i.sv_a_nz)
             if self.svp64_en:
-                comb += v.pred_sm.eq(self.sv_pred_sm)
-                comb += v.pred_dm.eq(self.sv_pred_dm)
+                comb += v.pred_sm.eq(self.i.sv_pred_sm)
+                comb += v.pred_dm.eq(self.i.sv_pred_dm)
                 if k != self.trapunit:
-                    comb += v.sv_rm.eq(self.sv_rm) # pass through SVP64 ReMap
-                    comb += v.is_svp64_mode.eq(self.is_svp64_mode)
+                    comb += v.sv_rm.eq(self.i.sv_rm) # pass through SVP64 ReMap
+                    comb += v.is_svp64_mode.eq(self.i.is_svp64_mode)
                     # only the LDST PowerDecodeSubset *actually* needs to
                     # know to use the alternative decoder.  this is all
                     # a terrible hack
                     if k.lower().startswith("ldst"):
-                        comb += v.use_svp64_ldst_dec.eq(self.use_svp64_ldst_dec)
+                        comb += v.use_svp64_ldst_dec.eq(
+                                        self.i.use_svp64_ldst_dec)
 
         # ssh, cheat: trap uses the main decoder because of the rewriting
-        self.des[self.trapunit] = self.e.do
+        self.des[self.trapunit] = self.i.e.do
 
         # connect up Function Units, then read/write ports
         fu_bitdict = self.connect_instruction(m)
@@ -220,24 +250,24 @@ class NonProductionCore(Elaboratable):
         for funame, fu in fus.items():
             fnunit = fu.fnunit.value
             enable = Signal(name="en_%s" % funame, reset_less=True)
-            comb += enable.eq((self.e.do.fn_unit & fnunit).bool())
+            comb += enable.eq((self.i.e.do.fn_unit & fnunit).bool())
             comb += fu_bitdict[funame].eq(enable)
 
         # sigh - need a NOP counter
         counter = Signal(2)
         with m.If(counter != 0):
             sync += counter.eq(counter - 1)
-            comb += self.busy_o.eq(1)
+            comb += self.o.busy_o.eq(1)
 
-        with m.If(self.ivalid_i): # run only when valid
-            with m.Switch(self.e.do.insn_type):
+        with m.If(self.i.ivalid_i): # run only when valid
+            with m.Switch(self.i.e.do.insn_type):
                 # check for ATTN: halt if true
                 with m.Case(MicrOp.OP_ATTN):
-                    m.d.sync += self.core_terminate_o.eq(1)
+                    m.d.sync += self.o.core_terminate_o.eq(1)
 
                 with m.Case(MicrOp.OP_NOP):
                     sync += counter.eq(2)
-                    comb += self.busy_o.eq(1)
+                    comb += self.o.busy_o.eq(1)
 
                 with m.Default():
                     # connect up instructions.  only one enabled at a time
@@ -251,11 +281,11 @@ class NonProductionCore(Elaboratable):
                             # operand comes from the *local*  decoder
                             comb += fu.oper_i.eq_from(do)
                             #comb += fu.oper_i.eq_from_execute1(e)
-                            comb += fu.issue_i.eq(self.issue_i)
-                            comb += self.busy_o.eq(fu.busy_o)
+                            comb += fu.issue_i.eq(self.i.issue_i)
+                            comb += self.o.busy_o.eq(fu.busy_o)
                             # rdmask, which is for registers, needs to come
                             # from the *main* decoder
-                            rdmask = get_rdflags(self.e, fu)
+                            rdmask = get_rdflags(self.i.e, fu)
                             comb += fu.rdmaskn.eq(~rdmask)
 
         return fu_bitdict
@@ -527,7 +557,7 @@ class NonProductionCore(Elaboratable):
         mode = "read" if readmode else "write"
         regs = self.regs
         fus = self.fus.fus
-        e = self.e # decoded instruction to execute
+        e = self.i.e # decoded instruction to execute
 
         # dictionary of lists of regfile ports
         byregfiles = {}
@@ -576,7 +606,7 @@ class NonProductionCore(Elaboratable):
 
     def __iter__(self):
         yield from self.fus.ports()
-        yield from self.e.ports()
+        yield from self.i.e.ports()
         yield from self.l0.ports()
         # TODO: regs
 
