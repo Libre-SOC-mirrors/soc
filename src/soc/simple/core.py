@@ -270,7 +270,11 @@ class NonProductionCore(ControlBase):
 
         # enable the required Function Unit based on the opcode decode
         # note: this *only* works correctly for simple core when one and
-        # *only* one FU is allocated per instruction
+        # *only* one FU is allocated per instruction.  what is actually
+        # required is one PriorityPicker per group of matching fnunits,
+        # and for only one actual FU to be "picked".  this basically means
+        # when ReservationStations are enabled it will be possible to
+        # monitor multiple outstanding processing properly.
         for funame, fu in fus.items():
             fnunit = fu.fnunit.value
             enable = Signal(name="en_%s" % funame, reset_less=True)
@@ -323,6 +327,10 @@ class NonProductionCore(ControlBase):
                 comb += fu.rdmaskn.eq(~rdmask)
 
         # set ready/valid signalling.  if busy, means refuse incoming issue
+        # XXX note: for an in-order core this is far too simple.  busy must
+        # be gated with the *availability* of the incoming (requested)
+        # instruction, where Core must be prepared to store-and-hold
+        # an instruction if no FU is available.
         comb += self.p.o_ready.eq(~busy_o)
 
         return fu_bitdict
