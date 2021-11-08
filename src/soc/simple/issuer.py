@@ -604,12 +604,7 @@ class TestIssuerInternal(Elaboratable):
 
         # note if an exception happened.  in a pipelined or OoO design
         # this needs to be accompanied by "shadowing" (or stalling)
-        el = []
-        for exc in core.fus.excs.values():
-            el.append(exc.happened)
-        exc_happened = Signal()
-        if len(el) > 0: # at least one exception
-            comb += exc_happened.eq(Cat(*el).bool())
+        exc_happened = self.core.o.exc_happened
 
         with m.FSM(name="issue_fsm"):
 

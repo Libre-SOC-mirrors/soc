@@ -113,9 +113,11 @@ class CoreOutput:
     def __init__(self):
         # start/stop and terminated signalling
         self.core_terminate_o = Signal(reset=0)  # indicates stopped
+        self.exc_happened = Signal()             # exception happened
 
     def eq(self, i):
         self.core_terminate_o.eq(i.core_terminate_o)
+        self.exc_happened.eq(i.exc_happened)
 
 
 # derive from ControlBase rather than have a separate Stage instance,
@@ -235,6 +237,14 @@ class NonProductionCore(ControlBase):
         fu_bitdict = self.connect_instruction(m)
         self.connect_rdports(m, fu_bitdict)
         self.connect_wrports(m, fu_bitdict)
+
+        # note if an exception happened.  in a pipelined or OoO design
+        # this needs to be accompanied by "shadowing" (or stalling)
+        el = []
+        for exc in self.fus.excs.values():
+            el.append(exc.happened)
+        if len(el) > 0: # at least one exception
+            comb += self.o.exc_happened.eq(Cat(*el).bool())
 
         return m
 
