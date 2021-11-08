@@ -1,7 +1,6 @@
 import enum
 from nmigen import Elaboratable, Module, Signal, Shape, unsigned, Cat, Mux
 from soc.fu.div.pipe_data import CoreInputData, CoreOutputData, DivPipeSpec
-from nmutil.iocontrol import PrevControl, NextControl
 from nmutil.singlepipe import ControlBase
 from ieee754.div_rem_sqrt_rsqrt.core import DivPipeCoreOperation
 
