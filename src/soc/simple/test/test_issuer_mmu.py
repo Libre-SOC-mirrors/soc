@@ -54,7 +54,7 @@ class MMUTestCase(TestAccumulatorBase):
         self.add_case(Program(lst, bigendian), initial_regs,
                              initial_mem=initial_mem)
 
-    # BROKEN - missing expected Display output
+    # OP_MTSPR: spr=720
     def case_3_mtspr(self):
         lst = ["mtspr 720,1"] # mtspr PRTBL,r1
         initial_regs = [0] * 32
@@ -63,7 +63,7 @@ class MMUTestCase(TestAccumulatorBase):
         self.add_case(Program(lst, bigendian), initial_regs,
                              initial_mem=initial_mem)
 
-    # BROKEN - missing expected Display output
+    # OP_MFSPR: spr=18/19
     def case_4_mfspr(self):
         lst = ["mfspr 1,18", # mtspr r1,DSISR
                "mfspr 2,19"] # mtspr r2,DAR

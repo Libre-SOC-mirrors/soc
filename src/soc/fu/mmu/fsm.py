@@ -165,7 +165,8 @@ class FSMMMUStage(ControlBase):
                         comb += done.eq(1) # FIXME l_out.done
 
                 with m.Case(MicrOp.OP_MFSPR):
-                    comb += Display("MMUTEST: OP_MFSPR: spr=%i",spr);
+                    comb += Display("MMUTEST: OP_MFSPR: spr=%i returns=%i",
+                                    spr,spr1_i);
                     comb += o.data.eq(spr1_i)
                     comb += o.ok.eq(1)
                     comb += done.eq(1)
