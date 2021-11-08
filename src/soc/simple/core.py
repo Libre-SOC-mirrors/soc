@@ -338,10 +338,6 @@ class NonProductionCore(ControlBase):
         for funame, fu in fus.items():
             with m.If(fu.busy_o):
                 comb += busy_o.eq(fu.busy_o)
-                # rdmask, which is for registers, needs to come
-                # from the *main* decoder
-                rdmask = get_rdflags(self.i.e, fu)
-                comb += fu.rdmaskn.eq(~rdmask)
 
         # set ready/valid signalling.  if busy, means refuse incoming issue
         # XXX note: for an in-order core this is far too simple.  busy must
