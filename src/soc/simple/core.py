@@ -29,6 +29,7 @@ from openpower.sv.svp64 import SVP64Rec
 
 from nmutil.picker import PriorityPicker
 from nmutil.util import treereduce
+from nmutil.singlepipe import ControlBase
 
 from soc.fu.compunits.compunits import AllFunctionUnits
 from soc.regfile.regfiles import RegFiles
@@ -119,7 +120,9 @@ class CoreOutput:
         self.core_terminate_o.eq(i.core_terminate_o)
 
 
-class NonProductionCore(Elaboratable):
+# derive from ControlBase rather than have a separate Stage instance,
+# this is simpler to do
+class NonProductionCore(ControlBase):
     def __init__(self, pspec):
         self.pspec = pspec
 
@@ -129,6 +132,8 @@ class NonProductionCore(Elaboratable):
         # test to see if regfile ports should be reduced
         self.regreduce_en = (hasattr(pspec, "regreduce") and
                              (pspec.regreduce == True))
+
+        super().__init__(stage=self)
 
         # single LD/ST funnel for memory access
         self.l0 = l0 = TstL0CacheBuffer(pspec, n_units=1)
@@ -149,9 +154,11 @@ class NonProductionCore(Elaboratable):
         # register files (yes plural)
         self.regs = RegFiles(pspec)
 
-        # set up input and output
-        self.i = CoreInput(pspec, self.svp64_en, self.regreduce_en)
-        self.o = CoreOutput()
+        # set up input and output: unusual requirement to set data directly
+        # (due to the way that the core is set up in a different domain,
+        # see TestIssuer.setup_peripherals
+        self.i, self.o = self.new_specs(None)
+        self.i, self.o = self.p.i_data, self.n.o_data
 
         # create per-FU instruction decoders (subsetted)
         self.decoders = {}
@@ -175,8 +182,18 @@ class NonProductionCore(Elaboratable):
         if "mmu0" in self.decoders:
             self.decoders["mmu0"].mmu0_spr_dec = self.decoders["spr0"]
 
+    def setup(self, m, i):
+        pass
+
+    def ispec(self):
+        return CoreInput(self.pspec, self.svp64_en, self.regreduce_en)
+
+    def ospec(self):
+        return CoreOutput()
+
     def elaborate(self, platform):
-        m = Module()
+        m = super().elaborate(platform)
+
         # for testing purposes, to cut down on build time in coriolis2
         if hasattr(self.pspec, "nocore") and self.pspec.nocore == True:
             x = Signal() # dummy signal
