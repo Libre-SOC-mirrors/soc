@@ -90,16 +90,12 @@ class CoreInput:
             self.sv_pred_sm = Signal() # TODO: SIMD width
             self.sv_pred_dm = Signal() # TODO: SIMD width
 
-        # issue/valid/busy signalling
-        self.issue_i = Signal(reset_less=True)
-
     def eq(self, i):
         self.e.eq(i.e)
         self.sv_a_nz.eq(i.sv_a_nz)
         self.state.eq(i.state)
         self.raw_insn_i.eq(i.raw_insn_i)
         self.bigendian_i.eq(i.bigendian_i)
-        self.issue_i.eq(i.issue_i)
         if not self.svp64_en:
             return
         self.sv_rm.eq(i.sv_rm)
@@ -309,13 +305,22 @@ class NonProductionCore(ControlBase):
                         with m.If(enable):
                             # operand comes from the *local*  decoder
                             comb += fu.oper_i.eq_from(do)
-                            #comb += fu.oper_i.eq_from_execute1(e)
-                            comb += fu.issue_i.eq(self.i.issue_i)
+                            comb += fu.issue_i.eq(1) # issue when input valid
                             comb += busy_o.eq(fu.busy_o)
                             # rdmask, which is for registers, needs to come
                             # from the *main* decoder
                             rdmask = get_rdflags(self.i.e, fu)
                             comb += fu.rdmaskn.eq(~rdmask)
+
+        # if instruction is busy, set busy output for core. also
+        # continue to hold each fu rdmask
+        for funame, fu in fus.items():
+            with m.If(fu.busy_o):
+                comb += busy_o.eq(fu.busy_o)
+                # rdmask, which is for registers, needs to come
+                # from the *main* decoder
+                rdmask = get_rdflags(self.i.e, fu)
+                comb += fu.rdmaskn.eq(~rdmask)
 
         # set ready/valid signalling.  if busy, means refuse incoming issue
         comb += self.p.o_ready.eq(~busy_o)
