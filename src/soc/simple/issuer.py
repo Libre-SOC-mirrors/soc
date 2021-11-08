@@ -866,7 +866,7 @@ class TestIssuerInternal(Elaboratable):
         pdecode2 = self.pdecode2
 
         # temporaries
-        core_busy_o = core.o.busy_o                 # core is busy
+        core_busy_o = ~core.p.o_ready                # core is busy
         core_ivalid_i = core.i.ivalid_i             # instruction is valid
         core_issue_i = core.i.issue_i               # instruction is issued
         insn_type = core.i.e.do.insn_type           # instruction MicroOp type
@@ -989,7 +989,8 @@ class TestIssuerInternal(Elaboratable):
             comb += dbg_rst.eq(ResetSignal())
 
         # busy/halted signals from core
-        comb += self.busy_o.eq(core.o.busy_o)
+        core_busy_o = ~core.p.o_ready                # core is busy
+        comb += self.busy_o.eq(core_busy_o)
         comb += pdecode2.dec.bigendian.eq(self.core_bigendian_i)
 
         # temporary hack: says "go" immediately for both address gen and ST

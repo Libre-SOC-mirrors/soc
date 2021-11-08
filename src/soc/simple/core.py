@@ -111,12 +111,10 @@ class CoreInput:
 
 class CoreOutput:
     def __init__(self):
-        self.busy_o = Signal(name="corebusy_o", reset_less=True)
         # start/stop and terminated signalling
         self.core_terminate_o = Signal(reset=0)  # indicates stopped
 
     def eq(self, i):
-        self.busy_o.eq(i.busy_o)
         self.core_terminate_o.eq(i.core_terminate_o)
 
 
@@ -255,6 +253,9 @@ class NonProductionCore(ControlBase):
         comb, sync = m.d.comb, m.d.sync
         fus = self.fus.fus
 
+        # indicate if core is busy
+        busy_o = Signal(name="corebusy_o", reset_less=True)
+
         # enable-signals for each FU, get one bit for each FU (by name)
         fu_enable = Signal(len(fus), reset_less=True)
         fu_bitdict = {}
@@ -274,7 +275,7 @@ class NonProductionCore(ControlBase):
         counter = Signal(2)
         with m.If(counter != 0):
             sync += counter.eq(counter - 1)
-            comb += self.o.busy_o.eq(1)
+            comb += busy_o.eq(1)
 
         with m.If(self.i.ivalid_i): # run only when valid
             with m.Switch(self.i.e.do.insn_type):
@@ -284,7 +285,7 @@ class NonProductionCore(ControlBase):
 
                 with m.Case(MicrOp.OP_NOP):
                     sync += counter.eq(2)
-                    comb += self.o.busy_o.eq(1)
+                    comb += busy_o.eq(1)
 
                 with m.Default():
                     # connect up instructions.  only one enabled at a time
@@ -299,11 +300,14 @@ class NonProductionCore(ControlBase):
                             comb += fu.oper_i.eq_from(do)
                             #comb += fu.oper_i.eq_from_execute1(e)
                             comb += fu.issue_i.eq(self.i.issue_i)
-                            comb += self.o.busy_o.eq(fu.busy_o)
+                            comb += busy_o.eq(fu.busy_o)
                             # rdmask, which is for registers, needs to come
                             # from the *main* decoder
                             rdmask = get_rdflags(self.i.e, fu)
                             comb += fu.rdmaskn.eq(~rdmask)
+
+        # set ready/valid signalling.  if busy, means refuse incoming issue
+        comb += self.p.o_ready.eq(~busy_o)
 
         return fu_bitdict
 
