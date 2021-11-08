@@ -91,7 +91,6 @@ class CoreInput:
             self.sv_pred_dm = Signal() # TODO: SIMD width
 
         # issue/valid/busy signalling
-        self.ivalid_i = Signal(reset_less=True) # instruction is valid
         self.issue_i = Signal(reset_less=True)
 
     def eq(self, i):
@@ -100,6 +99,7 @@ class CoreInput:
         self.state.eq(i.state)
         self.raw_insn_i.eq(i.raw_insn_i)
         self.bigendian_i.eq(i.bigendian_i)
+        self.issue_i.eq(i.issue_i)
         if not self.svp64_en:
             return
         self.sv_rm.eq(i.sv_rm)
@@ -277,12 +277,13 @@ class NonProductionCore(ControlBase):
             sync += counter.eq(counter - 1)
             comb += busy_o.eq(1)
 
-        with m.If(self.i.ivalid_i): # run only when valid
+        with m.If(self.p.i_valid): # run only when valid
             with m.Switch(self.i.e.do.insn_type):
                 # check for ATTN: halt if true
                 with m.Case(MicrOp.OP_ATTN):
                     m.d.sync += self.o.core_terminate_o.eq(1)
 
+                # fake NOP - this isn't really used (Issuer detects NOP)
                 with m.Case(MicrOp.OP_NOP):
                     sync += counter.eq(2)
                     comb += busy_o.eq(1)

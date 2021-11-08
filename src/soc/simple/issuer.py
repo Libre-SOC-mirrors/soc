@@ -867,7 +867,7 @@ class TestIssuerInternal(Elaboratable):
 
         # temporaries
         core_busy_o = ~core.p.o_ready                # core is busy
-        core_ivalid_i = core.i.ivalid_i             # instruction is valid
+        core_ivalid_i = core.p.i_valid              # instruction is valid
         core_issue_i = core.i.issue_i               # instruction is issued
         insn_type = core.i.e.do.insn_type           # instruction MicroOp type
 
