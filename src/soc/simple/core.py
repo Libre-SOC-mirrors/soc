@@ -39,9 +39,10 @@ from openpower.decoder.power_decoder2 import get_rdflags
 from openpower.decoder.decode2execute1 import Data
 from soc.experiment.l0_cache import TstL0CacheBuffer  # test only
 from soc.config.test.test_loadstore import TestMemPspec
-from openpower.decoder.power_enums import MicrOp
+from openpower.decoder.power_enums import MicrOp, Function
 from soc.config.state import CoreState
 
+from collections import defaultdict
 import operator
 
 from nmutil.util import rising_edge
@@ -288,6 +289,20 @@ class NonProductionCore(ControlBase):
         fu_bitdict = {}
         for i, funame in enumerate(fus.keys()):
             fu_bitdict[funame] = fu_enable[i]
+
+        # identify function units and create a list by fnunit so that
+        # PriorityPickers can be created for selecting one of them that
+        # isn't busy at the time the incoming instruction needs passing on
+        by_fnunit = defaultdict(list)
+        for fname, member in Function.__members__.items():
+            for funame, fu in fus.items():
+                fnunit = fu.fnunit.value
+                if member.value & fnunit: # this FU handles this type of op
+                    by_fnunit[fname].append(fu) # add FU to list, by FU name
+
+        # ok now just print out the FUs because we can
+        for fname, fu_list in by_fnunit.items():
+            print ("FUs by type", fname, fu_list)
 
         # enable the required Function Unit based on the opcode decode
         # note: this *only* works correctly for simple core when one and
