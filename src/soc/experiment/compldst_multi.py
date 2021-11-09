@@ -477,26 +477,26 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # the write/store (etc) all must be cancelled if an exception occurs
         # note: cancel is active low, like shadown_i,
         #       while exc_o.happpened is active high
-        cancel = Signal(reset_less=True)
+        canceln = Signal(reset_less=True)
         comb += cancel.eq(~self.exc_o.happened & self.shadown_i)
 
         # store release when st ready *and* all operands read (and no shadow)
         # dcbz is special case of store -- TODO verify shadows
         comb += self.st.rel_o.eq(sto_l.q & busy_o & rd_done & op_is_st_or_dcbz &
-                               cancel)
+                               canceln)
 
         # request write of LD result.  waits until shadow is dropped.
         comb += self.wr.rel_o[0].eq(rd_done & wri_l.q & busy_o & lod_l.qn &
-                                  op_is_ld & cancel)
+                                  op_is_ld & canceln)
 
         # request write of EA result only in update mode
         comb += self.wr.rel_o[1].eq(upd_l.q & busy_o & op_is_update &
-                                  alu_valid & cancel)
+                                  alu_valid & canceln)
 
         # provide "done" signal: select req_rel for non-LD/ST, adr_rel for LD/ST
         comb += wr_any.eq(self.st.go_i | p_st_go |
                           self.wr.go_i[0] | self.wr.go_i[1])
-        comb += wr_reset.eq(rst_l.q & busy_o & cancel &
+        comb += wr_reset.eq(rst_l.q & busy_o & canceln &
                             ~(self.st.rel_o | self.wr.rel_o[0] |
                               self.wr.rel_o[1]) &
                             (lod_l.qn | op_is_st_or_dcbz)
