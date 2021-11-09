@@ -228,9 +228,9 @@ class NonProductionCore(ControlBase):
         self.des[self.trapunit] = self.i.e.do
 
         # connect up Function Units, then read/write ports
-        fu_bitdict = self.connect_instruction(m)
-        self.connect_rdports(m, fu_bitdict)
-        self.connect_wrports(m, fu_bitdict)
+        fu_bitdict, fu_selected = self.connect_instruction(m)
+        self.connect_rdports(m, fu_selected)
+        self.connect_wrports(m, fu_selected)
 
         # note if an exception happened.  in a pipelined or OoO design
         # this needs to be accompanied by "shadowing" (or stalling)
@@ -284,11 +284,14 @@ class NonProductionCore(ControlBase):
         # indicate if core is busy
         busy_o = Signal(name="corebusy_o", reset_less=True)
 
-        # enable-signals for each FU, get one bit for each FU (by name)
+        # enable/busy-signals for each FU, get one bit for each FU (by name)
         fu_enable = Signal(len(fus), reset_less=True)
+        fu_busy = Signal(len(fus), reset_less=True)
         fu_bitdict = {}
+        fu_selected = {}
         for i, funame in enumerate(fus.keys()):
             fu_bitdict[funame] = fu_enable[i]
+            fu_selected[funame] = fu_busy[i]
 
         # identify function units and create a list by fnunit so that
         # PriorityPickers can be created for selecting one of them that
@@ -298,24 +301,38 @@ class NonProductionCore(ControlBase):
             for funame, fu in fus.items():
                 fnunit = fu.fnunit.value
                 if member.value & fnunit: # this FU handles this type of op
-                    by_fnunit[fname].append(fu) # add FU to list, by FU name
+                    by_fnunit[fname].append((funame, fu)) # add by Function
 
         # ok now just print out the list of FUs by Function, because we can
         for fname, fu_list in by_fnunit.items():
             print ("FUs by type", fname, fu_list)
 
-        # enable the required Function Unit based on the opcode decode
-        # note: this *only* works correctly for simple core when one and
-        # *only* one FU is allocated per instruction.  what is actually
-        # required is one PriorityPicker per group of matching fnunits,
-        # and for only one actual FU to be "picked".  this basically means
-        # when ReservationStations are enabled it will be possible to
-        # monitor multiple outstanding processing properly.
-        for funame, fu in fus.items():
-            fnunit = fu.fnunit.value
-            enable = Signal(name="en_%s" % funame, reset_less=True)
-            comb += enable.eq((self.i.e.do.fn_unit & fnunit).bool())
-            comb += fu_bitdict[funame].eq(enable)
+        # now create a PriorityPicker per FU-type such that only one
+        # non-busy FU will be picked
+        issue_pps = {}
+        for fname, fu_list in by_fnunit.items():
+            i_pp = PriorityPicker(len(fu_list))
+            m.submodules['i_pp_%s' % fname] = i_pp
+            i_l = []
+            for i, (funame, fu) in enumerate(fu_list):
+                # match the decoded instruction (e.do.fn_unit) against the
+                # "capability" of this FU, gate that by whether that FU is
+                # busy, and drop that into the PriorityPicker.
+                # this will give us an output of the first available *non-busy*
+                # Function Unit (Reservation Statio) capable of handling this
+                # instruction.
+                fnunit = fu.fnunit.value
+                en_req = Signal(name="issue_en_%s" % funame, reset_less=True)
+                fnmatch = (self.i.e.do.fn_unit & fnunit).bool()
+                comb += en_req.eq(fnmatch & ~fu.busy_o & self.p.i_valid)
+                i_l.append(en_req) # store in list for doing the Cat-trick
+                # picker output, gated by enable: store in fu_bitdict
+                po = Signal(name="o_issue_pick_"+funame) # picker output
+                comb += po.eq(i_pp.o[i] & i_pp.en_o)
+                comb += fu_bitdict[funame].eq(po)
+                comb += fu_selected[funame].eq(fu.busy_o | po)
+            # for each input, Cat them together and drop them into the picker
+            comb += i_pp.i.eq(Cat(*i_l))
 
         # sigh - need a NOP counter
         counter = Signal(2)
@@ -346,7 +363,6 @@ class NonProductionCore(ControlBase):
                             # operand comes from the *local*  decoder
                             comb += fu.oper_i.eq_from(do)
                             comb += fu.issue_i.eq(1) # issue when input valid
-                            comb += busy_o.eq(fu.busy_o)
                             # rdmask, which is for registers, needs to come
                             # from the *main* decoder
                             rdmask = get_rdflags(self.i.e, fu)
@@ -363,7 +379,10 @@ class NonProductionCore(ControlBase):
         # an instruction if no FU is available.
         comb += self.p.o_ready.eq(~busy_o)
 
-        return fu_bitdict
+        # return both the function unit "enable" dict as well as the "busy".
+        # the "busy-or-issued" can be passed in to the Read/Write port
+        # connecters to give them permission to request access to regfiles
+        return fu_bitdict, fu_selected
 
     def connect_rdport(self, m, fu_bitdict, rdpickers, regfile, regname, fspec):
         comb, sync = m.d.comb, m.d.sync
