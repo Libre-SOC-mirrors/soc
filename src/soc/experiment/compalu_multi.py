@@ -248,7 +248,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         m.d.sync += opc_l.r.eq(req_done)  # reset on ALU
 
         # src operand latch (not using go_wr_i)
-        m.d.sync += src_l.s.eq(Repl(self.issue_i, self.n_src))
+        m.d.sync += src_l.s.eq(Repl(self.issue_i, self.n_src) & ~self.rdmaskn)
         m.d.sync += src_l.r.eq(reset_r)
 
         # dest operand latch (not using issue_i)
@@ -325,7 +325,10 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         # create a latch/register for src1/src2 (even if it is a copy of imm)
         for i in range(self.n_src):
             src, alusrc, latch, _ = sl[i]
-            latchregister(m, src, alusrc, latch, name="src_r%d" % i)
+            reg = latchregister(m, src, alusrc, latch, name="src_r%d" % i)
+            # rdmask stops src latches from being set.  clear all if not busy
+            with m.If(~self.busy_o):
+                m.d.sync += reg.eq(0)
 
         # -----
         # ALU connection / interaction
@@ -354,7 +357,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
 
         # read-release gated by busy (and read-mask)
         bro = Repl(self.busy_o, self.n_src)
-        m.d.comb += self.rd.rel_o.eq(src_l.q & bro & slg & ~self.rdmaskn)
+        m.d.comb += self.rd.rel_o.eq(src_l.q & bro & slg)
 
         # write-release gated by busy and by shadow (and write-mask)
         brd = Repl(self.busy_o & self.shadown_i, self.n_dst)

@@ -294,6 +294,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         rda_any = Signal(reset_less=True)   # any read for address ops
         rd_done = Signal(reset_less=True)   # all *necessary* operands read
         wr_reset = Signal(reset_less=True)  # final reset condition
+        canceln = Signal(reset_less=True)   # cancel (active low)
 
         # LD and ALU out
         alu_o = Signal(self.data_wid, reset_less=True)
@@ -367,7 +368,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         sync += opc_l.r.eq(reset_o)  # XXX NOTE: INVERTED FROM book!
 
         # src operand latch
-        sync += src_l.s.eq(Repl(issue_i, self.n_src))
+        sync += src_l.s.eq(Repl(issue_i, self.n_src) & ~self.rdmaskn)
         sync += src_l.r.eq(reset_r)
         #### sync += Display("reset_r = %i",reset_r)
 
@@ -444,7 +445,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         # now do the ALU addr add: one cycle, and say "ready" (next cycle, too)
         comb += alu_o.eq(src1_or_z + src2_or_imm)  # actual EA
-        m.d.sync += alu_ok.eq(alu_valid)             # keep ack in sync with EA
+        m.d.sync += alu_ok.eq(alu_valid & canceln) # keep ack in sync with EA
 
         ############################
         # Control Signal calculation
@@ -457,13 +458,14 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # 2nd operand only needed when immediate is not active
         slg = Cat(op_is_z, op_is_imm) #is this correct ?
         bro = Repl(self.busy_o, self.n_src)
-        comb += self.rd.rel_o.eq(src_l.q & bro & ~slg & ~self.rdmaskn)
+        comb += self.rd.rel_o.eq(src_l.q & bro & ~slg)
 
         # note when the address-related read "go" signals are active
         comb += rda_any.eq(self.rd.go_i[0] | self.rd.go_i[1])
 
         # alu input valid when 1st and 2nd ops done (or imm not active)
-        comb += alu_valid.eq(busy_o & ~(self.rd.rel_o[0] | self.rd.rel_o[1]))
+        comb += alu_valid.eq(busy_o & ~(self.rd.rel_o[0] | self.rd.rel_o[1]) &
+                             canceln)
 
         # 3rd operand only needed when operation is a store
         comb += self.rd.rel_o[2].eq(src_l.q[2] & busy_o & op_is_st)
@@ -477,26 +479,25 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # the write/store (etc) all must be cancelled if an exception occurs
         # note: cancel is active low, like shadown_i,
         #       while exc_o.happpened is active high
-        cancel = Signal(reset_less=True)
-        comb += cancel.eq(~self.exc_o.happened & self.shadown_i)
+        comb += canceln.eq(~self.exc_o.happened & self.shadown_i)
 
         # store release when st ready *and* all operands read (and no shadow)
         # dcbz is special case of store -- TODO verify shadows
         comb += self.st.rel_o.eq(sto_l.q & busy_o & rd_done & op_is_st_or_dcbz &
-                               cancel)
+                               canceln)
 
         # request write of LD result.  waits until shadow is dropped.
         comb += self.wr.rel_o[0].eq(rd_done & wri_l.q & busy_o & lod_l.qn &
-                                  op_is_ld & cancel)
+                                  op_is_ld & canceln)
 
         # request write of EA result only in update mode
         comb += self.wr.rel_o[1].eq(upd_l.q & busy_o & op_is_update &
-                                  alu_valid & cancel)
+                                  alu_valid & canceln)
 
         # provide "done" signal: select req_rel for non-LD/ST, adr_rel for LD/ST
         comb += wr_any.eq(self.st.go_i | p_st_go |
                           self.wr.go_i[0] | self.wr.go_i[1])
-        comb += wr_reset.eq(rst_l.q & busy_o & cancel &
+        comb += wr_reset.eq(rst_l.q & busy_o & canceln &
                             ~(self.st.rel_o | self.wr.rel_o[0] |
                               self.wr.rel_o[1]) &
                             (lod_l.qn | op_is_st_or_dcbz)
