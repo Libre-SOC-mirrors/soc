@@ -300,7 +300,7 @@ class NonProductionCore(ControlBase):
                 if member.value & fnunit: # this FU handles this type of op
                     by_fnunit[fname].append(fu) # add FU to list, by FU name
 
-        # ok now just print out the FUs because we can
+        # ok now just print out the list of FUs by Function, because we can
         for fname, fu_list in by_fnunit.items():
             print ("FUs by type", fname, fu_list)
 
