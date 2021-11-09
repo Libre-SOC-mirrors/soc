@@ -74,6 +74,26 @@ class MMUTestCase(TestAccumulatorBase):
         self.add_case(Program(lst, bigendian), initial_regs,
                              initial_mem=initial_mem)
 
+    # new testcase for all sprs
+    def case_5_allsprs(self):
+        lst =  ["mtspr 720,1",   #MMUTEST: OP_MTSPR: spr=720
+                "mtspr 48,2",    #MMUTEST: OP_MTSPR: spr=48
+                "mtspr 18,3",    #MMUTEST: OP_MTSPR: spr=18
+                "mtspr 19,4",    #MMUTEST: OP_MTSPR: spr=19
+                "mfspr 5,720",   #MMUTEST: OP_MFSPR: spr=720 returns=4660
+                "mfspr 6,48",    #MMUTEST: OP_MFSPR: spr=48 returns=13398
+                "mfspr 7,18",    #MMUTEST: OP_MFSPR: spr=18 returns=17185
+                "mfspr 8,19"     #MMUTEST: OP_MFSPR: spr=19 returns=25923
+                ]
+        initial_regs = [0] * 32
+        initial_regs[1] = 0x1234
+        initial_regs[2] = 0x3456
+        initial_regs[3] = 0x4321
+        initial_regs[4] = 0x6543
+        initial_mem = {}
+        self.add_case(Program(lst, bigendian), initial_regs,
+                             initial_mem=initial_mem)
+
 if __name__ == "__main__":
     svp64 = True
     if len(sys.argv) == 2:
