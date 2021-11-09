@@ -294,6 +294,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         rda_any = Signal(reset_less=True)   # any read for address ops
         rd_done = Signal(reset_less=True)   # all *necessary* operands read
         wr_reset = Signal(reset_less=True)  # final reset condition
+        canceln = Signal(reset_less=True)   # cancel (active low)
 
         # LD and ALU out
         alu_o = Signal(self.data_wid, reset_less=True)
@@ -444,7 +445,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         # now do the ALU addr add: one cycle, and say "ready" (next cycle, too)
         comb += alu_o.eq(src1_or_z + src2_or_imm)  # actual EA
-        m.d.sync += alu_ok.eq(alu_valid)             # keep ack in sync with EA
+        m.d.sync += alu_ok.eq(alu_valid & canceln) # keep ack in sync with EA
 
         ############################
         # Control Signal calculation
@@ -463,7 +464,8 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += rda_any.eq(self.rd.go_i[0] | self.rd.go_i[1])
 
         # alu input valid when 1st and 2nd ops done (or imm not active)
-        comb += alu_valid.eq(busy_o & ~(self.rd.rel_o[0] | self.rd.rel_o[1]))
+        comb += alu_valid.eq(busy_o & ~(self.rd.rel_o[0] | self.rd.rel_o[1]) &
+                             canceln)
 
         # 3rd operand only needed when operation is a store
         comb += self.rd.rel_o[2].eq(src_l.q[2] & busy_o & op_is_st)
@@ -477,8 +479,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # the write/store (etc) all must be cancelled if an exception occurs
         # note: cancel is active low, like shadown_i,
         #       while exc_o.happpened is active high
-        canceln = Signal(reset_less=True)
-        comb += cancel.eq(~self.exc_o.happened & self.shadown_i)
+        comb += canceln.eq(~self.exc_o.happened & self.shadown_i)
 
         # store release when st ready *and* all operands read (and no shadow)
         # dcbz is special case of store -- TODO verify shadows
