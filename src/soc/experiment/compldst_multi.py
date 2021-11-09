@@ -367,7 +367,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         sync += opc_l.r.eq(reset_o)  # XXX NOTE: INVERTED FROM book!
 
         # src operand latch
-        sync += src_l.s.eq(Repl(issue_i, self.n_src))
+        sync += src_l.s.eq(Repl(issue_i, self.n_src) & ~self.rdmaskn)
         sync += src_l.r.eq(reset_r)
         #### sync += Display("reset_r = %i",reset_r)
 
@@ -457,7 +457,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # 2nd operand only needed when immediate is not active
         slg = Cat(op_is_z, op_is_imm) #is this correct ?
         bro = Repl(self.busy_o, self.n_src)
-        comb += self.rd.rel_o.eq(src_l.q & bro & ~slg & ~self.rdmaskn)
+        comb += self.rd.rel_o.eq(src_l.q & bro & ~slg)
 
         # note when the address-related read "go" signals are active
         comb += rda_any.eq(self.rd.go_i[0] | self.rd.go_i[1])
