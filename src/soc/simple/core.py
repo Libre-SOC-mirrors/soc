@@ -221,6 +221,28 @@ class NonProductionCore(ControlBase):
         fus = self.fus.fus
 
         # connect decoders
+        self.connect_satellite_decoders(m)
+
+        # ssh, cheat: trap uses the main decoder because of the rewriting
+        self.des[self.trapunit] = self.i.e.do
+
+        # connect up Function Units, then read/write ports
+        fu_bitdict = self.connect_instruction(m)
+        self.connect_rdports(m, fu_bitdict)
+        self.connect_wrports(m, fu_bitdict)
+
+        # note if an exception happened.  in a pipelined or OoO design
+        # this needs to be accompanied by "shadowing" (or stalling)
+        el = []
+        for exc in self.fus.excs.values():
+            el.append(exc.happened)
+        if len(el) > 0: # at least one exception
+            comb += self.o.exc_happened.eq(Cat(*el).bool())
+
+        return m
+
+    def connect_satellite_decoders(self, m):
+        comb = m.d.comb
         for k, v in self.decoders.items():
             # connect each satellite decoder and give it the instruction.
             # as subset decoders this massively reduces wire fanout given
@@ -242,24 +264,6 @@ class NonProductionCore(ControlBase):
                     if k.lower().startswith("ldst"):
                         comb += v.use_svp64_ldst_dec.eq(
                                         self.i.use_svp64_ldst_dec)
-
-        # ssh, cheat: trap uses the main decoder because of the rewriting
-        self.des[self.trapunit] = self.i.e.do
-
-        # connect up Function Units, then read/write ports
-        fu_bitdict = self.connect_instruction(m)
-        self.connect_rdports(m, fu_bitdict)
-        self.connect_wrports(m, fu_bitdict)
-
-        # note if an exception happened.  in a pipelined or OoO design
-        # this needs to be accompanied by "shadowing" (or stalling)
-        el = []
-        for exc in self.fus.excs.values():
-            el.append(exc.happened)
-        if len(el) > 0: # at least one exception
-            comb += self.o.exc_happened.eq(Cat(*el).bool())
-
-        return m
 
     def connect_instruction(self, m):
         """connect_instruction
