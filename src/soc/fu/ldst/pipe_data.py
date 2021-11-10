@@ -10,6 +10,7 @@ class LDSTInputData(FUBaseData):
                ('INT', 'rb', '0:63'), # RB/immediate
                ('INT', 'rc', '0:63'), # RC
                # XXX TODO, later ('XER', 'xer_so', '32') # XER bit 32: SO
+               ('STATE', 'msr', '0:63'),  # MSR
                ]
     def __init__(self, pspec):
         super().__init__(pspec, False)
