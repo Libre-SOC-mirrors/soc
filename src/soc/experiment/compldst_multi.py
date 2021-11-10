@@ -540,6 +540,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += addr_ok.eq(self.pi.addr_ok_o)  # no exc, address fine
         # connect MSR.PR for priv/virt operation
         comb += pi.msr_pr.eq(oper_r.msr[MSR.PR])
+        comb += Display("MMUTEST: pi.msr_pr=%i",oper_r.msr[MSR.PR])
 
         # byte-reverse on LD
         revnorev = Signal(64, reset_less=True)
