@@ -32,6 +32,8 @@ from openpower.simulator.program import Program
 from openpower.endian import bigendian
 from openpower.test.common import TestAccumulatorBase
 
+from openpower.consts import MSR
+
 class MMUTestCase(TestAccumulatorBase):
 
     # now working correctly
@@ -93,6 +95,24 @@ class MMUTestCase(TestAccumulatorBase):
         initial_mem = {}
         self.add_case(Program(lst, bigendian), initial_regs,
                              initial_mem=initial_mem)
+
+    # MMUTEST: initial_msr= 16384
+    # msr 16384
+    # ISACaller initial_msr 16384
+    # FIXME msr does not get passed to LoadStore1
+    def case_5_ldst_exception(self):
+        lst = ["stb 10,0(2)"]
+        initial_regs = [0] * 32
+        initial_regs[1] = 0x1234
+        initial_regs[2] = 0x3456
+        initial_regs[3] = 0x4321
+        initial_regs[4] = 0x6543
+        initial_mem = {}
+        #enable virtmode
+        initial_msr = 1 << MSR.PR # must set "problem" state for virtual memory
+        print("MMUTEST: initial_msr=",initial_msr)
+        self.add_case(Program(lst, bigendian), initial_regs,
+                             initial_mem=initial_mem,initial_msr=initial_msr)
 
 if __name__ == "__main__":
     svp64 = True
