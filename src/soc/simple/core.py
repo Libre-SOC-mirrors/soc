@@ -126,11 +126,13 @@ class CoreInput:
 class CoreOutput:
     def __init__(self):
         # start/stop and terminated signalling
-        self.core_terminate_o = Signal(reset=0)  # indicates stopped
+        self.core_terminate_o = Signal()  # indicates stopped
+        self.busy_o = Signal(name="corebusy_o")  # at least one ALU busy
         self.exc_happened = Signal()             # exception happened
 
     def eq(self, i):
         self.core_terminate_o.eq(i.core_terminate_o)
+        self.busy_o.eq(i.busy_o)
         self.exc_happened.eq(i.exc_happened)
 
 
@@ -282,7 +284,7 @@ class NonProductionCore(ControlBase):
         fus = self.fus.fus
 
         # indicate if core is busy
-        busy_o = Signal(name="corebusy_o", reset_less=True)
+        busy_o = self.o.busy_o
 
         # enable/busy-signals for each FU, get one bit for each FU (by name)
         fu_enable = Signal(len(fus), reset_less=True)
@@ -384,7 +386,7 @@ class NonProductionCore(ControlBase):
         # indicator.  BUT, of course, when there is no instruction
         # we must ignore the fu_found flag, otherwise o_ready will never
         # be set when everything is idle
-        comb += self.p.o_ready.eq(~busy_o & (fu_found | ~self.p.i_valid))
+        comb += self.p.o_ready.eq(fu_found | ~self.p.i_valid)
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
