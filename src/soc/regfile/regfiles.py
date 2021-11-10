@@ -184,6 +184,13 @@ class SPRRegs(RegFileMem):
 
 # class containing all regfiles: int, cr, xer, fast, spr
 class RegFiles:
+    # Factory style classes
+    regkls = [('int', IntRegs),
+              ('cr', CRRegs),
+              ('xer', XERRegs),
+              ('fast', FastRegs),
+              ('state', StateRegs),
+              ('spr', SPRRegs),]
     def __init__(self, pspec, make_hazard_vecs=False):
         # test is SVP64 is to be enabled
         svp64_en = hasattr(pspec, "svp64") and (pspec.svp64 == True)
@@ -193,23 +200,24 @@ class RegFiles:
                       (pspec.regreduce == True)
 
         self.rf = {} # register file dict
-        self.wv = {} # global write vectors
-        self.rv = {} # global read vectors
         # create regfiles here, Factory style
-        for (name, kls) in [('int', IntRegs),
-                            ('cr', CRRegs),
-                            ('xer', XERRegs),
-                            ('fast', FastRegs),
-                            ('state', StateRegs),
-                            ('spr', SPRRegs),]:
+        for (name, kls) in RegFiles.regkls:
             rf = self.rf[name] = kls(svp64_en, regreduce_en)
             # also add these as instances, self.state, self.fast, self.cr etc.
             setattr(self, name, rf)
 
+        self.rv, self.wv = {}, {}
+        if make_hazard_vecs:
             # create a read-hazard and write-hazard vectors for this regfile
-            if make_hazard_vecs:
-                self.rv[name] = self.make_hazard_vec(rf, "rd")
-                self.wv[name] = self.make_hazard_vec(rf, "wr")
+            self.wv = make_vecs(self, "wr") # global write vectors
+            self.rv = make_vecs(self, "rd") # global read vectors
+
+    def make_vecs(self, name):
+        vec = {}
+        # create regfiles here, Factory style
+        for (name, kls) in RegFiles.regkls:
+            vec[name] = self.make_hazard_vec(rf, name)
+        return vec
 
     def make_hazard_vec(self, rf, name):
         if isinstance(rf, VirtualRegPort):
