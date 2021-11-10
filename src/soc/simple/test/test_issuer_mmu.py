@@ -107,6 +107,7 @@ class MMUTestCase(TestAccumulatorBase):
         initial_regs[2] = 0x3456
         initial_regs[3] = 0x4321
         initial_regs[4] = 0x6543
+        initial_regs[10] = 0xfe
         initial_mem = {}
         #enable virtmode
         initial_msr = 1 << MSR.PR # must set "problem" state for virtual memory
