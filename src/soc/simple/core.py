@@ -310,6 +310,7 @@ class NonProductionCore(ControlBase):
         # now create a PriorityPicker per FU-type such that only one
         # non-busy FU will be picked
         issue_pps = {}
+        fu_found = Signal() # take a note if no Function Unit was available
         for fname, fu_list in by_fnunit.items():
             i_pp = PriorityPicker(len(fu_list))
             m.submodules['i_pp_%s' % fname] = i_pp
@@ -331,6 +332,10 @@ class NonProductionCore(ControlBase):
                 comb += po.eq(i_pp.o[i] & i_pp.en_o)
                 comb += fu_bitdict[funame].eq(po)
                 comb += fu_selected[funame].eq(fu.busy_o | po)
+                # if we don't do this, then when there are no FUs available,
+                # the "p.o_ready" signal will go back "ok we accepted this
+                # instruction" which of course isn't true.
+                comb += fu_found.eq(~fnmatch | i_pp.en_o)
             # for each input, Cat them together and drop them into the picker
             comb += i_pp.i.eq(Cat(*i_l))
 
@@ -372,12 +377,14 @@ class NonProductionCore(ControlBase):
         busys = map(lambda fu: fu.busy_o, fus.values())
         comb += busy_o.eq(Cat(*busys).bool())
 
-        # set ready/valid signalling.  if busy, means refuse incoming issue
-        # XXX note: for an in-order core this is far too simple.  busy must
-        # be gated with the *availability* of the incoming (requested)
-        # instruction, where Core must be prepared to store-and-hold
-        # an instruction if no FU is available.
-        comb += self.p.o_ready.eq(~busy_o)
+        # ready/valid signalling.  if busy, means refuse incoming issue.
+        # (this is a global signal, TODO, change to one which allows
+        # overlapping instructions)
+        # also, if there was no fu found we must not send back a valid
+        # indicator.  BUT, of course, when there is no instruction
+        # we must ignore the fu_found flag, otherwise o_ready will never
+        # be set when everything is idle
+        comb += self.p.o_ready.eq(~busy_o & (fu_found | ~self.p.i_valid))
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
