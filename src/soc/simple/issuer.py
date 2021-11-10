@@ -861,7 +861,7 @@ class TestIssuerInternal(Elaboratable):
         pdecode2 = self.pdecode2
 
         # temporaries
-        core_busy_o = ~core.p.o_ready                # core is busy
+        core_busy_o = ~core.p.o_ready | core.n.o_data.busy_o # core is busy
         core_ivalid_i = core.p.i_valid              # instruction is valid
 
         with m.FSM(name="exec_fsm"):
@@ -979,7 +979,7 @@ class TestIssuerInternal(Elaboratable):
             comb += dbg_rst.eq(ResetSignal())
 
         # busy/halted signals from core
-        core_busy_o = ~core.p.o_ready                # core is busy
+        core_busy_o = ~core.p.o_ready | core.n.o_data.busy_o # core is busy
         comb += self.busy_o.eq(core_busy_o)
         comb += pdecode2.dec.bigendian.eq(self.core_bigendian_i)
 
