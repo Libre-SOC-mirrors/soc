@@ -42,6 +42,8 @@ from soc.fu.branch.test.test_pipe_caller import BranchTestCase
 from soc.fu.ldst.test.test_pipe_caller import LDSTTestCase
 from openpower.util import spr_to_fast_reg
 
+from openpower.consts import StateRegsEnum
+
 # list of SPRs that are controlled and managed by the MMU
 mmu_sprs = ["PRTBL", "DSISR", "DAR", "PIDR"]
 
@@ -66,6 +68,10 @@ def setup_regs(pdecode2, core, test):
         else:
             yield intregs.memory._array[i].eq(test.regs[i])
     yield Settle()
+
+    # set up MSR in STATE regfile, "direct" write (bypass rd/write ports)
+    stateregs = core.regs.state
+    yield stateregs.regs[StateRegsEnum.MSR].reg.eq(test.msr)
 
     # set up CR regfile, "direct" write across all CRs
     cr = test.cr
