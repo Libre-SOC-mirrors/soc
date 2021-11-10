@@ -533,14 +533,15 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # address: use sync to avoid long latency
         sync += pi.addr.data.eq(addr_r)           # EA from adder
         with m.If(op_is_dcbz):
-            sync += Display("MMUTEST.DCBZ: EA from adder %i",addr_r)
+            sync += Display("LDSTCompUnit.DCBZ: EA from adder %x", addr_r)
 
         sync += pi.addr.ok.eq(alu_ok & lsd_l.q)  # "do address stuff" (once)
         comb += self.exc_o.eq(pi.exc_o)  # exception occurred
         comb += addr_ok.eq(self.pi.addr_ok_o)  # no exc, address fine
         # connect MSR.PR for priv/virt operation
         comb += pi.msr_pr.eq(oper_r.msr[MSR.PR])
-        comb += Display("MMUTEST: pi.msr_pr=%i",oper_r.msr[MSR.PR])
+        comb += Display("LDSTCompUnit: oper_r.msr %x pi.msr_pr=%x",
+                                      oper_r.msr, oper_r.msr[MSR.PR])
 
         # byte-reverse on LD
         revnorev = Signal(64, reset_less=True)
