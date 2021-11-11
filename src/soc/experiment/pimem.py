@@ -343,7 +343,7 @@ class TestMemoryPortInterface(PortInterfaceBase):
         # hard-code memory addressing width to 6 bits
         self.mem = TestMemory(regwid, 5, granularity=regwid//8, init=False)
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr_pr):
+    def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz):
         lsbaddr, msbaddr = self.splitaddr(addr)
         m.d.comb += self.mem.wrport.addr.eq(msbaddr)
 
