@@ -149,6 +149,11 @@ class NonProductionCore(ControlBase):
         self.regreduce_en = (hasattr(pspec, "regreduce") and
                              (pspec.regreduce == True))
 
+        # test core type
+        self.core_type = "fsm"
+        if hasattr(pspec, "core_type":
+            self.core_type = pspec.core_type
+
         super().__init__(stage=self)
 
         # single LD/ST funnel for memory access
@@ -168,7 +173,7 @@ class NonProductionCore(ControlBase):
             mmu.alu.set_ldst_interface(l0.cmpi.lsmem.lsi)
 
         # register files (yes plural)
-        self.regs = RegFiles(pspec)
+        self.regs = RegFiles(pspec, make_hazard_vecs=True)
 
         # set up input and output: unusual requirement to set data directly
         # (due to the way that the core is set up in a different domain,
