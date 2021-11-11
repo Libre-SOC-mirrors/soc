@@ -647,7 +647,7 @@ class NonProductionCore(ControlBase):
                 print("  %s" % regname, wid, read, write, rdflag)
                 for (funame, fu, idx) in fuspec:
                     fusig = fu.src_i[idx] if readmode else fu.dest[idx]
-                    print("    ", funame, fu, idx, fusig)
+                    print("    ", funame, fu.__class__.__name__, idx, fusig)
                     print()
 
         return byregfiles, byregfiles_spec
