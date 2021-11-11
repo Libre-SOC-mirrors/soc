@@ -32,7 +32,7 @@ class HDLState(State):
     def get_crregs(self):
         self.crregs = []
         for i in range(8):
-            rval = yield self.core.regs.cr.regs[i].reg
+            rval = yield self.core.regs.cr.regs[7-i].reg
             self.crregs.append(rval)
         log("class hdl cr regs", list(map(hex, self.crregs)))
 

@@ -72,7 +72,7 @@ LOG_LENGTH = 0    # Non-zero to enable log data collection
 # BRAM organisation: We never access more than
 #     -- WB_DATA_BITS at a time so to save
 #     -- resources we make the array only that wide, and
-#     -- use consecutive indices for to make a cache "line"
+#     -- use consecutive indices to make a cache "line"
 #     --
 #     -- ROW_SIZE is the width in bytes of the BRAM
 #     -- (based on WB, so 64-bits)
