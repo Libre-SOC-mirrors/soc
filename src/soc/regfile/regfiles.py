@@ -35,6 +35,24 @@ from nmigen import Module
 from nmigen.cli import rtlil
 
 
+def create_ports(rf, wr_spec, rd_spec):
+    """create_ports: creates register file ports based on requested specs
+    """
+    rf.r_ports, rf.w_ports = {}, {}
+    # create read ports based on read specs
+    for key, name in rd_spec.items():
+        if hasattr(rf, name): # some regfiles already have a port
+            rf.r_ports[key] = getattr(rf, name)
+        else:
+            rf.r_ports[key] = rf.read_port(name)
+    # create write ports based on write specs
+    for key, name in wr_spec.items():
+        if hasattr(rf, name): # some regfiles already have a port
+            rf.w_ports[key] = getattr(rf, name)
+        else:
+            rf.w_ports[key] = rf.write_port(name)
+
+
 # "State" Regfile
 class StateRegs(RegFileArray, StateRegsEnum):
     """StateRegs
@@ -53,15 +71,20 @@ class StateRegs(RegFileArray, StateRegsEnum):
     """
     def __init__(self, svp64_en=False, regreduce_en=False):
         super().__init__(64, StateRegsEnum.N_REGS)
-        self.w_ports = {'nia': self.write_port("nia"),
-                        'msr': self.write_port("msr"),
-                        'svstate': self.write_port("svstate"),
-                        'sv': self.write_port("sv"), # writing SVSTATE (issuer)
-                        'd_wr1': self.write_port("d_wr1")} # writing PC (issuer)
-        self.r_ports = {'cia': self.read_port("cia"), # reading PC (issuer)
-                        'msr': self.read_port("msr"), # reading MSR (issuer)
-                        'sv': self.read_port("sv"), # reading SV (issuer)
+        wr_spec, rd_spec = self.get_port_specs()
+        create_ports(self, wr_spec, rd_spec)
+
+    def get_port_specs(self):
+        w_port_spec = {'nia': "nia",
+                        'msr': "msr",
+                        'svstate': "svstate",
+                        'sv': "sv", # writing SVSTATE (issuer)
+                        'd_wr1': "d_wr1"} # writing PC (issuer)
+        r_port_spec = {'cia': "cia", # reading PC (issuer)
+                        'msr': "msr", # reading MSR (issuer)
+                        'sv': "sv", # reading SV (issuer)
                         }
+        return w_port_spec, r_port_spec
 
 
 # Integer Regfile
@@ -75,19 +98,26 @@ class IntRegs(RegFileMem): #class IntRegs(RegFileArray):
     """
     def __init__(self, svp64_en=False, regreduce_en=False):
         super().__init__(64, 32, fwd_bus_mode=not regreduce_en)
-        self.w_ports = {'o': self.write_port("dest1"),
+        self.svp64_en = svp64_en
+        self.regreduce_en = regreduce_en
+        wr_spec, rd_spec = self.get_port_specs()
+        create_ports(self, wr_spec, rd_spec)
+
+    def get_port_specs(self):
+        w_port_spec = {'o': "dest1",
                         }
-        self.r_ports = {
-                        'dmi': self.read_port("dmi")} # needed for Debug (DMI)
-        if svp64_en:
-            self.r_ports['pred'] = self.read_port("pred") # for predicate mask
-        if not regreduce_en:
-            self.w_ports['o1'] = self.write_port("dest2") # (LD/ST update)
-            self.r_ports['ra'] = self.read_port("src1")
-            self.r_ports['rb'] = self.read_port("src2")
-            self.r_ports['rc'] = self.read_port("src3")
+        r_port_spec = { 'dmi': "dmi" # needed for Debug (DMI)
+                      }
+        if self.svp64_en:
+            r_port_spec['pred'] = "pred" # for predicate mask
+        if not self.regreduce_en:
+            w_port_spec['o1'] = "dest2" # (LD/ST update)
+            r_port_spec['ra'] = "src1"
+            r_port_spec['rb'] = "src2"
+            r_port_spec['rc'] = "src3"
         else:
-            self.r_ports['rabc'] = self.read_port("src1")
+            r_port_spec['rabc'] = "src1"
+        return w_port_spec, r_port_spec
 
 
 # Fast SPRs Regfile
@@ -105,14 +135,22 @@ class FastRegs(RegFileMem, FastRegsEnum): #RegFileArray):
     """
     def __init__(self, svp64_en=False, regreduce_en=False):
         super().__init__(64, FastRegsEnum.N_REGS, fwd_bus_mode=not regreduce_en)
-        self.w_ports = {'fast1': self.write_port("dest1"),
-                        'issue': self.write_port("issue"), # writing DEC/TB
+        self.svp64_en = svp64_en
+        self.regreduce_en = regreduce_en
+        wr_spec, rd_spec = self.get_port_specs()
+        create_ports(self, wr_spec, rd_spec)
+
+    def get_port_specs(self):
+        w_port_spec = {'fast1': "dest1",
+                       'issue': "issue", # writing DEC/TB
                        }
-        self.r_ports = {'fast1': self.read_port("src1"),
-                        'issue': self.read_port("issue"), # reading DEC/TB
+        r_port_spec = {'fast1': "src1",
+                       'issue': "issue", # reading DEC/TB
                         }
-        if not regreduce_en:
-            self.r_ports['fast2'] = self.read_port("src2")
+        if not self.regreduce_en:
+            r_port_spec['fast2'] = "src2"
+
+        return w_port_spec, r_port_spec
 
 
 # CR Regfile
@@ -126,16 +164,24 @@ class CRRegs(VirtualRegPort):
     """
     def __init__(self, svp64_en=False, regreduce_en=False):
         super().__init__(32, 8, rd2=True)
-        self.w_ports = {'full_cr': self.full_wr, # 32-bit (masked, 8-en lines)
-                        'cr_a': self.write_port("dest1"), # 4-bit, unary-indexed
-                        'cr_b': self.write_port("dest2")} # 4-bit, unary-indexed
-        self.r_ports = {'full_cr': self.full_rd, # 32-bit (masked, 8-en lines)
-                        'full_cr_dbg': self.full_rd2, # for DMI
-                        'cr_a': self.read_port("src1"),
-                        'cr_b': self.read_port("src2"),
-                        'cr_c': self.read_port("src3")}
-        if svp64_en:
-            self.r_ports['cr_pred'] = self.read_port("cr_pred") # for predicate
+        self.svp64_en = svp64_en
+        self.regreduce_en = regreduce_en
+        wr_spec, rd_spec = self.get_port_specs()
+        create_ports(self, wr_spec, rd_spec)
+
+    def get_port_specs(self):
+        w_port_spec = {'full_cr': "full_wr", # 32-bit (masked, 8-en lines)
+                        'cr_a': "dest1", # 4-bit, unary-indexed
+                        'cr_b': "dest2"} # 4-bit, unary-indexed
+        r_port_spec = {'full_cr': "full_rd", # 32-bit (masked, 8-en lines)
+                        'full_cr_dbg': "full_rd2", # for DMI
+                        'cr_a': "src1",
+                        'cr_b': "src2",
+                        'cr_c': "src3"}
+        if self.svp64_en:
+            r_port_spec['cr_pred'] = "cr_pred" # for predicate
+
+        return w_port_spec, r_port_spec
 
 
 # XER Regfile
@@ -152,14 +198,21 @@ class XERRegs(VirtualRegPort, XERRegsEnum):
     OV=2 # OV and OV32
     def __init__(self, svp64_en=False, regreduce_en=False):
         super().__init__(6, XERRegsEnum.N_REGS)
-        self.w_ports = {'full_xer': self.full_wr, # 6-bit (masked, 3-en lines)
-                        'xer_so': self.write_port("dest1"),
-                        'xer_ca': self.write_port("dest2"),
-                        'xer_ov': self.write_port("dest3")}
-        self.r_ports = {'full_xer': self.full_rd, # 6-bit (masked, 3-en lines)
-                        'xer_so': self.read_port("src1"),
-                        'xer_ca': self.read_port("src2"),
-                        'xer_ov': self.read_port("src3")}
+        self.svp64_en = svp64_en
+        self.regreduce_en = regreduce_en
+        wr_spec, rd_spec = self.get_port_specs()
+        create_ports(self, wr_spec, rd_spec)
+
+    def get_port_specs(self):
+        w_port_spec = {'full_xer': "full_wr", # 6-bit (masked, 3-en lines)
+                        'xer_so': "dest1",
+                        'xer_ca': "dest2",
+                        'xer_ov': "dest3"}
+        r_port_spec = {'full_xer': "full_rd", # 6-bit (masked, 3-en lines)
+                        'xer_so': "src1",
+                        'xer_ca': "src2",
+                        'xer_ov': "src3"}
+        return w_port_spec, r_port_spec
 
 
 # SPR Regfile
@@ -178,8 +231,15 @@ class SPRRegs(RegFileMem):
             n_sprs = len(SPRfull)
         super().__init__(width=64, depth=n_sprs,
                          fwd_bus_mode=not regreduce_en)
-        self.w_ports = {'spr1': self.write_port("spr1")}
-        self.r_ports = {'spr1': self.read_port("spr1")}
+        self.svp64_en = svp64_en
+        self.regreduce_en = regreduce_en
+        wr_spec, rd_spec = self.get_port_specs()
+        create_ports(self, wr_spec, rd_spec)
+
+    def get_port_specs(self):
+        w_port_spec = {'spr1': "spr1"}
+        r_port_spec = {'spr1': "spr1"}
+        return w_port_spec, r_port_spec
 
 
 # class containing all regfiles: int, cr, xer, fast, spr
