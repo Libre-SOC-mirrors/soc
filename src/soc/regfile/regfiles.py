@@ -269,13 +269,14 @@ class RegFiles:
         self.rv, self.wv = {}, {}
         if make_hazard_vecs:
             # create a read-hazard and write-hazard vectors for this regfile
-            self.wv = make_vecs(self, "wr") # global write vectors
-            self.rv = make_vecs(self, "rd") # global read vectors
+            self.wv = self.make_vecs("wr") # global write vectors
+            self.rv = self.make_vecs("rd") # global read vectors
 
     def make_vecs(self, name):
         vec = {}
         # create regfiles here, Factory style
         for (name, kls) in RegFiles.regkls:
+            rf = self.rf[name]
             vec[name] = self.make_hazard_vec(rf, name)
         return vec
 
@@ -284,21 +285,9 @@ class RegFiles:
             vec = RegFileArray(rf.bitwidth, 1)
         else:
             vec = RegFileArray(rf.depth, 1)
-        if name in ['int', 'cr', 'xer']:
-            n_wrs = 3
-        elif name in ['fast']:
-            n_wrs = 2
-        else:
-            n_wrs = 1
-        # add write ports
-        vec.w_ports = {}
-        for i in range(n_wrs):
-            pname = "wr%d" % i
-            vec.w_ports[pname] = vec.write_port("%s_%s" % (name, pname))
-        # add read port
-        vec.r_ports = {}
-        pname = "rd%d" % 0
-        vec.r_ports[pname] = vec.read_port("%s_%s" % (name, pname))
+        # get read/write port specs and create bitvector ports with same names
+        wr_spec, rd_spec = rf.get_port_specs()
+        create_ports(vec, wr_spec, rd_spec)
         return vec
 
     def elaborate_into(self, m, platform):
