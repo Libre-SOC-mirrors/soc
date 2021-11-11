@@ -81,6 +81,7 @@ class NonProductionCore(ControlBase):
                              (pspec.regreduce == True))
 
         # test core type
+        self.make_hazard_vecs = True
         self.core_type = "fsm"
         if hasattr(pspec, "core_type"):
             self.core_type = pspec.core_type
@@ -104,7 +105,7 @@ class NonProductionCore(ControlBase):
             mmu.alu.set_ldst_interface(l0.cmpi.lsmem.lsi)
 
         # register files (yes plural)
-        self.regs = RegFiles(pspec, make_hazard_vecs=True)
+        self.regs = RegFiles(pspec, make_hazard_vecs=self.make_hazard_vecs)
 
         # set up input and output: unusual requirement to set data directly
         # (due to the way that the core is set up in a different domain,
@@ -112,7 +113,12 @@ class NonProductionCore(ControlBase):
         self.i, self.o = self.new_specs(None)
         self.i, self.o = self.p.i_data, self.n.o_data
 
-        # create per-FU instruction decoders (subsetted)
+        # create per-FU instruction decoders (subsetted).  these "satellite"
+        # decoders reduce wire fan-out from the one (main) PowerDecoder2
+        # (used directly by the trap unit) to the *twelve* (or more)
+        # Function Units.  we can either have 32 wires (the instruction)
+        # to each, or we can have well over a 200 wire fan-out (to 12
+        # ALUs). it's an easy choice to make.
         self.decoders = {}
         self.des = {}
 
@@ -131,9 +137,11 @@ class NonProductionCore(ControlBase):
                                             regreduce_en=self.regreduce_en)
             self.des[funame] = self.decoders[funame].do
 
+        # share the SPR decoder with the MMU if it exists
         if "mmu0" in self.decoders:
             self.decoders["mmu0"].mmu0_spr_dec = self.decoders["spr0"]
 
+    # next 3 functions are Stage API Compliance
     def setup(self, m, i):
         pass
 
@@ -143,6 +151,7 @@ class NonProductionCore(ControlBase):
     def ospec(self):
         return CoreOutput()
 
+    # elaborate function to create HDL
     def elaborate(self, platform):
         m = super().elaborate(platform)
 
