@@ -100,8 +100,8 @@ class NonProductionCore(ControlBase):
         mmu = self.fus.get_fu('mmu0')
         print ("core pspec", pspec.ldst_ifacetype)
         print ("core mmu", mmu)
-        print ("core lsmem.lsi", l0.cmpi.lsmem.lsi)
         if mmu is not None:
+            print ("core lsmem.lsi", l0.cmpi.lsmem.lsi)
             mmu.alu.set_ldst_interface(l0.cmpi.lsmem.lsi)
 
         # register files (yes plural)

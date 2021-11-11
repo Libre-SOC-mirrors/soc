@@ -149,6 +149,9 @@ class FastRegs(RegFileMem, FastRegsEnum): #RegFileArray):
                         }
         if not self.regreduce_en:
             r_port_spec['fast2'] = "src2"
+            r_port_spec['fast3'] = "src3"
+            w_port_spec['fast2'] = "dest2"
+            w_port_spec['fast3'] = "dest3"
 
         return w_port_spec, r_port_spec
 
