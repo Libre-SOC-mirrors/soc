@@ -550,6 +550,15 @@ class NonProductionCore(ControlBase):
                       dest.shape(), wport.i_data.shape())
                 wsigs.append(fu_dest_latch)
 
+                # now connect up the bitvector write hazard
+                if not self.make_hazard_vecs:
+                    continue
+                wv = regs.wv[regfile.lower()]
+                wvport = wv.w_ports[rpidx]
+                comb += wvport.i_data.eq(1) # always enable, for now
+                print ("write vector", regfile, wvport)
+                #if rfile.unary:
+
         # here is where we create the Write Broadcast Bus. simple, eh?
         comb += wport.i_data.eq(ortreereduce_sig(wsigs))
         if rfile.unary:
