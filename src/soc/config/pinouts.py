@@ -3,6 +3,8 @@ import sys
 import json
 from pprint import pprint
 from collections import OrderedDict
+from openpower.util import log
+from nmigen.build.dsl import Resource, Subsignal, Pins
 
 
 def _byteify(data, ignore_dicts = False):
@@ -23,6 +25,35 @@ def _byteify(data, ignore_dicts = False):
                         for key, value in data.iteritems())
     # if it's anything else, return it in its original form
     return data
+
+
+def get_pinspec_resources(chipname=None, subset=None, conn=None):
+    """get_pinspec_resources - returns an auto-generated list of resources
+    """
+    chip = load_pinouts(chipname)
+    pinmap = chip['pins.map']
+    specs = []
+    for k, bus in chip['pins.specs'].items():
+        k, num = k.lower().split(":")
+        name = '%s%s' % (k, num)
+        if subset is None or name in subset:
+            io = []
+            for pin in bus:
+                pin = pin.lower()
+                pin, pin_dir = pin[:-1], pin[-1] # split pin+ into pin, +
+                pname = '%s_%s' % (name, pin)
+                if pname in pinmap:
+                    newpin = pinmap[pname][2:]
+                    newpin = '_'.join(newpin.split("_")[1:])
+                    # turn direction into nmigen Pins direction format
+                    dirn = {'-': 'i', '+': 'o', '*': 'io'}[pin_dir]
+                # TODO: make assert_width not have to be 1
+                p = Pins(newpin, dir=dirn, conn=conn, assert_width=1)
+                io.append(Subsignal(pin, p))
+            spec = Resource.family(name, num, default_name=name, ios=io)
+            log("pinspec", name, repr(spec))
+            specs.append(spec)
+    return specs
 
 
 def get_pinspecs(chipname=None, subset=None):
@@ -78,7 +109,7 @@ def load_pinouts(chipname=None):
     return chip
 
 if __name__ == '__main__':
-    if sys.argv == 2:
+    if len(sys.argv) == 2:
         chipname = sys.argv[1]
     else:
         chipname = None
@@ -86,3 +117,5 @@ if __name__ == '__main__':
     for k, v in chip.items():
         print ("\n****", k, "****")
         pprint(v)
+    print ("chipname pinspec resources", sys.argv, chipname)
+    specs = get_pinspec_resources(chipname, subset=None)
