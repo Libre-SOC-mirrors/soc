@@ -109,6 +109,11 @@ def load_pinouts(chipname=None):
     return chip
 
 if __name__ == '__main__':
+    # run this with:
+    # git submodule update --init --remote --recursive
+    # make mkpinmux
+    # python3 soc/config/pinouts.py ngi_pointer (or ls180, or other)
+    # it will print out a stack of debug stuff
     if len(sys.argv) == 2:
         chipname = sys.argv[1]
     else:
