@@ -26,6 +26,10 @@ def _byteify(data, ignore_dicts = False):
 
 
 def get_pinspecs(chipname=None, subset=None):
+    """get_pinspecs - returns a dictionary of lists of pins for an IO function
+    example: {'uart': ['tx+', 'rx-'],
+             'i2c': ['sda*', 'scl+']}
+    """
     chip = load_pinouts(chipname)
     pinmap = chip['pins.map']
     specs = OrderedDict() # preserve order
