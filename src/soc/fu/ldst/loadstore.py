@@ -88,7 +88,7 @@ class LoadStore1(PortInterfaceBase):
         # these are accessed by OP_MTSPR/OP_MFSPR, on behalf of LoadStore1.
         # by contrast microwatt has the spr set/get done *in* loadstore1.vhdl
         self.dsisr = Signal(64)
-        self.dar = Signal(64)
+        #self.dar = Signal(64)
 
         # state info for LD/ST
         self.done          = Signal()
@@ -128,7 +128,7 @@ class LoadStore1(PortInterfaceBase):
         m.d.comb += self.req.align_intr.eq(misalign)
         m.d.comb += self.req.dcbz.eq(is_dcbz)
 
-        m.d.comb += Display("set_wr_addr %i dcbz %i",addr,is_dcbz)
+        # m.d.comb += Display("set_wr_addr %i dcbz %i",addr,is_dcbz)
 
         # option to disable the cache entirely for write
         if self.disable_cache:
@@ -190,6 +190,8 @@ class LoadStore1(PortInterfaceBase):
         # a request when MMU_LOOKUP completes.
         m.d.comb += self.d_validblip.eq(rising_edge(m, self.d_valid))
         ldst_r = LDSTRequest("ldst_r")
+        
+        comb += Display("MMUTEST: LoadStore1 d_in.error=%i",d_in.error)
 
         # fsm skeleton
         with m.Switch(self.state):
@@ -198,11 +200,14 @@ class LoadStore1(PortInterfaceBase):
                     comb += self.busy.eq(1)
                     sync += self.state.eq(State.ACK_WAIT)
                     sync += ldst_r.eq(self.req) # copy of LDSTRequest on "blip"
+#                   sync += Display("validblip self.req.virt_mode=%i",
+#                   self.req.virt_mode)
                 with m.Else():
                     sync += ldst_r.eq(0)
 
             # waiting for completion
             with m.Case(State.ACK_WAIT):
+                comb += Display("MMUTEST: ACK_WAIT")
                 comb += self.busy.eq(~exc.happened)
 
                 with m.If(d_in.error):
@@ -236,6 +241,7 @@ class LoadStore1(PortInterfaceBase):
             # waiting here for the MMU TLB lookup to complete.
             # either re-try the dcache lookup or throw MMU exception
             with m.Case(State.MMU_LOOKUP):
+                comb += Display("MMUTEST: MMU_LOOKUP")
                 comb += self.busy.eq(1)
                 with m.If(m_in.done):
                     with m.If(~self.instr_fault):
@@ -249,8 +255,9 @@ class LoadStore1(PortInterfaceBase):
                     with m.Else():
                         sync += Display("MMU_LOOKUP, exception %x", self.addr)
                         # instruction lookup fault: store address in DAR
-                        comb += exc.happened.eq(1)
-                        sync += self.dar.eq(self.addr)
+                        comb += exc.happened.eq(1) # reason = MMU_LOOKUP
+                        # mark dar as updated ?
+                        sync += self.pi.dar_o.eq(self.addr)
 
                 with m.If(m_in.err):
                     # MMU RADIX exception thrown
@@ -267,9 +274,10 @@ class LoadStore1(PortInterfaceBase):
 
         # alignment error: store address in DAR
         with m.If(self.align_intr):
-            comb += exc.happened.eq(1)
-            sync += Display("alignment error: store address in DAR %x", self.addr)
-            sync += self.dar.eq(self.addr)
+            comb += exc.happened.eq(1) # reason = alignment
+            sync += Display("alignment error: store addr in DAR %x", self.addr)
+            sync += self.pi.dar_o.eq(self.addr)
+            # TODO report reason
 
         # happened, alignment, instr_fault, invalid.
         # note that all of these flow through - eventually to the TRAP
@@ -317,7 +325,8 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += d_out.priv_mode.eq(self.req.priv_mode)
             m.d.comb += d_out.virt_mode.eq(self.req.virt_mode)
             m.d.comb += self.align_intr.eq(self.req.align_intr)
-            #m.d.comb += Display("validblip dcbz=%i addr=%x",self.req.dcbz,self.req.addr)
+            #m.d.comb += Display("validblip dcbz=%i addr=%x",
+            #self.req.dcbz,self.req.addr)
             m.d.comb += d_out.dcbz.eq(self.req.dcbz)
         with m.Else():
             m.d.comb += d_out.load.eq(ldst_r.load)
@@ -327,7 +336,8 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += d_out.priv_mode.eq(ldst_r.priv_mode)
             m.d.comb += d_out.virt_mode.eq(ldst_r.virt_mode)
             m.d.comb += self.align_intr.eq(ldst_r.align_intr)
-            #m.d.comb += Display("no_validblip dcbz=%i addr=%x",ldst_r.dcbz,ldst_r.addr)
+            #m.d.comb += Display("no_validblip dcbz=%i addr=%x",
+            #ldst_r.dcbz,ldst_r.addr)
             m.d.comb += d_out.dcbz.eq(ldst_r.dcbz)
 
         # XXX these should be possible to remove but for some reason
