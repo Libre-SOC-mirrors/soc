@@ -298,11 +298,11 @@ class RegFiles:
         # MERGE the wr_spec and rd_spec with some appropriate name prefixes
         # to make sure they do not clash
         rd_bvspec = {'issue': 'issue'}
-        wr_bvspec = {}
-        for k, port in wr_spec.items():
-            wr_bvspec["wr_%s" % k] = "wr_%s" % port
-        for k, port in rd_spec.items():
-            wr_bvspec["rd_%s" % k] = "rd_%s" % port
+        wr_bvspec = {'set': 'set', 'clr': 'clr'}
+        #for k, port in wr_spec.items():
+        #    wr_bvspec["wr_%s" % k] = "wr_%s" % port
+        #for k, port in rd_spec.items():
+        #    wr_bvspec["rd_%s" % k] = "rd_%s" % port
         create_ports(vec, wr_bvspec, rd_bvspec)
         return vec
 

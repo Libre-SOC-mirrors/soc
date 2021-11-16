@@ -351,13 +351,6 @@ class NonProductionCore(ControlBase):
         print("read regfile", rpidx, regfile, regs.rf.keys(),
                               rfile, rfile.unary)
 
-        # select the write-protection hazard vector.  note that this still
-        # requires to WRITE to the hazard bitvector!  read-requests need
-        # to RAISE the bitvector (set it to 1), which, duh, requires a WRITE
-        if self.make_hazard_vecs:
-            wv = regs.wv[regfile.lower()]
-            wvport = wv.w_ports["rd_"+rpidx] # write-vec bit-level hazard ctrl
-
         fspecs = fspec
         if not isinstance(fspecs, list):
             fspecs = [fspecs]
@@ -432,27 +425,6 @@ class NonProductionCore(ControlBase):
                     # all FUs connect to same port
                     comb += src.eq(rport.o_data)
 
-                # now connect up the bitvector write hazard.  unlike the
-                # regfile writeports, a ONE must be written to the corresponding
-                # bit of the hazard bitvector (to indicate the existence of
-                # the hazard)
-                if not self.make_hazard_vecs:
-                    continue
-
-                # the detection of what shall be written to is based
-                # on *issue*
-                print ("write vector (for regread)", regfile, wvport)
-                wname = "wvaddr_en_%s_%s_%d" % (funame, regname, idx)
-                wvaddr_en = Signal(len(wvport.wen), name=wname)
-                issue_active = Signal(name="iactive_"+name)
-                comb += issue_active.eq(fu.issue_i & fu_active & rdflags[i])
-                with m.If(issue_active):
-                    if rfile.unary:
-                        comb += wvaddr_en.eq(addr_en)
-                    else:
-                        comb += wvaddr_en.eq(1<<addr_en)
-                    wvens.append(wvaddr_en)
-
         # or-reduce the muxed read signals
         if rfile.unary:
             # for unary-addressed
@@ -516,9 +488,14 @@ class NonProductionCore(ControlBase):
         print(regfile, regs.rf.keys())
         rfile = regs.rf[regfile.lower()]
         wport = rfile.w_ports[rpidx]
+
+        # select the write-protection hazard vector.  note that this still
+        # requires to WRITE to the hazard bitvector!  read-requests need
+        # to RAISE the bitvector (set it to 1), which, duh, requires a WRITE
         if self.make_hazard_vecs:
             wv = regs.wv[regfile.lower()]
-            wvport = wv.w_ports["wr_"+rpidx] # write-vec bit-level hazard ctrl
+            wvset = wv.w_ports["set"] # write-vec bit-level hazard ctrl
+            wvclr = wv.w_ports["clr"] # write-vec bit-level hazard ctrl
 
         fspecs = fspec
         if not isinstance(fspecs, list):
@@ -527,12 +504,28 @@ class NonProductionCore(ControlBase):
         pplen = 0
         writes = []
         ppoffs = []
+        rdflags = []
+        wrflags = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
             (rf, wf, read, write, wid, fuspec) = fspec
-            print ("fpsec", i, fspec, len(fuspec))
+            print ("fpsec", i, "wrflag", wf, fspec, len(fuspec))
             ppoffs.append(pplen) # record offset for picker
             pplen += len(fuspec)
+
+            name = "%s_%s_%d" % (regfile, regname, i)
+            rdflag = Signal(name="rd_flag_"+name)
+            wrflag = Signal(name="wr_flag_"+name)
+            if rf is not None:
+                comb += rdflag.eq(rf)
+            else:
+                comb += rdflag.eq(0)
+            if wf is not None:
+                comb += wrflag.eq(wf)
+            else:
+                comb += wrflag.eq(0)
+            rdflags.append(rdflag)
+            wrflags.append(wrflag)
 
         # create a priority picker to manage this port
         wrpickers[regfile][rpidx] = wrpick = PriorityPicker(pplen)
@@ -540,8 +533,9 @@ class NonProductionCore(ControlBase):
 
         wsigs = []
         wens = []
-        wvsigs = []
-        wvens = []
+        wvsets = []
+        wvseten = []
+        wvclren = []
         addrs = []
         for i, fspec in enumerate(fspecs):
             # connect up the FU req/go signals and the reg-read to the FU
@@ -588,17 +582,35 @@ class NonProductionCore(ControlBase):
                 # now connect up the bitvector write hazard
                 if not self.make_hazard_vecs:
                     continue
-                print ("write vector", regfile, wvport)
+                print ("write vector", regfile, wvclr)
                 wname = "wvaddr_en_%s_%s_%d" % (funame, regname, idx)
-                wvaddr_en = Signal(len(wvport.wen), name=wname)
+                wvaddr_en = Signal(len(wvclr.wen), name=wname)
                 if rfile.unary:
                     comb += wvaddr_en.eq(addr_en)
-                    wvens.append(wvaddr_en)
                 else:
                     with m.If(wp):
                         comb += wvaddr_en.eq(1<<addr_en)
-                    wvens.append(wvaddr_en)
-                    #wvens.append(wp)
+                wvclren.append(wvaddr_en)
+
+                continue
+                # now connect up the bitvector write hazard.  unlike the
+                # regfile writeports, a ONE must be written to the corresponding
+                # bit of the hazard bitvector (to indicate the existence of
+                # the hazard)
+
+                # the detection of what shall be written to is based
+                # on *issue*
+                print ("write vector (for regread)", regfile, wvset)
+                wname = "wv_issue_addr_en_%s_%s_%d" % (funame, regname, idx)
+                wvaddr_en = Signal(len(wvset.wen), name=wname)
+                issue_active = Signal(name="iactive_"+name)
+                comb += issue_active.eq(fu.issue_i & fu_active & wrflags[i])
+                with m.If(issue_active):
+                    if rfile.unary:
+                        comb += wvaddr_en.eq(addr_en)
+                    else:
+                        comb += wvaddr_en.eq(1<<addr_en)
+                    wvsetens.append(wvaddr_en)
 
         # here is where we create the Write Broadcast Bus. simple, eh?
         comb += wport.i_data.eq(ortreereduce_sig(wsigs))
@@ -611,7 +623,9 @@ class NonProductionCore(ControlBase):
             comb += wport.wen.eq(ortreereduce_sig(wens))
 
         # for write-vectors
-        comb += wvport.wen.eq(ortreereduce_sig(wvens))
+        comb += wvclr.wen.eq(ortreereduce_sig(wvclren))
+        #comb += wvset.wen.eq(ortreereduce_sig(wvens))
+        #comb += wvset.i_data.eq(ortreereduce_sig(wvsets))
 
     def connect_wrports(self, m, fu_bitdict):
         """connect write ports
