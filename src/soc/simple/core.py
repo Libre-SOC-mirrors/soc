@@ -351,6 +351,13 @@ class NonProductionCore(ControlBase):
         print("read regfile", rpidx, regfile, regs.rf.keys(),
                               rfile, rfile.unary)
 
+        # select the write-protection hazard vector.  note that this still
+        # requires to WRITE to the hazard bitvector!  read-requests need
+        # to RAISE the bitvector (set it to 1), which, duh, requires a WRITE
+        if self.make_hazard_vecs:
+            wv = regs.wv[regfile.lower()]
+            wvport = wv.w_ports["rd_"+rpidx] # write-vec bit-level hazard ctrl
+
         fspecs = fspec
         if not isinstance(fspecs, list):
             fspecs = [fspecs]
@@ -361,7 +368,7 @@ class NonProductionCore(ControlBase):
         ppoffs = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
-            (rf, read, write, wid, fuspec) = fspec
+            (rf, wf, read, write, wid, fuspec) = fspec
             print ("fpsec", i, fspec, len(fuspec))
             ppoffs.append(pplen) # record offset for picker
             pplen += len(fuspec)
@@ -379,8 +386,10 @@ class NonProductionCore(ControlBase):
 
         rens = []
         addrs = []
+        wvens = []
+
         for i, fspec in enumerate(fspecs):
-            (rf, read, write, wid, fuspec) = fspec
+            (rf, wf, read, write, wid, fuspec) = fspec
             # connect up the FU req/go signals, and the reg-read to the FU
             # and create a Read Broadcast Bus
             for pi, (funame, fu, idx) in enumerate(fuspec):
@@ -422,6 +431,27 @@ class NonProductionCore(ControlBase):
                           src.shape(), rport.o_data.shape())
                     # all FUs connect to same port
                     comb += src.eq(rport.o_data)
+
+                # now connect up the bitvector write hazard.  unlike the
+                # regfile writeports, a ONE must be written to the corresponding
+                # bit of the hazard bitvector (to indicate the existence of
+                # the hazard)
+                if not self.make_hazard_vecs:
+                    continue
+
+                # the detection of what shall be written to is based
+                # on *issue*
+                print ("write vector (for regread)", regfile, wvport)
+                wname = "wvaddr_en_%s_%s_%d" % (funame, regname, idx)
+                wvaddr_en = Signal(len(wvport.wen), name=wname)
+                issue_active = Signal(name="iactive_"+name)
+                comb += issue_active.eq(fu.issue_i & fu_active & rdflags[i])
+                with m.If(issue_active):
+                    if rfile.unary:
+                        comb += wvaddr_en.eq(addr_en)
+                    else:
+                        comb += wvaddr_en.eq(1<<addr_en)
+                    wvens.append(wvaddr_en)
 
         # or-reduce the muxed read signals
         if rfile.unary:
@@ -499,7 +529,7 @@ class NonProductionCore(ControlBase):
         ppoffs = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
-            (rf, read, write, wid, fuspec) = fspec
+            (rf, wf, read, write, wid, fuspec) = fspec
             print ("fpsec", i, fspec, len(fuspec))
             ppoffs.append(pplen) # record offset for picker
             pplen += len(fuspec)
@@ -516,7 +546,7 @@ class NonProductionCore(ControlBase):
         for i, fspec in enumerate(fspecs):
             # connect up the FU req/go signals and the reg-read to the FU
             # these are arbitrated by Data.ok signals
-            (rf, read, write, wid, fuspec) = fspec
+            (rf, wf, read, write, wid, fuspec) = fspec
             for pi, (funame, fu, idx) in enumerate(fuspec):
                 pi += ppoffs[i]
 
@@ -643,7 +673,7 @@ class NonProductionCore(ControlBase):
                 print("    %d %s %s %s" % (idx, regfile, regname, str(wid)))
                 if readmode:
                     rdflag, read = regspec_decode_read(e, regfile, regname)
-                    write = None
+                    wrport, write = None, None
                 else:
                     rdflag, read = None, None
                     wrport, write = regspec_decode_write(e, regfile, regname)
@@ -652,22 +682,22 @@ class NonProductionCore(ControlBase):
                     byregfiles_spec[regfile] = {}
                 if regname not in byregfiles_spec[regfile]:
                     byregfiles_spec[regfile][regname] = \
-                        (rdflag, read, write, wid, [])
+                        (rdflag, wrport, read, write, wid, [])
                 # here we start to create "lanes"
                 if idx not in byregfiles[regfile]:
                     byregfiles[regfile][idx] = []
                 fuspec = (funame, fu, idx)
                 byregfiles[regfile][idx].append(fuspec)
-                byregfiles_spec[regfile][regname][4].append(fuspec)
+                byregfiles_spec[regfile][regname][5].append(fuspec)
 
         # ok just print that out, for convenience
         for regfile, spec in byregfiles.items():
             print("regfile %s ports:" % mode, regfile)
             fuspecs = byregfiles_spec[regfile]
             for regname, fspec in fuspecs.items():
-                [rdflag, read, write, wid, fuspec] = fspec
+                [rdflag, wrflag, read, write, wid, fuspec] = fspec
                 print("  rf %s port %s lane: %s" % (mode, regfile, regname))
-                print("  %s" % regname, wid, read, write, rdflag)
+                print("  %s" % regname, wid, read, write, rdflag, wrflag)
                 for (funame, fu, idx) in fuspec:
                     fusig = fu.src_i[idx] if readmode else fu.dest[idx]
                     print("    ", funame, fu.__class__.__name__, idx, fusig)
