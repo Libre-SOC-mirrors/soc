@@ -540,7 +540,10 @@ class NonProductionCore(ControlBase):
         for i, fspec in enumerate(fspecs):
             # connect up the FU req/go signals and the reg-read to the FU
             # these are arbitrated by Data.ok signals
-            (rf, wf, read, write, wid, fuspec) = fspec
+            (rf, wf, read, _write, wid, fuspec) = fspec
+            wrname = "write_%s_%s_%d" % (regfile, regname, i)
+            write = Signal.like(_write, name=wrname)
+            comb += write.eq(_write)
             for pi, (funame, fu, idx) in enumerate(fuspec):
                 pi += ppoffs[i]
 
@@ -592,7 +595,6 @@ class NonProductionCore(ControlBase):
                         comb += wvaddr_en.eq(1<<addr_en)
                 wvclren.append(wvaddr_en)
 
-                continue
                 # now connect up the bitvector write hazard.  unlike the
                 # regfile writeports, a ONE must be written to the corresponding
                 # bit of the hazard bitvector (to indicate the existence of
@@ -607,10 +609,11 @@ class NonProductionCore(ControlBase):
                 comb += issue_active.eq(fu.issue_i & fu_active & wrflags[i])
                 with m.If(issue_active):
                     if rfile.unary:
-                        comb += wvaddr_en.eq(addr_en)
+                        comb += wvaddr_en.eq(write)
                     else:
-                        comb += wvaddr_en.eq(1<<addr_en)
-                    wvsetens.append(wvaddr_en)
+                        comb += wvaddr_en.eq(1<<write)
+                    wvseten.append(wvaddr_en)
+                    wvsets.append(wvaddr_en)
 
         # here is where we create the Write Broadcast Bus. simple, eh?
         comb += wport.i_data.eq(ortreereduce_sig(wsigs))
@@ -623,9 +626,9 @@ class NonProductionCore(ControlBase):
             comb += wport.wen.eq(ortreereduce_sig(wens))
 
         # for write-vectors
-        comb += wvclr.wen.eq(ortreereduce_sig(wvclren))
-        #comb += wvset.wen.eq(ortreereduce_sig(wvens))
-        #comb += wvset.i_data.eq(ortreereduce_sig(wvsets))
+        comb += wvclr.wen.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
+        comb += wvset.wen.eq(ortreereduce_sig(wvseten)) # set (issue time)
+        comb += wvset.i_data.eq(ortreereduce_sig(wvsets))
 
     def connect_wrports(self, m, fu_bitdict):
         """connect write ports

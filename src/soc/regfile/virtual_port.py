@@ -18,10 +18,11 @@ from soc.regfile.regfile import RegFileArray
 
 
 class VirtualRegPort(RegFileArray):
-    def __init__(self, bitwidth, n_regs, rd2=False):
+    def __init__(self, bitwidth, n_regs, rd2=False, wr2=False):
         self.bitwidth = bitwidth
         self.nregs = n_regs
         self.rd2 = rd2 # eurgh hack
+        self.wr2 = wr2 # eurgh hack
         self.regwidth = regwidth = bitwidth // n_regs
         super().__init__(self.regwidth, n_regs)
 
@@ -32,11 +33,26 @@ class VirtualRegPort(RegFileArray):
         self.full_rd = RecordObject([("ren", n_regs),
                                      ("o_data", bitwidth)],  # *full* wid
                                     name="full_rd")
-        if not rd2:
-            return
-        self.full_rd2 = RecordObject([("ren", n_regs),
+        if wr2:
+            self.full_wr2 = RecordObject([("wen", n_regs),
+                                     ("i_data", bitwidth)],  # *full* wid
+                                    name="full_wr2")
+        if rd2:
+            self.full_rd2 = RecordObject([("ren", n_regs),
                                      ("o_data", bitwidth)],  # *full* wid
                                     name="full_rd2")
+
+    def connect_full_wr(self, m, wfull, name):
+        comb = m.d.comb
+        wr_regs = self.write_reg_port(name)
+
+        # wire up the enable signals from the large (full) port
+        l = map(lambda port: port.i_data, wr_regs)
+        le = map(lambda port: port.wen, wr_regs)  # get port wen(s)
+
+        # get list of all i_data (and wens) and assign to them via Cat
+        comb += Cat(*l).eq(wfull.i_data)
+        comb += Cat(*le).eq(wfull.wen)
 
     def connect_full_rd(self, m, rfull, name):
         comb = m.d.comb
@@ -53,24 +69,15 @@ class VirtualRegPort(RegFileArray):
         m = super().elaborate(platform)
         comb = m.d.comb
 
-        # for internal use only.
-        wr_regs = self.write_reg_port(f"w")
+        # connect up full write port
+        self.connect_full_wr(m, self.full_wr, "w")
+        if self.wr2:
+            self.connect_full_wr(m, self.full_wr2, "w2")
 
         # connect up full read port
         self.connect_full_rd(m, self.full_rd, "r")
         if self.rd2: # hack!
             self.connect_full_rd(m, self.full_rd2, "r2")
-
-        # connect up full write port
-        wfull = self.full_wr
-
-        # wire up the enable signals from the large (full) port
-        l = map(lambda port: port.i_data, wr_regs)
-        le = map(lambda port: port.wen, wr_regs)  # get port wen(s)
-
-        # get list of all i_data (and wens) and assign to them via Cat
-        comb += Cat(*l).eq(wfull.i_data)
-        comb += Cat(*le).eq(wfull.wen)
 
         return m
 
