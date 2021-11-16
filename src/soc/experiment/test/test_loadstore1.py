@@ -131,9 +131,11 @@ def _test_loadstore1(dut, mem):
     print("=== alignment error ===")
     addr = 0xFF100e0FF
     ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
-    yield #wait one cycle
+    alignment = yield pi.exc_o.alignment
+    happened = yield pi.exc_o.happened
     dar = yield pi.dar_o
-    #assert(reason==alignment)
+    assert(happened==1)
+    assert(alignment==1)
     assert(dar==addr)
     print("=== alignment error test passed ===")
 

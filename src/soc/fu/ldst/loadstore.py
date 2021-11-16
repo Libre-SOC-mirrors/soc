@@ -190,7 +190,6 @@ class LoadStore1(PortInterfaceBase):
         # a request when MMU_LOOKUP completes.
         m.d.comb += self.d_validblip.eq(rising_edge(m, self.d_valid))
         ldst_r = LDSTRequest("ldst_r")
-        
         comb += Display("MMUTEST: LoadStore1 d_in.error=%i",d_in.error)
 
         # fsm skeleton
@@ -257,7 +256,7 @@ class LoadStore1(PortInterfaceBase):
                         # instruction lookup fault: store address in DAR
                         comb += exc.happened.eq(1) # reason = MMU_LOOKUP
                         # mark dar as updated ?
-                        sync += self.pi.dar_o.eq(self.addr)
+                        comb += self.pi.dar_o.eq(self.addr)
 
                 with m.If(m_in.err):
                     # MMU RADIX exception thrown
@@ -276,8 +275,7 @@ class LoadStore1(PortInterfaceBase):
         with m.If(self.align_intr):
             comb += exc.happened.eq(1) # reason = alignment
             sync += Display("alignment error: store addr in DAR %x", self.addr)
-            sync += self.pi.dar_o.eq(self.addr)
-            # TODO report reason
+            comb += self.pi.dar_o.eq(self.addr)
 
         # happened, alignment, instr_fault, invalid.
         # note that all of these flow through - eventually to the TRAP
