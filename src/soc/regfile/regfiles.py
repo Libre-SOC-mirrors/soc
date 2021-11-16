@@ -285,9 +285,9 @@ class RegFiles:
 
     def make_hazard_vec(self, rf, name):
         if isinstance(rf, VirtualRegPort):
-            vec = RegFileArray(rf.bitwidth, 1)
+            vec = RegFileArray(1, rf.nregs)
         else:
-            vec = RegFileArray(rf.depth, 1)
+            vec = RegFileArray(1, rf.depth)
         # get read/write port specs and create bitvector ports with same names
         wr_spec, rd_spec = rf.get_port_specs()
         create_ports(vec, wr_spec, rd_spec)
