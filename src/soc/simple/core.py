@@ -481,13 +481,14 @@ class NonProductionCore(ControlBase):
         fus = self.fus.fus
         regs = self.regs
 
-        print("connect wr", regname, fspec)
         rpidx = regname
 
         # select the required write port.  these are pre-defined sizes
-        print(regfile, regs.rf.keys())
         rfile = regs.rf[regfile.lower()]
         wport = rfile.w_ports[rpidx]
+
+        print("connect wr", regname, "unary", rfile.unary, fspec)
+        print(regfile, regs.rf.keys())
 
         # select the write-protection hazard vector.  note that this still
         # requires to WRITE to the hazard bitvector!  read-requests need
@@ -566,7 +567,8 @@ class NonProductionCore(ControlBase):
                 # connect the regspec write "reg select" number to this port
                 # only if one FU actually requests (and is granted) the port
                 # will the write-enable be activated
-                addr_en = Signal.like(write)
+                wname = "waddr_en_%s_%s_%d" % (funame, regname, idx)
+                addr_en = Signal.like(write, name=wname)
                 wp = Signal()
                 comb += wp.eq(wr_pick & wrpick.en_o)
                 comb += addr_en.eq(Mux(wp, write, 0))
