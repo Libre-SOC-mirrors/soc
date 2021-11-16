@@ -486,6 +486,9 @@ class NonProductionCore(ControlBase):
         print(regfile, regs.rf.keys())
         rfile = regs.rf[regfile.lower()]
         wport = rfile.w_ports[rpidx]
+        if self.make_hazard_vecs:
+            wv = regs.wv[regfile.lower()]
+            wvport = wv.w_ports[rpidx] # write-vector (bit-level hazard ctrl)
 
         fspecs = fspec
         if not isinstance(fspecs, list):
@@ -507,6 +510,8 @@ class NonProductionCore(ControlBase):
 
         wsigs = []
         wens = []
+        wvsigs = []
+        wvens = []
         addrs = []
         for i, fspec in enumerate(fspecs):
             # connect up the FU req/go signals and the reg-read to the FU
@@ -553,11 +558,17 @@ class NonProductionCore(ControlBase):
                 # now connect up the bitvector write hazard
                 if not self.make_hazard_vecs:
                     continue
-                wv = regs.wv[regfile.lower()]
-                wvport = wv.w_ports[rpidx]
-                comb += wvport.i_data.eq(1) # always enable, for now
                 print ("write vector", regfile, wvport)
-                #if rfile.unary:
+                wname = "wvaddr_en_%s_%s_%d" % (funame, regname, idx)
+                wvaddr_en = Signal(len(wvport.wen), name=wname)
+                if rfile.unary:
+                    comb += wvaddr_en.eq(addr_en)
+                    wvens.append(wvaddr_en)
+                else:
+                    with m.If(wp):
+                        comb += wvaddr_en.eq(1<<addr_en)
+                    wvens.append(wvaddr_en)
+                    #wvens.append(wp)
 
         # here is where we create the Write Broadcast Bus. simple, eh?
         comb += wport.i_data.eq(ortreereduce_sig(wsigs))
@@ -568,6 +579,9 @@ class NonProductionCore(ControlBase):
             # for binary-addressed
             comb += wport.addr.eq(ortreereduce_sig(addrs))
             comb += wport.wen.eq(ortreereduce_sig(wens))
+
+        # for write-vectors
+        comb += wvport.wen.eq(ortreereduce_sig(wvens))
 
     def connect_wrports(self, m, fu_bitdict):
         """connect write ports
