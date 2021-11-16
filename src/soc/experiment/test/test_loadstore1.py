@@ -7,7 +7,7 @@ from random import randint, seed
 from nmigen.sim import Simulator, Delay, Settle
 from nmutil.util import wrap
 
-from soc.config.test.test_pi2ls import pi_ld, pi_st, pi_ldst
+from soc.config.test.test_pi2ls import pi_ld, pi_st, pi_ldst, wait_busy
 from soc.config.test.test_loadstore import TestMemPspec
 from soc.config.loadstore import ConfigMemoryPortInterface
 
@@ -137,7 +137,21 @@ def _test_loadstore1(dut, mem):
     assert(happened==1)
     assert(alignment==1)
     assert(dar==addr)
+    yield from wait_busy(pi, no=True)    # wait while busy
+    # wait is only needed in case of in exception here
     print("=== alignment error test passed ===")
+
+    """
+    #next test
+    addr = 0xFF100e000
+    ld_data = yield from pi_ld_debug(pi, addr, 8, msr_pr=1)
+    alignment = yield pi.exc_o.alignment
+    happened = yield pi.exc_o.happened
+    dar = yield pi.dar_o
+    assert(happened==1)
+    assert(alignment==1)
+    assert(dar==addr)
+    """
 
     yield
     stop = True

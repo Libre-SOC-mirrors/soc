@@ -99,7 +99,7 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     if exc_happened:
         return 0
 
-    yield from wait_busy(port1, no=False)    # wait while not busy
+    yield from wait_busy(port1, no=True)    # wait while busy
 
     return data
 
