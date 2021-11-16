@@ -290,7 +290,20 @@ class RegFiles:
             vec = RegFileArray(1, rf.depth)
         # get read/write port specs and create bitvector ports with same names
         wr_spec, rd_spec = rf.get_port_specs()
-        create_ports(vec, wr_spec, rd_spec)
+        # ok, this is complicated/fun.
+        # issue phase for checking whether to issue only needs one read port
+        # however during regfile-read, the corresponding bitvector needs to
+        # be *WRITTEN* to (a 1), and during regfile-write, the corresponding
+        # bitvector *ALSO* needs to be wrtten (a 0).  therefore we need to
+        # MERGE the wr_spec and rd_spec with some appropriate name prefixes
+        # to make sure they do not clash
+        rd_bvspec = {'issue': 'issue'}
+        wr_bvspec = {}
+        for k, port in wr_spec.items():
+            wr_bvspec["wr_%s" % k] = "wr_%s" % port
+        for k, port in rd_spec.items():
+            wr_bvspec["rd_%s" % k] = "rd_%s" % port
+        create_ports(vec, wr_bvspec, rd_bvspec)
         return vec
 
     def elaborate_into(self, m, platform):

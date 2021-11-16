@@ -488,7 +488,7 @@ class NonProductionCore(ControlBase):
         wport = rfile.w_ports[rpidx]
         if self.make_hazard_vecs:
             wv = regs.wv[regfile.lower()]
-            wvport = wv.w_ports[rpidx] # write-vector (bit-level hazard ctrl)
+            wvport = wv.w_ports["wr_"+rpidx] # write-vec bit-level hazard ctrl
 
         fspecs = fspec
         if not isinstance(fspecs, list):
