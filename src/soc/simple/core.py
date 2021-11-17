@@ -476,6 +476,51 @@ class NonProductionCore(ControlBase):
                 self.connect_rdport(m, fu_bitdict, rdpickers, regfile,
                                        regname, fspec)
 
+    def make_hazards(self, m, regfile, rfile, wvclr, wvset,
+                    funame, regname, idx,
+                    addr_en, wp, fu, fu_active, wrflag, write):
+        """make_hazards: a setter and a clearer for the regfile write ports
+
+        setter is at issue time (using PowerDecoder2 regfile write numbers)
+        clearer is at regfile write time (when FU has said what to write to)
+
+        there is *one* unusual case here which has to be dealt with:
+        when the Function Unit does *NOT* request a write to the regfile
+        (has its data.ok bit CLEARED).  this is perfectly legitimate.
+        and a royal pain.
+        """
+        comb = m.d.comb
+        name = "%s_%s_%d" % (funame, regname, idx)
+
+        # deal with write vector clear: this kicks in when the regfile
+        # is written to, and clears the corresponding bitvector entry
+        print ("write vector", regfile, wvclr)
+        wvaddr_en = Signal(len(wvclr.wen), name="wvaddr_en_"+name)
+        if rfile.unary:
+            comb += wvaddr_en.eq(addr_en)
+        else:
+            with m.If(wp):
+                comb += wvaddr_en.eq(1<<addr_en)
+
+        # now connect up the bitvector write hazard.  unlike the
+        # regfile writeports, a ONE must be written to the corresponding
+        # bit of the hazard bitvector (to indicate the existence of
+        # the hazard)
+
+        # the detection of what shall be written to is based
+        # on *issue*
+        print ("write vector (for regread)", regfile, wvset)
+        wviaddr_en = Signal(len(wvset.wen), name="wv_issue_addr_en_"+name)
+        issue_active = Signal(name="iactive_"+name)
+        comb += issue_active.eq(fu.issue_i & fu_active & wrflag)
+        with m.If(issue_active):
+            if rfile.unary:
+                comb += wviaddr_en.eq(write)
+            else:
+                comb += wviaddr_en.eq(1<<write)
+
+        return wvaddr_en, wviaddr_en
+
     def connect_wrport(self, m, fu_bitdict, wrpickers, regfile, regname, fspec):
         comb, sync = m.d.comb, m.d.sync
         fus = self.fus.fus
@@ -587,35 +632,14 @@ class NonProductionCore(ControlBase):
                 # now connect up the bitvector write hazard
                 if not self.make_hazard_vecs:
                     continue
-                print ("write vector", regfile, wvclr)
-                wname = "wvaddr_en_%s_%s_%d" % (funame, regname, idx)
-                wvaddr_en = Signal(len(wvclr.wen), name=wname)
-                if rfile.unary:
-                    comb += wvaddr_en.eq(addr_en)
-                else:
-                    with m.If(wp):
-                        comb += wvaddr_en.eq(1<<addr_en)
-                wvclren.append(wvaddr_en)
-
-                # now connect up the bitvector write hazard.  unlike the
-                # regfile writeports, a ONE must be written to the corresponding
-                # bit of the hazard bitvector (to indicate the existence of
-                # the hazard)
-
-                # the detection of what shall be written to is based
-                # on *issue*
-                print ("write vector (for regread)", regfile, wvset)
-                wname = "wv_issue_addr_en_%s_%s_%d" % (funame, regname, idx)
-                wvaddr_en = Signal(len(wvset.wen), name=wname)
-                issue_active = Signal(name="iactive_"+name)
-                comb += issue_active.eq(fu.issue_i & fu_active & wrflags[i])
-                with m.If(issue_active):
-                    if rfile.unary:
-                        comb += wvaddr_en.eq(write)
-                    else:
-                        comb += wvaddr_en.eq(1<<write)
-                wvseten.append(wvaddr_en)
-                wvsets.append(wvaddr_en)
+                res = self.make_hazards(m, regfile, rfile, wvclr, wvset,
+                                        funame, regname, idx,
+                                        addr_en, wp, fu, fu_active,
+                                        wrflags[i], write)
+                wvaddr_en, wv_issue_en = res
+                wvclren.append(wvaddr_en)   # set only: no data => clear bit
+                wvseten.append(wv_issue_en) # set data same as enable
+                wvsets.append(wv_issue_en)  # because enable needs a 1
 
         # here is where we create the Write Broadcast Bus. simple, eh?
         comb += wport.i_data.eq(ortreereduce_sig(wsigs))
