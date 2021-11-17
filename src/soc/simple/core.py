@@ -614,8 +614,8 @@ class NonProductionCore(ControlBase):
                         comb += wvaddr_en.eq(write)
                     else:
                         comb += wvaddr_en.eq(1<<write)
-                    wvseten.append(wvaddr_en)
-                    wvsets.append(wvaddr_en)
+                wvseten.append(wvaddr_en)
+                wvsets.append(wvaddr_en)
 
         # here is where we create the Write Broadcast Bus. simple, eh?
         comb += wport.i_data.eq(ortreereduce_sig(wsigs))
