@@ -18,13 +18,13 @@ from soc.regfile.regfile import RegFileArray
 
 
 class VirtualRegPort(RegFileArray):
-    def __init__(self, bitwidth, n_regs, rd2=False, wr2=False):
+    def __init__(self, bitwidth, n_regs, rd2=False, wr2=False, synced=True):
         self.bitwidth = bitwidth
         self.nregs = n_regs
         self.rd2 = rd2 # eurgh hack
         self.wr2 = wr2 # eurgh hack
         self.regwidth = regwidth = bitwidth // n_regs
-        super().__init__(self.regwidth, n_regs)
+        super().__init__(self.regwidth, n_regs, synced=synced)
 
         # "full" depth variant of the "external" port
         self.full_wr = RecordObject([("wen", n_regs),
