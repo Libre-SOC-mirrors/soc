@@ -31,7 +31,7 @@ from nmutil.picker import PriorityPicker
 from nmutil.util import treereduce
 from nmutil.singlepipe import ControlBase
 
-from soc.fu.compunits.compunits import AllFunctionUnits
+from soc.fu.compunits.compunits import AllFunctionUnits, LDSTFunctionUnit
 from soc.regfile.regfiles import RegFiles
 from openpower.decoder.power_decoder2 import get_rdflags
 from soc.experiment.l0_cache import TstL0CacheBuffer  # test only
@@ -478,7 +478,8 @@ class NonProductionCore(ControlBase):
 
     def make_hazards(self, m, regfile, rfile, wvclr, wvset,
                     funame, regname, idx,
-                    addr_en, wp, fu, fu_active, wrflag, write):
+                    addr_en, wp, fu, fu_active, wrflag, write,
+                    fu_wrok):
         """make_hazards: a setter and a clearer for the regfile write ports
 
         setter is at issue time (using PowerDecoder2 regfile write numbers)
@@ -489,20 +490,10 @@ class NonProductionCore(ControlBase):
         (has its data.ok bit CLEARED).  this is perfectly legitimate.
         and a royal pain.
         """
-        comb = m.d.comb
+        comb, sync = m.d.comb, m.d.sync
         name = "%s_%s_%d" % (funame, regname, idx)
 
-        # deal with write vector clear: this kicks in when the regfile
-        # is written to, and clears the corresponding bitvector entry
-        print ("write vector", regfile, wvclr)
-        wvaddr_en = Signal(len(wvclr.wen), name="wvaddr_en_"+name)
-        if rfile.unary:
-            comb += wvaddr_en.eq(addr_en)
-        else:
-            with m.If(wp):
-                comb += wvaddr_en.eq(1<<addr_en)
-
-        # now connect up the bitvector write hazard.  unlike the
+        # connect up the bitvector write hazard.  unlike the
         # regfile writeports, a ONE must be written to the corresponding
         # bit of the hazard bitvector (to indicate the existence of
         # the hazard)
@@ -518,6 +509,37 @@ class NonProductionCore(ControlBase):
                 comb += wviaddr_en.eq(write)
             else:
                 comb += wviaddr_en.eq(1<<write)
+
+        # deal with write vector clear: this kicks in when the regfile
+        # is written to, and clears the corresponding bitvector entry
+        print ("write vector", regfile, wvclr)
+        wvaddr_en = Signal(len(wvclr.wen), name="wvaddr_en_"+name)
+        if rfile.unary:
+            comb += wvaddr_en.eq(addr_en)
+        else:
+            with m.If(wp):
+                comb += wvaddr_en.eq(1<<addr_en)
+
+        # XXX ASSUME that LDSTFunctionUnit always sets the data it intends to
+        # this may NOT be the case when an exception occurs
+        if isinstance(fu, LDSTFunctionUnit):
+            return wvaddr_en, wviaddr_en
+
+        # okaaay, this is preparation for the awkward case.
+        # * latch a copy of wrflag when issue goes high.
+        # * when the fu_wrok (data.ok) flag is NOT set,
+        #   but the FU is done, the FU is NEVER going to write
+        #   so the bitvector has to be cleared.
+        latch_wrflag = Signal(name="latch_wrflag_"+name)
+        with m.If(~fu.busy_o):
+            sync += latch_wrflag.eq(0)
+        with m.If(fu.issue_i & fu_active):
+            sync += latch_wrflag.eq(wrflag)
+        with m.If(fu.alu_done_o & latch_wrflag & ~fu_wrok):
+            if rfile.unary:
+                comb += wvaddr_en.eq(write) # addr_en gated with wp, don't use
+            else:
+                comb += wvaddr_en.eq(1<<addr_en) # binary addr_en not gated
 
         return wvaddr_en, wviaddr_en
 
@@ -596,13 +618,13 @@ class NonProductionCore(ControlBase):
                 # write-request comes from dest.ok
                 dest = fu.get_out(idx)
                 fu_dest_latch = fu.get_fu_out(idx)  # latched output
-                name = "wrflag_%s_%s_%d" % (funame, regname, idx)
-                wrflag = Signal(name=name, reset_less=True)
-                comb += wrflag.eq(dest.ok & fu.busy_o)
+                name = "fu_wrok_%s_%s_%d" % (funame, regname, idx)
+                fu_wrok = Signal(name=name, reset_less=True)
+                comb += fu_wrok.eq(dest.ok & fu.busy_o)
 
                 # connect request-write to picker input, and output to go-wr
                 fu_active = fu_bitdict[funame]
-                pick = fu.wr.rel_o[idx] & fu_active  # & wrflag
+                pick = fu.wr.rel_o[idx] & fu_active
                 comb += wrpick.i[pi].eq(pick)
                 # create a single-pulse go write from the picker output
                 wr_pick = Signal(name="wpick_%s_%s_%d" % (funame, regname, idx))
@@ -635,7 +657,7 @@ class NonProductionCore(ControlBase):
                 res = self.make_hazards(m, regfile, rfile, wvclr, wvset,
                                         funame, regname, idx,
                                         addr_en, wp, fu, fu_active,
-                                        wrflags[i], write)
+                                        wrflags[i], write, fu_wrok)
                 wvaddr_en, wv_issue_en = res
                 wvclren.append(wvaddr_en)   # set only: no data => clear bit
                 wvseten.append(wv_issue_en) # set data same as enable
