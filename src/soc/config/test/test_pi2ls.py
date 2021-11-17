@@ -77,7 +77,7 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
 def pi_ld(port1, addr, datalen, msr_pr=0):
 
     # have to wait until not busy
-    yield from wait_busy(port1, no=False)    # wait until not busy
+    yield from wait_busy(port1,debug="pi_st_A") # wait while busy
 
     # set up a LD on the port.  address first:
     yield port1.is_ld_i.eq(1)  # indicate LD
@@ -99,7 +99,7 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     if exc_happened:
         return 0
 
-    yield from wait_busy(port1, no=True)    # wait while busy
+    yield from wait_busy(port1,debug="pi_st_E") # wait while busy
 
     return data
 
