@@ -174,10 +174,12 @@ class NonProductionCore(ControlBase):
         # ssh, cheat: trap uses the main decoder because of the rewriting
         self.des[self.trapunit] = self.i.e.do
 
-        # connect up Function Units, then read/write ports
-        fu_bitdict, fu_selected = self.connect_instruction(m)
-        self.connect_rdports(m, fu_selected)
+        # connect up Function Units, then read/write ports, and hazard conflict
+        issue_conflict = Signal()
+        fu_bitdict, fu_selected = self.connect_instruction(m, issue_conflict)
+        raw_hazard = self.connect_rdports(m, fu_selected)
         self.connect_wrports(m, fu_selected)
+        comb += issue_conflict.eq(raw_hazard)
 
         # note if an exception happened.  in a pipelined or OoO design
         # this needs to be accompanied by "shadowing" (or stalling)
@@ -213,7 +215,7 @@ class NonProductionCore(ControlBase):
                         comb += v.use_svp64_ldst_dec.eq(
                                         self.i.use_svp64_ldst_dec)
 
-    def connect_instruction(self, m):
+    def connect_instruction(self, m, issue_conflict):
         """connect_instruction
 
         uses decoded (from PowerOp) function unit information from CSV files
@@ -351,6 +353,11 @@ class NonProductionCore(ControlBase):
         print("read regfile", rpidx, regfile, regs.rf.keys(),
                               rfile, rfile.unary)
 
+        # for checking if the read port has an outstanding write
+        if self.make_hazard_vecs:
+            wv = regs.wv[regfile.lower()]
+            wvchk = wv.r_ports["issue"] # write-vec bit-level hazard check
+
         fspecs = fspec
         if not isinstance(fspecs, list):
             fspecs = [fspecs]
@@ -425,6 +432,20 @@ class NonProductionCore(ControlBase):
                     # all FUs connect to same port
                     comb += src.eq(rport.o_data)
 
+                if not self.make_hazard_vecs:
+                    continue
+
+                # read the write-hazard bitvector (wv) for any bit that is
+                wvchk_en = Signal(len(wvchk.ren), name="wv_chk_addr_en_"+name)
+                issue_active = Signal(name="rd_iactive_"+name)
+                comb += issue_active.eq(fu.issue_i & rdflags[i])
+                with m.If(issue_active):
+                    if rfile.unary:
+                        comb += wvchk_en.eq(reads[i])
+                    else:
+                        comb += wvchk_en.eq(1<<reads[i])
+                wvens.append(wvchk_en)
+
         # or-reduce the muxed read signals
         if rfile.unary:
             # for unary-addressed
@@ -434,6 +455,16 @@ class NonProductionCore(ControlBase):
             comb += rport.addr.eq(ortreereduce_sig(addrs))
             comb += rport.ren.eq(Cat(*rens).bool())
             print ("binary", regfile, rpidx, rport, rport.ren, rens, addrs)
+
+        if not self.make_hazard_vecs:
+            return Const(0) # declare "no hazards"
+
+        # enable the read bitvectors for this issued instruction
+        # and return whether any write-hazard bit is set
+        comb += wvchk.ren.eq(ortreereduce_sig(wvens))
+        hazard_detected = Signal(name="raw_%s_%s" % (regfile, rpidx))
+        comb += hazard_detected.eq(wvchk.o_data.bool())
+        return hazard_detected
 
     def connect_rdports(self, m, fu_bitdict):
         """connect read ports
@@ -445,6 +476,7 @@ class NonProductionCore(ControlBase):
         comb, sync = m.d.comb, m.d.sync
         fus = self.fus.fus
         regs = self.regs
+        rd_hazard = []
 
         # dictionary of lists of regfile read ports
         byregfiles_rd, byregfiles_rdspec = self.get_byregfiles(True)
@@ -473,8 +505,11 @@ class NonProductionCore(ControlBase):
             # for each named regfile port, connect up all FUs to that port
             for (regname, fspec) in sort_fuspecs(fuspecs):
                 print("connect rd", regname, fspec)
-                self.connect_rdport(m, fu_bitdict, rdpickers, regfile,
+                rh = self.connect_rdport(m, fu_bitdict, rdpickers, regfile,
                                        regname, fspec)
+                #rd_hazard.append(rh)
+
+        return Cat(*rd_hazard).bool()
 
     def make_hazards(self, m, regfile, rfile, wvclr, wvset,
                     funame, regname, idx,
