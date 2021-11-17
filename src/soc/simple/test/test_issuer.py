@@ -36,10 +36,15 @@ from openpower.simulator.test_helloworld_sim import HelloTestCases
 
 if __name__ == "__main__":
     svp64 = True
-    if len(sys.argv) == 2:
-        if sys.argv[1] == 'nosvp64':
-            svp64 = False
-        sys.argv.pop()
+    if sys.argv[1] == 'nosvp64':
+        svp64 = False
+        del sys.argv[1]
+
+    # detect overlap case
+    allow_overlap = False
+    if sys.argv[1] == '--allow-overlap':
+        allow_overlap = True
+        del sys.argv[1]
 
     # allow list of testing to be selected by command-line
     testing = sys.argv[1:]
@@ -50,7 +55,8 @@ if __name__ == "__main__":
                    'logical', 'alu',
                    'branch', 'div', 'mul', 'hazard']
 
-    print ("SVP64 test mode enabled", svp64, testing)
+    print ("SVP64 test mode enabled", svp64, "overlap",
+                                      allow_overlap, "testing", testing)
 
     unittest.main(exit=False)
     suite = unittest.TestSuite()
@@ -75,7 +81,8 @@ if __name__ == "__main__":
     # walk through all tests, those requested get added
     for tname, data in tests.items():
         if tname in testing:
-            suite.addTest(TestRunner(data, svp64=svp64))
+            suite.addTest(TestRunner(data, svp64=svp64,
+                                     allow_overlap=allow_overlap))
 
     runner = unittest.TextTestRunner()
     runner.run(suite)

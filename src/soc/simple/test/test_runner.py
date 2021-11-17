@@ -277,10 +277,12 @@ class HDLRunner(StateRunner):
 
 class TestRunner(TestRunnerBase):
     def __init__(self, tst_data, microwatt_mmu=False, rom=None,
-                        svp64=True, run_hdl=True, run_sim=True):
+                        svp64=True, run_hdl=True, run_sim=True,
+                        allow_overlap=False):
         if run_hdl:
             run_hdl = HDLRunner
         super().__init__(tst_data, microwatt_mmu=microwatt_mmu,
                         rom=rom,
-                        svp64=svp64, run_hdl=run_hdl, run_sim=run_sim)
+                        svp64=svp64, run_hdl=run_hdl, run_sim=run_sim,
+                        allow_overlap=False)
 
