@@ -651,6 +651,9 @@ class NonProductionCore(ControlBase):
             comb += wport.addr.eq(ortreereduce_sig(addrs))
             comb += wport.wen.eq(ortreereduce_sig(wens))
 
+        if not self.make_hazard_vecs:
+            return
+
         # for write-vectors
         comb += wvclr.wen.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
         comb += wvset.wen.eq(ortreereduce_sig(wvseten)) # set (issue time)
