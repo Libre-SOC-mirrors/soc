@@ -235,7 +235,11 @@ class PortInterfaceBase(Elaboratable):
 
         # LD/ST requested activates "busy" (only if not already busy)
         with m.If(self.pi.is_ld_i | self.pi.is_st_i):
-            comb += busy_l.s.eq(~busy_delay)
+            with m.If(self.pi.exc_o.happened):
+                comb += busy_l.s.eq(0)
+                sync += Display("fast exception")
+            with m.Else():
+                comb += busy_l.s.eq(~busy_delay)
 
         # if now in "LD" mode: wait for addr_ok, then send the address out
         # to memory, acknowledge address, and send out LD data
@@ -308,6 +312,7 @@ class PortInterfaceBase(Elaboratable):
         # monitor for an exception, clear busy immediately
         with m.If(self.pi.exc_o.happened):
             comb += busy_l.r.eq(1)
+            #sync += Display("slow exception -- busy reset")
 
         # however ST needs one cycle before busy is reset
         #with m.If(self.pi.st.ok | self.pi.ld.ok):
@@ -317,6 +322,7 @@ class PortInterfaceBase(Elaboratable):
         with m.If(cyc_l.q):
             comb += cyc_l.r.eq(1)
             comb += busy_l.r.eq(1)
+            #sync += Display("busy reset")
 
         # busy latch outputs to interface
         comb += pi.busy_o.eq(busy_l.q)
