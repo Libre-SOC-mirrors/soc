@@ -8,7 +8,7 @@ from soc.config.test.test_loadstore import TestMemPspec
 from soc.config.loadstore import ConfigMemoryPortInterface
 
 
-def wait_busy(port, no=False,debug=None):
+def wait_busy(port, no=False, debug=None):
     cnt = 0
     while True:
         busy = yield port.busy_o
