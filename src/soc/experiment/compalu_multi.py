@@ -106,6 +106,7 @@ class CompUnitRecord(RegSpec, RecordObject):
         # output (busy/done)
         self.busy_o = Signal(name="cu_busy_o", reset_less=True)  # fn busy out
         self.done_o = Signal(name="cu_done_o", reset_less=True)
+        self.alu_done_o = Signal(name="cu_alu_done_o", reset_less=True)
 
 
 class MultiCompUnit(RegSpecALUAPI, Elaboratable):
@@ -143,6 +144,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         self.wr = cu.wr
         self.rdmaskn = cu.rdmaskn
         self.wrmask = cu.wrmask
+        self.alu_done_o = cu.alu_done_o
         self.go_rd_i = self.rd.go_i  # temporary naming
         self.go_wr_i = self.wr.go_i  # temporary naming
         self.rd_rel_o = self.rd.rel_o  # temporary naming
@@ -198,7 +200,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         m.d.comb += all_rd_pulse.eq(rising_edge(m, all_rd))
 
         # create rising pulse from alu valid condition.
-        alu_done = Signal(reset_less=True)
+        alu_done = self.cu.alu_done_o
         alu_pulse = Signal(reset_less=True)
         alu_pulsem = Signal(self.n_dst, reset_less=True)
         m.d.comb += alu_done.eq(self.alu.n.o_valid)
