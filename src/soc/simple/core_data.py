@@ -11,6 +11,33 @@ from openpower.decoder.decode2execute1 import IssuerDecode2ToOperand
 from soc.config.state import CoreState
 
 
+class FetchOutput:
+    """FetchOutput: the output from the fetch unit: one single instruction
+
+    * state.  this contains PC, MSR, and SVSTATE. this is crucial information.
+      (TODO: bigendian_i should really be read from the relevant MSR bit)
+
+    * the raw instruction.  no decoding has been done - at all.
+
+      (TODO: provide a *pair* of raw instructions so that packet
+       inspection can be done, and SVP64 decoding and future 64-bit
+       prefix analysis carried out.  however right now that is *not*
+       the focus)
+    """
+    def __init__(self): #, svp64_en):
+        #self.svp64_en = svp64_en
+
+        # state and raw instruction (and SVP64 ReMap fields)
+        self.state = CoreState("core_fetched")
+        self.raw_insn_i = Signal(32) # one raw instruction
+        self.bigendian_i = Signal() # bigendian - TODO, set by MSR.BE
+
+    def eq(self, i):
+        self.state.eq(i.state)
+        self.raw_insn_i.eq(i.raw_insn_i)
+        self.bigendian_i.eq(i.bigendian_i)
+
+
 class CoreInput:
     """CoreInput: this is the input specification for Signals coming into core.
 
