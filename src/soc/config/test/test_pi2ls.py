@@ -45,7 +45,7 @@ def wait_ldok(port):
 def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
 
     # have to wait until not busy
-    yield from wait_busy(port1, no=False)    # wait until not busy
+    yield from wait_busy(port1,debug="pi_st_A") # wait while busy
 
     # set up a ST on the port.  address first:
     yield port1.is_dcbz_i.eq(is_dcbz)  # reset dcbz too
@@ -64,7 +64,7 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.st.ok.eq(1)
     yield
     yield port1.st.ok.eq(0)
-    yield from wait_busy(port1, True)    # wait while busy
+    yield from wait_busy(port1,debug="pi_st_E") # wait while busy
 
     # can go straight to reset.
     yield port1.is_st_i.eq(0)  # end
@@ -77,7 +77,7 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
 def pi_ld(port1, addr, datalen, msr_pr=0):
 
     # have to wait until not busy
-    yield from wait_busy(port1,debug="pi_st_A") # wait while busy
+    yield from wait_busy(port1,debug="pi_ld_A") # wait while busy
 
     # set up a LD on the port.  address first:
     yield port1.is_ld_i.eq(1)  # indicate LD
@@ -99,7 +99,7 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     if exc_happened:
         return 0
 
-    yield from wait_busy(port1,debug="pi_st_E") # wait while busy
+    yield from wait_busy(port1,debug="pi_ld_E") # wait while busy
 
     return data
 
