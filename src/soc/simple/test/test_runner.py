@@ -283,5 +283,5 @@ class TestRunner(TestRunnerBase):
         super().__init__(tst_data, microwatt_mmu=microwatt_mmu,
                         rom=rom,
                         svp64=svp64, run_hdl=run_hdl, run_sim=run_sim,
-                        allow_overlap=False)
+                        allow_overlap=allow_overlap)
 

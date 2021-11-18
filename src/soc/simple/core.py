@@ -80,6 +80,12 @@ class NonProductionCore(ControlBase):
         self.regreduce_en = (hasattr(pspec, "regreduce") and
                              (pspec.regreduce == True))
 
+        # test to see if overlapping of instructions is allowed
+        # (not normally enabled for TestIssuer FSM but useful for checking
+        # the bitvector hazard detection, before doing In-Order)
+        self.allow_overlap = (hasattr(pspec, "allow_overlap") and
+                             (pspec.allow_overlap == True))
+
         # test core type
         self.make_hazard_vecs = True
         self.core_type = "fsm"
@@ -284,7 +290,8 @@ class NonProductionCore(ControlBase):
                 # if we don't do this, then when there are no FUs available,
                 # the "p.o_ready" signal will go back "ok we accepted this
                 # instruction" which of course isn't true.
-                comb += fu_found.eq(~fnmatch | i_pp.en_o)
+                with m.If(~issue_conflict & i_pp.en_o):
+                    comb += fu_found.eq(1)
             # for each input, Cat them together and drop them into the picker
             comb += i_pp.i.eq(Cat(*i_l))
 
@@ -322,13 +329,18 @@ class NonProductionCore(ControlBase):
                             rdmask = get_rdflags(self.i.e, fu)
                             comb += fu.rdmaskn.eq(~rdmask)
 
-        # if instruction is busy, set busy output for core.
-        busys = map(lambda fu: fu.busy_o, fus.values())
-        comb += busy_o.eq(Cat(*busys).bool())
+        print ("core: overlap allowed", self.allow_overlap)
+        if not self.allow_overlap:
+            # for simple non-overlap, if any instruction is busy, set
+            # busy output for core.
+            busys = map(lambda fu: fu.busy_o, fus.values())
+            comb += busy_o.eq(Cat(*busys).bool())
+        else:
+            # for the overlap case, only set busy if an FU is not found,
+            # and an FU will not be found if the write hazards are blocked
+            comb += busy_o.eq(~fu_found | issue_conflict)
 
         # ready/valid signalling.  if busy, means refuse incoming issue.
-        # (this is a global signal, TODO, change to one which allows
-        # overlapping instructions)
         # also, if there was no fu found we must not send back a valid
         # indicator.  BUT, of course, when there is no instruction
         # we must ignore the fu_found flag, otherwise o_ready will never
@@ -503,11 +515,12 @@ class NonProductionCore(ControlBase):
                         fuspecs['fast1'].append(fuspecs.pop('fast3'))
 
             # for each named regfile port, connect up all FUs to that port
+            # also return (and collate) hazard detection)
             for (regname, fspec) in sort_fuspecs(fuspecs):
                 print("connect rd", regname, fspec)
                 rh = self.connect_rdport(m, fu_bitdict, rdpickers, regfile,
                                        regname, fspec)
-                #rd_hazard.append(rh)
+                rd_hazard.append(rh)
 
         return Cat(*rd_hazard).bool()
 
