@@ -19,7 +19,6 @@ from openpower.endian import bigendian
 
 from soc.simple.issuer import TestIssuerInternal
 
-from soc.config.test.test_loadstore import TestMemPspec
 from soc.simple.test.test_core import (setup_regs, check_regs, check_mem,
                                        wait_for_busy_clear,
                                        wait_for_busy_hi)
