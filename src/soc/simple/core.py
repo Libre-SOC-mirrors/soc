@@ -247,7 +247,7 @@ class NonProductionCore(ControlBase):
         # or if the instruction could not be delivered, keep dropping the
         # latched copy into ireg
         ilatch = self.ispec()
-        instruction_active = Signal()
+        self.instruction_active = Signal()
 
         # enable/busy-signals for each FU, get one bit for each FU (by name)
         fu_enable = Signal(len(fus), reset_less=True)
@@ -290,7 +290,7 @@ class NonProductionCore(ControlBase):
                 fnunit = fu.fnunit.value
                 en_req = Signal(name="issue_en_%s" % funame, reset_less=True)
                 fnmatch = (self.ireg.e.do.fn_unit & fnunit).bool()
-                comb += en_req.eq(fnmatch & ~fu.busy_o & instruction_active)
+                comb += en_req.eq(fnmatch & ~fu.busy_o & self.instruction_active)
                 i_l.append(en_req) # store in list for doing the Cat-trick
                 # picker output, gated by enable: store in fu_bitdict
                 po = Signal(name="o_issue_pick_"+funame) # picker output
@@ -316,13 +316,13 @@ class NonProductionCore(ControlBase):
         comb += self.ireg.eq(self.i)
         # always say "ready" except if overridden
         comb += self.p.o_ready.eq(1)
-        comb += instruction_active.eq(1)
 
         l_issue_conflict = Signal()
 
         with m.FSM():
             with m.State("READY"):
                 with m.If(self.p.i_valid): # run only when valid
+                    comb += self.instruction_active.eq(1)
                     with m.Switch(self.ireg.e.do.insn_type):
                         # check for ATTN: halt if true
                         with m.Case(MicrOp.OP_ATTN):
@@ -342,7 +342,7 @@ class NonProductionCore(ControlBase):
 
                                 # run this FunctionUnit if enabled route op,
                                 # issue, busy, read flags and mask to FU
-                                with m.If(enable):
+                                with m.If(enable & fu_found):
                                     # operand comes from the *local*  decoder
                                     comb += fu.oper_i.eq_from(do)
                                     comb += fu.issue_i.eq(1) # issue when valid
@@ -363,7 +363,7 @@ class NonProductionCore(ControlBase):
                                 m.next = "WAITING"
 
             with m.State("WAITING"):
-                comb += instruction_active.eq(1)
+                comb += self.instruction_active.eq(1)
                 with m.If(fu_found):
                     sync += l_issue_conflict.eq(0)
                 comb += self.p.o_ready.eq(0)
@@ -501,7 +501,7 @@ class NonProductionCore(ControlBase):
                 # read the write-hazard bitvector (wv) for any bit that is
                 wvchk_en = Signal(len(wvchk.ren), name="wv_chk_addr_en_"+name)
                 issue_active = Signal(name="rd_iactive_"+name)
-                comb += issue_active.eq(fu.issue_i & rdflags[i])
+                comb += issue_active.eq(self.instruction_active & rdflags[i])
                 with m.If(issue_active):
                     if rfile.unary:
                         comb += wvchk_en.eq(reads[i])
