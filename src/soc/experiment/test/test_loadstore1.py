@@ -98,6 +98,8 @@ def setup_mmu():
 
     return m, cmpi
 
+test_exceptions = True
+
 def _test_loadstore1(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
@@ -119,7 +121,7 @@ def _test_loadstore1(dut, mem):
     assert ld_data == 0xf553b658ba7e1f51
 
     print("do_dcbz ===============")
-    yield from pi_st(pi, addr, data, 8, msr_pr=0, is_dcbz=1)
+    yield from pi_st(pi, addr, data, 8, msr_pr=1, is_dcbz=1)
     print("done_dcbz ===============")
     yield
 
@@ -128,30 +130,23 @@ def _test_loadstore1(dut, mem):
     print(ld_data)
     assert ld_data == 0
 
-    print("=== alignment error ===")
-    addr = 0xFF100e0FF
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
-    alignment = yield pi.exc_o.alignment
-    happened = yield pi.exc_o.happened
-    dar = yield pi.dar_o
-    assert(happened==1)
-    assert(alignment==1)
-    assert(dar==addr)
-    yield from wait_busy(pi, no=True)    # wait while busy
-    # wait is only needed in case of in exception here
-    print("=== alignment error test passed ===")
+    if test_exceptions:
+        # causes next test to hang
+        print("=== alignment error ===")
+        addr = 0xFF100e0FF
+        ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        alignment = yield pi.exc_o.alignment
+        happened = yield pi.exc_o.happened
+        dar = yield pi.dar_o
+        assert(happened==1)
+        assert(alignment==1)
+        assert(dar==addr)
+        yield from wait_busy(pi, debug="pi_ld_E_alignment_error")
+        # wait is only needed in case of in exception here
+        print("=== alignment error test passed ===")
 
-    """
-    #next test
     addr = 0xFF100e000
-    ld_data = yield from pi_ld_debug(pi, addr, 8, msr_pr=1)
-    alignment = yield pi.exc_o.alignment
-    happened = yield pi.exc_o.happened
-    dar = yield pi.dar_o
-    assert(happened==1)
-    assert(alignment==1)
-    assert(dar==addr)
-    """
+    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
 
     yield
     stop = True
