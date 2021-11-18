@@ -861,7 +861,7 @@ class TestIssuerInternal(Elaboratable):
         pdecode2 = self.pdecode2
 
         # temporaries
-        core_busy_o = ~core.p.o_ready | core.n.o_data.busy_o # core is busy
+        core_busy_o = core.n.o_data.busy_o # core is busy
         core_ivalid_i = core.p.i_valid              # instruction is valid
 
         with m.FSM(name="exec_fsm"):
@@ -873,7 +873,8 @@ class TestIssuerInternal(Elaboratable):
                     comb += core_ivalid_i.eq(1)  # instruction is valid/issued
                     sync += sv_changed.eq(0)
                     sync += pc_changed.eq(0)
-                    m.next = "INSN_ACTIVE"  # move to "wait completion"
+                    with m.If(core.p.o_ready): # only move if accepted
+                        m.next = "INSN_ACTIVE"  # move to "wait completion"
 
             # instruction started: must wait till it finishes
             with m.State("INSN_ACTIVE"):

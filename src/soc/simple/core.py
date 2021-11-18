@@ -247,6 +247,7 @@ class NonProductionCore(ControlBase):
         # or if the instruction could not be delivered, keep dropping the
         # latched copy into ireg
         ilatch = self.ispec()
+        instruction_active = Signal()
 
         # enable/busy-signals for each FU, get one bit for each FU (by name)
         fu_enable = Signal(len(fus), reset_less=True)
@@ -289,7 +290,7 @@ class NonProductionCore(ControlBase):
                 fnunit = fu.fnunit.value
                 en_req = Signal(name="issue_en_%s" % funame, reset_less=True)
                 fnmatch = (self.ireg.e.do.fn_unit & fnunit).bool()
-                comb += en_req.eq(fnmatch & ~fu.busy_o & self.p.i_valid)
+                comb += en_req.eq(fnmatch & ~fu.busy_o & instruction_active)
                 i_l.append(en_req) # store in list for doing the Cat-trick
                 # picker output, gated by enable: store in fu_bitdict
                 po = Signal(name="o_issue_pick_"+funame) # picker output
@@ -315,6 +316,9 @@ class NonProductionCore(ControlBase):
         comb += self.ireg.eq(self.i)
         # always say "ready" except if overridden
         comb += self.p.o_ready.eq(1)
+        comb += instruction_active.eq(1)
+
+        l_issue_conflict = Signal()
 
         with m.FSM():
             with m.State("READY"):
@@ -353,31 +357,39 @@ class NonProductionCore(ControlBase):
                             with m.If(~fu_found):
                                 # latch copy of instruction
                                 sync += ilatch.eq(self.i)
+                                sync += l_issue_conflict.eq(issue_conflict)
                                 comb += self.p.o_ready.eq(1) # accept
+                                comb += busy_o.eq(1)
                                 m.next = "WAITING"
 
             with m.State("WAITING"):
+                comb += instruction_active.eq(1)
+                with m.If(fu_found):
+                    sync += l_issue_conflict.eq(0)
                 comb += self.p.o_ready.eq(0)
+                comb += busy_o.eq(1)
                 # using copy of instruction, keep waiting until an FU is free
                 comb += self.ireg.eq(ilatch)
-                # connect instructions. only one enabled at a time
-                for funame, fu in fus.items():
-                    do = self.des[funame]
-                    enable = fu_bitdict[funame]
+                with m.If(~l_issue_conflict): # wait for conflict to clear
+                    # connect instructions. only one enabled at a time
+                    for funame, fu in fus.items():
+                        do = self.des[funame]
+                        enable = fu_bitdict[funame]
 
-                    # run this FunctionUnit if enabled route op,
-                    # issue, busy, read flags and mask to FU
-                    with m.If(enable):
-                        # operand comes from the *local*  decoder
-                        comb += fu.oper_i.eq_from(do)
-                        comb += fu.issue_i.eq(1) # issue when valid
-                        # rdmask, which is for registers,
-                        # needs to come
-                        # from the *main* decoder
-                        rdmask = get_rdflags(self.ireg.e, fu)
-                        comb += fu.rdmaskn.eq(~rdmask)
-                        comb += self.p.o_ready.eq(1)
-                        m.next = "READY"
+                        # run this FunctionUnit if enabled route op,
+                        # issue, busy, read flags and mask to FU
+                        with m.If(enable):
+                            # operand comes from the *local*  decoder
+                            comb += fu.oper_i.eq_from(do)
+                            comb += fu.issue_i.eq(1) # issue when valid
+                            # rdmask, which is for registers,
+                            # needs to come
+                            # from the *main* decoder
+                            rdmask = get_rdflags(self.ireg.e, fu)
+                            comb += fu.rdmaskn.eq(~rdmask)
+                            comb += self.p.o_ready.eq(1)
+                            comb += busy_o.eq(0)
+                            m.next = "READY"
 
         print ("core: overlap allowed", self.allow_overlap)
         if not self.allow_overlap:
@@ -385,10 +397,6 @@ class NonProductionCore(ControlBase):
             # busy output for core.
             busys = map(lambda fu: fu.busy_o, fus.values())
             comb += busy_o.eq(Cat(*busys).bool())
-        else:
-            # for the overlap case, only set busy if an FU is not found,
-            # and an FU will not be found if the write hazards are blocked
-            comb += busy_o.eq(~fu_found | issue_conflict)
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
