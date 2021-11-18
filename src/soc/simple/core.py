@@ -177,10 +177,6 @@ class NonProductionCore(ControlBase):
         regs = self.regs
         fus = self.fus.fus
 
-        # connect up temporary copy of incoming instruction
-        print ("connect ireg, i", self.ireg, self.i)
-        comb += self.ireg.eq(self.i)
-
         # connect decoders
         self.connect_satellite_decoders(m)
 
@@ -246,6 +242,12 @@ class NonProductionCore(ControlBase):
         # indicate if core is busy
         busy_o = self.o.busy_o
 
+        # connect up temporary copy of incoming instruction. the FSM will
+        # either blat the incoming instruction (if valid) into self.ireg
+        # or if the instruction could not be delivered, keep dropping the
+        # latched copy into ireg
+        ilatch = self.ispec()
+
         # enable/busy-signals for each FU, get one bit for each FU (by name)
         fu_enable = Signal(len(fus), reset_less=True)
         fu_busy = Signal(len(fus), reset_less=True)
@@ -308,33 +310,74 @@ class NonProductionCore(ControlBase):
             sync += counter.eq(counter - 1)
             comb += busy_o.eq(1)
 
-        with m.If(self.p.i_valid): # run only when valid
-            with m.Switch(self.ireg.e.do.insn_type):
-                # check for ATTN: halt if true
-                with m.Case(MicrOp.OP_ATTN):
-                    m.d.sync += self.o.core_terminate_o.eq(1)
+        # default to reading from incoming instruction: may be overridden
+        # by copy from latch when "waiting"
+        comb += self.ireg.eq(self.i)
+        # always say "ready" except if overridden
+        comb += self.p.o_ready.eq(1)
 
-                # fake NOP - this isn't really used (Issuer detects NOP)
-                with m.Case(MicrOp.OP_NOP):
-                    sync += counter.eq(2)
-                    comb += busy_o.eq(1)
+        with m.FSM():
+            with m.State("READY"):
+                with m.If(self.p.i_valid): # run only when valid
+                    with m.Switch(self.ireg.e.do.insn_type):
+                        # check for ATTN: halt if true
+                        with m.Case(MicrOp.OP_ATTN):
+                            m.d.sync += self.o.core_terminate_o.eq(1)
 
-                with m.Default():
-                    # connect up instructions.  only one enabled at a time
-                    for funame, fu in fus.items():
-                        do = self.des[funame]
-                        enable = fu_bitdict[funame]
+                        # fake NOP - this isn't really used (Issuer detects NOP)
+                        with m.Case(MicrOp.OP_NOP):
+                            sync += counter.eq(2)
+                            comb += busy_o.eq(1)
 
-                        # run this FunctionUnit if enabled
-                        # route op, issue, busy, read flags and mask to FU
-                        with m.If(enable):
-                            # operand comes from the *local*  decoder
-                            comb += fu.oper_i.eq_from(do)
-                            comb += fu.issue_i.eq(1) # issue when input valid
-                            # rdmask, which is for registers, needs to come
-                            # from the *main* decoder
-                            rdmask = get_rdflags(self.ireg.e, fu)
-                            comb += fu.rdmaskn.eq(~rdmask)
+                        with m.Default():
+                            comb += self.p.o_ready.eq(0)
+                            # connect instructions. only one enabled at a time
+                            for funame, fu in fus.items():
+                                do = self.des[funame]
+                                enable = fu_bitdict[funame]
+
+                                # run this FunctionUnit if enabled route op,
+                                # issue, busy, read flags and mask to FU
+                                with m.If(enable):
+                                    # operand comes from the *local*  decoder
+                                    comb += fu.oper_i.eq_from(do)
+                                    comb += fu.issue_i.eq(1) # issue when valid
+                                    # rdmask, which is for registers,
+                                    # needs to come
+                                    # from the *main* decoder
+                                    rdmask = get_rdflags(self.ireg.e, fu)
+                                    comb += fu.rdmaskn.eq(~rdmask)
+                                    # instruction ok, indicate ready
+                                    comb += self.p.o_ready.eq(1)
+
+                            with m.If(~fu_found):
+                                # latch copy of instruction
+                                sync += ilatch.eq(self.i)
+                                comb += self.p.o_ready.eq(1) # accept
+                                m.next = "WAITING"
+
+            with m.State("WAITING"):
+                comb += self.p.o_ready.eq(0)
+                # using copy of instruction, keep waiting until an FU is free
+                comb += self.ireg.eq(ilatch)
+                # connect instructions. only one enabled at a time
+                for funame, fu in fus.items():
+                    do = self.des[funame]
+                    enable = fu_bitdict[funame]
+
+                    # run this FunctionUnit if enabled route op,
+                    # issue, busy, read flags and mask to FU
+                    with m.If(enable):
+                        # operand comes from the *local*  decoder
+                        comb += fu.oper_i.eq_from(do)
+                        comb += fu.issue_i.eq(1) # issue when valid
+                        # rdmask, which is for registers,
+                        # needs to come
+                        # from the *main* decoder
+                        rdmask = get_rdflags(self.ireg.e, fu)
+                        comb += fu.rdmaskn.eq(~rdmask)
+                        comb += self.p.o_ready.eq(1)
+                        m.next = "READY"
 
         print ("core: overlap allowed", self.allow_overlap)
         if not self.allow_overlap:
@@ -346,13 +389,6 @@ class NonProductionCore(ControlBase):
             # for the overlap case, only set busy if an FU is not found,
             # and an FU will not be found if the write hazards are blocked
             comb += busy_o.eq(~fu_found | issue_conflict)
-
-        # ready/valid signalling.  if busy, means refuse incoming issue.
-        # also, if there was no fu found we must not send back a valid
-        # indicator.  BUT, of course, when there is no instruction
-        # we must ignore the fu_found flag, otherwise o_ready will never
-        # be set when everything is idle
-        comb += self.p.o_ready.eq(fu_found | ~self.p.i_valid)
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
