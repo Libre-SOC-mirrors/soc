@@ -116,8 +116,11 @@ class NonProductionCore(ControlBase):
         # set up input and output: unusual requirement to set data directly
         # (due to the way that the core is set up in a different domain,
         # see TestIssuer.setup_peripherals
-        self.i, self.o = self.new_specs(None)
+        self.p.i_data, self.n.o_data = self.new_specs(None)
         self.i, self.o = self.p.i_data, self.n.o_data
+
+        # actual internal input data used (captured)
+        self.ireg = self.ispec()
 
         # create per-FU instruction decoders (subsetted).  these "satellite"
         # decoders reduce wire fan-out from the one (main) PowerDecoder2
@@ -138,7 +141,7 @@ class NonProductionCore(ControlBase):
                 continue
             self.decoders[funame] = PowerDecodeSubset(None, opkls, f_name,
                                                       final=True,
-                                                      state=self.i.state,
+                                                      state=self.ireg.state,
                                             svp64_en=self.svp64_en,
                                             regreduce_en=self.regreduce_en)
             self.des[funame] = self.decoders[funame].do
@@ -174,11 +177,15 @@ class NonProductionCore(ControlBase):
         regs = self.regs
         fus = self.fus.fus
 
+        # connect up temporary copy of incoming instruction
+        print ("connect ireg, i", self.ireg, self.i)
+        comb += self.ireg.eq(self.i)
+
         # connect decoders
         self.connect_satellite_decoders(m)
 
         # ssh, cheat: trap uses the main decoder because of the rewriting
-        self.des[self.trapunit] = self.i.e.do
+        self.des[self.trapunit] = self.ireg.e.do
 
         # connect up Function Units, then read/write ports, and hazard conflict
         issue_conflict = Signal()
@@ -204,22 +211,22 @@ class NonProductionCore(ControlBase):
             # as subset decoders this massively reduces wire fanout given
             # the large number of ALUs
             setattr(m.submodules, "dec_%s" % v.fn_name, v)
-            comb += v.dec.raw_opcode_in.eq(self.i.raw_insn_i)
-            comb += v.dec.bigendian.eq(self.i.bigendian_i)
+            comb += v.dec.raw_opcode_in.eq(self.ireg.raw_insn_i)
+            comb += v.dec.bigendian.eq(self.ireg.bigendian_i)
             # sigh due to SVP64 RA_OR_ZERO detection connect these too
-            comb += v.sv_a_nz.eq(self.i.sv_a_nz)
+            comb += v.sv_a_nz.eq(self.ireg.sv_a_nz)
             if self.svp64_en:
-                comb += v.pred_sm.eq(self.i.sv_pred_sm)
-                comb += v.pred_dm.eq(self.i.sv_pred_dm)
+                comb += v.pred_sm.eq(self.ireg.sv_pred_sm)
+                comb += v.pred_dm.eq(self.ireg.sv_pred_dm)
                 if k != self.trapunit:
-                    comb += v.sv_rm.eq(self.i.sv_rm) # pass through SVP64 ReMap
-                    comb += v.is_svp64_mode.eq(self.i.is_svp64_mode)
+                    comb += v.sv_rm.eq(self.ireg.sv_rm) # pass through SVP64 RM
+                    comb += v.is_svp64_mode.eq(self.ireg.is_svp64_mode)
                     # only the LDST PowerDecodeSubset *actually* needs to
                     # know to use the alternative decoder.  this is all
                     # a terrible hack
                     if k.lower().startswith("ldst"):
                         comb += v.use_svp64_ldst_dec.eq(
-                                        self.i.use_svp64_ldst_dec)
+                                        self.ireg.use_svp64_ldst_dec)
 
     def connect_instruction(self, m, issue_conflict):
         """connect_instruction
@@ -279,7 +286,7 @@ class NonProductionCore(ControlBase):
                 # instruction.
                 fnunit = fu.fnunit.value
                 en_req = Signal(name="issue_en_%s" % funame, reset_less=True)
-                fnmatch = (self.i.e.do.fn_unit & fnunit).bool()
+                fnmatch = (self.ireg.e.do.fn_unit & fnunit).bool()
                 comb += en_req.eq(fnmatch & ~fu.busy_o & self.p.i_valid)
                 i_l.append(en_req) # store in list for doing the Cat-trick
                 # picker output, gated by enable: store in fu_bitdict
@@ -302,7 +309,7 @@ class NonProductionCore(ControlBase):
             comb += busy_o.eq(1)
 
         with m.If(self.p.i_valid): # run only when valid
-            with m.Switch(self.i.e.do.insn_type):
+            with m.Switch(self.ireg.e.do.insn_type):
                 # check for ATTN: halt if true
                 with m.Case(MicrOp.OP_ATTN):
                     m.d.sync += self.o.core_terminate_o.eq(1)
@@ -326,7 +333,7 @@ class NonProductionCore(ControlBase):
                             comb += fu.issue_i.eq(1) # issue when input valid
                             # rdmask, which is for registers, needs to come
                             # from the *main* decoder
-                            rdmask = get_rdflags(self.i.e, fu)
+                            rdmask = get_rdflags(self.ireg.e, fu)
                             comb += fu.rdmaskn.eq(~rdmask)
 
         print ("core: overlap allowed", self.allow_overlap)
@@ -774,7 +781,7 @@ class NonProductionCore(ControlBase):
         mode = "read" if readmode else "write"
         regs = self.regs
         fus = self.fus.fus
-        e = self.i.e # decoded instruction to execute
+        e = self.ireg.e # decoded instruction to execute
 
         # dictionary of lists of regfile ports
         byregfiles = {}
