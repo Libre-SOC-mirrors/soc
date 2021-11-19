@@ -184,12 +184,12 @@ class NonProductionCore(ControlBase):
         self.des[self.trapunit] = self.ireg.e.do
 
         # connect up Function Units, then read/write ports, and hazard conflict
-        issue_conflict = Signal()
-        fu_bitdict, fu_selected = self.connect_instruction(m, issue_conflict)
-        raw_hazard = self.connect_rdports(m, fu_selected)
-        self.connect_wrports(m, fu_selected)
+        self.issue_conflict = Signal()
+        fu_bitdict, fu_selected = self.connect_instruction(m)
+        raw_hazard = self.connect_rdports(m, fu_bitdict, fu_selected)
+        self.connect_wrports(m, fu_bitdict, fu_selected)
         if self.allow_overlap:
-            comb += issue_conflict.eq(raw_hazard)
+            comb += self.issue_conflict.eq(raw_hazard)
 
         # note if an exception happened.  in a pipelined or OoO design
         # this needs to be accompanied by "shadowing" (or stalling)
@@ -225,7 +225,7 @@ class NonProductionCore(ControlBase):
                         comb += v.use_svp64_ldst_dec.eq(
                                         self.ireg.use_svp64_ldst_dec)
 
-    def connect_instruction(self, m, issue_conflict):
+    def connect_instruction(self, m):
         """connect_instruction
 
         uses decoded (from PowerOp) function unit information from CSV files
@@ -291,7 +291,8 @@ class NonProductionCore(ControlBase):
                 fnunit = fu.fnunit.value
                 en_req = Signal(name="issue_en_%s" % funame, reset_less=True)
                 fnmatch = (self.ireg.e.do.fn_unit & fnunit).bool()
-                comb += en_req.eq(fnmatch & ~fu.busy_o & self.instr_active)
+                comb += en_req.eq(fnmatch & ~fu.busy_o &
+                                    self.instr_active)
                 i_l.append(en_req) # store in list for doing the Cat-trick
                 # picker output, gated by enable: store in fu_bitdict
                 po = Signal(name="o_issue_pick_"+funame) # picker output
@@ -301,7 +302,7 @@ class NonProductionCore(ControlBase):
                 # if we don't do this, then when there are no FUs available,
                 # the "p.o_ready" signal will go back "ok we accepted this
                 # instruction" which of course isn't true.
-                with m.If(~issue_conflict & i_pp.en_o):
+                with m.If(~self.issue_conflict & i_pp.en_o):
                     comb += fu_found.eq(1)
             # for each input, Cat them together and drop them into the picker
             comb += i_pp.i.eq(Cat(*i_l))
@@ -348,18 +349,21 @@ class NonProductionCore(ControlBase):
 
                                 # run this FunctionUnit if enabled route op,
                                 # issue, busy, read flags and mask to FU
-                                with m.If(enable & ~issue_conflict):
+                                with m.If(enable & ~self.issue_conflict):
                                     # operand comes from the *local*  decoder
                                     comb += fu.oper_i.eq_from(do)
                                     comb += fu.issue_i.eq(1) # issue when valid
                                     # instruction ok, indicate ready
                                     comb += self.p.o_ready.eq(1)
+                                    comb += busy_o.eq(1)
 
                             if self.allow_overlap:
                                 with m.If(~fu_found):
+                                    comb += self.instr_active.eq(1)
                                     # latch copy of instruction
                                     sync += ilatch.eq(self.i)
-                                    sync += l_issue_conflict.eq(issue_conflict)
+                                    sync += l_issue_conflict.eq(
+                                                      self.issue_conflict)
                                     comb += self.p.o_ready.eq(1) # accept
                                     comb += busy_o.eq(1)
                                     m.next = "WAITING"
@@ -400,7 +404,8 @@ class NonProductionCore(ControlBase):
         # connecters to give them permission to request access to regfiles
         return fu_bitdict, fu_selected
 
-    def connect_rdport(self, m, fu_bitdict, rdpickers, regfile, regname, fspec):
+    def connect_rdport(self, m, fu_bitdict, fu_selected,
+                                rdpickers, regfile, regname, fspec):
         comb, sync = m.d.comb, m.d.sync
         fus = self.fus.fus
         regs = self.regs
@@ -453,7 +458,7 @@ class NonProductionCore(ControlBase):
             for pi, (funame, fu, idx) in enumerate(fuspec):
                 pi += ppoffs[i]
                 name = "%s_%s_%s_%i" % (regfile, rpidx, funame, pi)
-                fu_active = fu_bitdict[funame]
+                fu_active = fu_selected[funame]
 
                 # get (or set up) a latched copy of read register number
                 rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
@@ -542,7 +547,7 @@ class NonProductionCore(ControlBase):
         comb += hazard_detected.eq(wvchk.o_data.bool())
         return hazard_detected
 
-    def connect_rdports(self, m, fu_bitdict):
+    def connect_rdports(self, m, fu_bitdict, fu_selected):
         """connect read ports
 
         orders the read regspecs into a dict-of-dicts, by regfile, by
@@ -582,7 +587,8 @@ class NonProductionCore(ControlBase):
             # also return (and collate) hazard detection)
             for (regname, fspec) in sort_fuspecs(fuspecs):
                 print("connect rd", regname, fspec)
-                rh = self.connect_rdport(m, fu_bitdict, rdpickers, regfile,
+                rh = self.connect_rdport(m, fu_bitdict, fu_selected,
+                                       rdpickers, regfile,
                                        regname, fspec)
                 rd_hazard.append(rh)
 
@@ -655,7 +661,8 @@ class NonProductionCore(ControlBase):
 
         return wvaddr_en, wviaddr_en
 
-    def connect_wrport(self, m, fu_bitdict, wrpickers, regfile, regname, fspec):
+    def connect_wrport(self, m, fu_bitdict, fu_selected,
+                                wrpickers, regfile, regname, fspec):
         comb, sync = m.d.comb, m.d.sync
         fus = self.fus.fus
         regs = self.regs
@@ -746,7 +753,7 @@ class NonProductionCore(ControlBase):
                 comb += fu_wrok.eq(dest.ok & fu.busy_o)
 
                 # connect request-write to picker input, and output to go-wr
-                fu_active = fu_bitdict[funame]
+                fu_active = fu_selected[funame]
                 pick = fu.wr.rel_o[idx] & fu_active
                 comb += wrpick.i[pi].eq(pick)
                 # create a single-pulse go write from the picker output
@@ -804,7 +811,7 @@ class NonProductionCore(ControlBase):
         comb += wvset.wen.eq(ortreereduce_sig(wvseten)) # set (issue time)
         comb += wvset.i_data.eq(ortreereduce_sig(wvsets))
 
-    def connect_wrports(self, m, fu_bitdict):
+    def connect_wrports(self, m, fu_bitdict, fu_selected):
         """connect write ports
 
         orders the write regspecs into a dict-of-dicts, by regfile,
@@ -841,7 +848,7 @@ class NonProductionCore(ControlBase):
                         fuspecs['fast1'].append(fuspecs.pop('fast3'))
 
             for (regname, fspec) in sort_fuspecs(fuspecs):
-                self.connect_wrport(m, fu_bitdict, wrpickers,
+                self.connect_wrport(m, fu_bitdict, fu_selected, wrpickers,
                                         regfile, regname, fspec)
 
     def get_byregfiles(self, readmode):
