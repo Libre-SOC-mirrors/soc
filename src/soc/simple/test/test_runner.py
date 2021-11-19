@@ -219,7 +219,7 @@ class HDLRunner(StateRunner):
             index = (yield self.issuer.cur_state.pc) // 4
 
             terminated = yield self.issuer.dbg.terminated_o
-            print("terminated", terminated)
+            print("terminated", terminated, index, len(instructions))
 
             if index < len(instructions):
                 # Get HDL mem and state
@@ -230,8 +230,7 @@ class HDLRunner(StateRunner):
             if index >= len(instructions):
                 print ("index over, send dmi stop")
                 # stop at end
-                yield from set_dmi(dmi, DBGCore.CTRL,
-                                1<<DBGCtrl.STOP)
+                yield from set_dmi(dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
                 yield
                 yield
 
