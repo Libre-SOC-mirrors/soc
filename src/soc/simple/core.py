@@ -427,7 +427,6 @@ class NonProductionCore(ControlBase):
 
         rdflags = []
         pplen = 0
-        reads = []
         ppoffs = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
@@ -439,7 +438,6 @@ class NonProductionCore(ControlBase):
             rdflag = Signal(name=name, reset_less=True)
             comb += rdflag.eq(rf)
             rdflags.append(rdflag)
-            reads.append(read)
 
         print ("pplen", pplen)
 
@@ -461,7 +459,7 @@ class NonProductionCore(ControlBase):
                 # connect request-read to picker input, and output to go-rd
                 fu_active = fu_bitdict[funame]
                 name = "%s_%s_%s_%i" % (regfile, rpidx, funame, pi)
-                addr_en = Signal.like(reads[i], name="addr_en_"+name)
+                addr_en = Signal.like(read, name="addr_en_"+name)
                 pick = Signal(name="pick_"+name)     # picker input
                 rp = Signal(name="rp_"+name)         # picker output
                 delay_pick = Signal(name="dp_"+name) # read-enable "underway"
@@ -475,7 +473,7 @@ class NonProductionCore(ControlBase):
                 # if picked, select read-port "reg select" number to port
                 comb += rp.eq(rdpick.o[pi] & rdpick.en_o)
                 sync += delay_pick.eq(rp) # delayed "pick"
-                comb += addr_en.eq(Mux(rp, reads[i], 0))
+                comb += addr_en.eq(Mux(rp, read, 0))
 
                 # the read-enable happens combinatorially (see mux-bus below)
                 # but it results in the data coming out on a one-cycle delay.
@@ -504,9 +502,9 @@ class NonProductionCore(ControlBase):
                 comb += issue_active.eq(self.instruction_active & rdflags[i])
                 with m.If(issue_active):
                     if rfile.unary:
-                        comb += wvchk_en.eq(reads[i])
+                        comb += wvchk_en.eq(read)
                     else:
-                        comb += wvchk_en.eq(1<<reads[i])
+                        comb += wvchk_en.eq(1<<read)
                 wvens.append(wvchk_en)
 
         # or-reduce the muxed read signals
