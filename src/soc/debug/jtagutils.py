@@ -157,7 +157,7 @@ class JTAGServer:
 
     def jtagremote_server_recv(self, tdo):
         data = self.get_data(1, 0) # read 1 byte, non-blocking
-        if data is None:
+        if data is None or len(data) == 0:
             return None # no data read
         data = bytes.decode(data)
         if self.debug:

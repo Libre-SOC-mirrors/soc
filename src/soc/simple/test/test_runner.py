@@ -19,7 +19,6 @@ from openpower.endian import bigendian
 
 from soc.simple.issuer import TestIssuerInternal
 
-from soc.config.test.test_loadstore import TestMemPspec
 from soc.simple.test.test_core import (setup_regs, check_regs, check_mem,
                                        wait_for_busy_clear,
                                        wait_for_busy_hi)
@@ -284,5 +283,5 @@ class TestRunner(TestRunnerBase):
         super().__init__(tst_data, microwatt_mmu=microwatt_mmu,
                         rom=rom,
                         svp64=svp64, run_hdl=run_hdl, run_sim=run_sim,
-                        allow_overlap=False)
+                        allow_overlap=allow_overlap)
 

@@ -188,7 +188,7 @@ def jtag_sim(dut, srv_dut):
     # read DMI CTRL register
     status = yield from jtag_read_write_reg(dut, DMI_READ, 64)
     print ("dmi ctrl status", hex(status))
-    assert status == 0
+    assert status == 6
 
     # write DMI MSR address
     yield from jtag_read_write_reg(dut, DMI_ADDR, 8, DBGCore.MSR)
@@ -221,7 +221,7 @@ def jtag_sim(dut, srv_dut):
 
 
 if __name__ == '__main__':
-    dut = JTAG(test_pinset(), wb_data_wid=64)
+    dut = JTAG(test_pinset(), wb_data_wid=64, domain="sync")
     dut.stop = False
 
     # rather than the client access the JTAG bus directly
@@ -236,6 +236,8 @@ if __name__ == '__main__':
         cdut.c = JTAGClient()
         dut.s.get_connection()
     else:
+        print ("running server only as requested, use openocd remote to test")
+        sys.stdout.flush()
         dut.s.get_connection(None) # block waiting for connection
 
     # take copy of ir_width and scan_len
@@ -255,8 +257,6 @@ if __name__ == '__main__':
     sim.add_sync_process(wrap(jtag_srv(dut))) # jtag server
     if len(sys.argv) != 2 or sys.argv[1] != 'server':
         sim.add_sync_process(wrap(jtag_sim(cdut, dut))) # actual jtag tester
-    else:
-        print ("running server only as requested, use openocd remote to test")
     sim.add_sync_process(wrap(dmi_sim(dut)))  # handles (pretends to be) DMI
 
     with sim.write_vcd("dmi2jtag_test_srv.vcd"):

@@ -33,9 +33,10 @@ class FetchOutput:
         self.bigendian_i = Signal() # bigendian - TODO, set by MSR.BE
 
     def eq(self, i):
-        self.state.eq(i.state)
-        self.raw_insn_i.eq(i.raw_insn_i)
-        self.bigendian_i.eq(i.bigendian_i)
+        return [self.state.eq(i.state),
+                self.raw_insn_i.eq(i.raw_insn_i),
+                self.bigendian_i.eq(i.bigendian_i),
+               ]
 
 
 class CoreInput:
@@ -77,18 +78,21 @@ class CoreInput:
             self.sv_pred_dm = Signal() # TODO: SIMD width
 
     def eq(self, i):
-        self.e.eq(i.e)
-        self.sv_a_nz.eq(i.sv_a_nz)
-        self.state.eq(i.state)
-        self.raw_insn_i.eq(i.raw_insn_i)
-        self.bigendian_i.eq(i.bigendian_i)
+        res = [self.e.eq(i.e),
+                self.sv_a_nz.eq(i.sv_a_nz),
+                self.state.eq(i.state),
+                self.raw_insn_i.eq(i.raw_insn_i),
+                self.bigendian_i.eq(i.bigendian_i),
+               ]
         if not self.svp64_en:
-            return
-        self.sv_rm.eq(i.sv_rm)
-        self.is_svp64_mode.eq(i.is_svp64_mode)
-        self.use_svp64_ldst_dec.eq(i.use_svp64_ldst_dec)
-        self.sv_pred_sm.eq(i.sv_pred_sm)
-        self.sv_pred_dm.eq(i.sv_pred_dm)
+            return res
+        res += [ self.sv_rm.eq(i.sv_rm),
+                self.is_svp64_mode.eq(i.is_svp64_mode),
+                self.use_svp64_ldst_dec.eq(i.use_svp64_ldst_dec),
+                self.sv_pred_sm.eq(i.sv_pred_sm),
+                self.sv_pred_dm.eq(i.sv_pred_dm),
+                ]
+        return res
 
 
 class CoreOutput:
@@ -99,8 +103,9 @@ class CoreOutput:
         self.exc_happened = Signal()             # exception happened
 
     def eq(self, i):
-        self.core_terminate_o.eq(i.core_terminate_o)
-        self.busy_o.eq(i.busy_o)
-        self.exc_happened.eq(i.exc_happened)
+        return [self.core_terminate_o.eq(i.core_terminate_o),
+                self.busy_o.eq(i.busy_o),
+                self.exc_happened.eq(i.exc_happened),
+               ]
 
 

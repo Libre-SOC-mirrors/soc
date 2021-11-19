@@ -80,6 +80,12 @@ class NonProductionCore(ControlBase):
         self.regreduce_en = (hasattr(pspec, "regreduce") and
                              (pspec.regreduce == True))
 
+        # test to see if overlapping of instructions is allowed
+        # (not normally enabled for TestIssuer FSM but useful for checking
+        # the bitvector hazard detection, before doing In-Order)
+        self.allow_overlap = (hasattr(pspec, "allow_overlap") and
+                             (pspec.allow_overlap == True))
+
         # test core type
         self.make_hazard_vecs = True
         self.core_type = "fsm"
@@ -110,8 +116,11 @@ class NonProductionCore(ControlBase):
         # set up input and output: unusual requirement to set data directly
         # (due to the way that the core is set up in a different domain,
         # see TestIssuer.setup_peripherals
-        self.i, self.o = self.new_specs(None)
+        self.p.i_data, self.n.o_data = self.new_specs(None)
         self.i, self.o = self.p.i_data, self.n.o_data
+
+        # actual internal input data used (captured)
+        self.ireg = self.ispec()
 
         # create per-FU instruction decoders (subsetted).  these "satellite"
         # decoders reduce wire fan-out from the one (main) PowerDecoder2
@@ -132,7 +141,7 @@ class NonProductionCore(ControlBase):
                 continue
             self.decoders[funame] = PowerDecodeSubset(None, opkls, f_name,
                                                       final=True,
-                                                      state=self.i.state,
+                                                      state=self.ireg.state,
                                             svp64_en=self.svp64_en,
                                             regreduce_en=self.regreduce_en)
             self.des[funame] = self.decoders[funame].do
@@ -172,7 +181,7 @@ class NonProductionCore(ControlBase):
         self.connect_satellite_decoders(m)
 
         # ssh, cheat: trap uses the main decoder because of the rewriting
-        self.des[self.trapunit] = self.i.e.do
+        self.des[self.trapunit] = self.ireg.e.do
 
         # connect up Function Units, then read/write ports, and hazard conflict
         issue_conflict = Signal()
@@ -198,22 +207,22 @@ class NonProductionCore(ControlBase):
             # as subset decoders this massively reduces wire fanout given
             # the large number of ALUs
             setattr(m.submodules, "dec_%s" % v.fn_name, v)
-            comb += v.dec.raw_opcode_in.eq(self.i.raw_insn_i)
-            comb += v.dec.bigendian.eq(self.i.bigendian_i)
+            comb += v.dec.raw_opcode_in.eq(self.ireg.raw_insn_i)
+            comb += v.dec.bigendian.eq(self.ireg.bigendian_i)
             # sigh due to SVP64 RA_OR_ZERO detection connect these too
-            comb += v.sv_a_nz.eq(self.i.sv_a_nz)
+            comb += v.sv_a_nz.eq(self.ireg.sv_a_nz)
             if self.svp64_en:
-                comb += v.pred_sm.eq(self.i.sv_pred_sm)
-                comb += v.pred_dm.eq(self.i.sv_pred_dm)
+                comb += v.pred_sm.eq(self.ireg.sv_pred_sm)
+                comb += v.pred_dm.eq(self.ireg.sv_pred_dm)
                 if k != self.trapunit:
-                    comb += v.sv_rm.eq(self.i.sv_rm) # pass through SVP64 ReMap
-                    comb += v.is_svp64_mode.eq(self.i.is_svp64_mode)
+                    comb += v.sv_rm.eq(self.ireg.sv_rm) # pass through SVP64 RM
+                    comb += v.is_svp64_mode.eq(self.ireg.is_svp64_mode)
                     # only the LDST PowerDecodeSubset *actually* needs to
                     # know to use the alternative decoder.  this is all
                     # a terrible hack
                     if k.lower().startswith("ldst"):
                         comb += v.use_svp64_ldst_dec.eq(
-                                        self.i.use_svp64_ldst_dec)
+                                        self.ireg.use_svp64_ldst_dec)
 
     def connect_instruction(self, m, issue_conflict):
         """connect_instruction
@@ -232,6 +241,13 @@ class NonProductionCore(ControlBase):
 
         # indicate if core is busy
         busy_o = self.o.busy_o
+
+        # connect up temporary copy of incoming instruction. the FSM will
+        # either blat the incoming instruction (if valid) into self.ireg
+        # or if the instruction could not be delivered, keep dropping the
+        # latched copy into ireg
+        ilatch = self.ispec()
+        self.instruction_active = Signal()
 
         # enable/busy-signals for each FU, get one bit for each FU (by name)
         fu_enable = Signal(len(fus), reset_less=True)
@@ -273,8 +289,8 @@ class NonProductionCore(ControlBase):
                 # instruction.
                 fnunit = fu.fnunit.value
                 en_req = Signal(name="issue_en_%s" % funame, reset_less=True)
-                fnmatch = (self.i.e.do.fn_unit & fnunit).bool()
-                comb += en_req.eq(fnmatch & ~fu.busy_o & self.p.i_valid)
+                fnmatch = (self.ireg.e.do.fn_unit & fnunit).bool()
+                comb += en_req.eq(fnmatch & ~fu.busy_o & self.instruction_active)
                 i_l.append(en_req) # store in list for doing the Cat-trick
                 # picker output, gated by enable: store in fu_bitdict
                 po = Signal(name="o_issue_pick_"+funame) # picker output
@@ -284,7 +300,8 @@ class NonProductionCore(ControlBase):
                 # if we don't do this, then when there are no FUs available,
                 # the "p.o_ready" signal will go back "ok we accepted this
                 # instruction" which of course isn't true.
-                comb += fu_found.eq(~fnmatch | i_pp.en_o)
+                with m.If(~issue_conflict & i_pp.en_o):
+                    comb += fu_found.eq(1)
             # for each input, Cat them together and drop them into the picker
             comb += i_pp.i.eq(Cat(*i_l))
 
@@ -294,46 +311,92 @@ class NonProductionCore(ControlBase):
             sync += counter.eq(counter - 1)
             comb += busy_o.eq(1)
 
-        with m.If(self.p.i_valid): # run only when valid
-            with m.Switch(self.i.e.do.insn_type):
-                # check for ATTN: halt if true
-                with m.Case(MicrOp.OP_ATTN):
-                    m.d.sync += self.o.core_terminate_o.eq(1)
+        # default to reading from incoming instruction: may be overridden
+        # by copy from latch when "waiting"
+        comb += self.ireg.eq(self.i)
+        # always say "ready" except if overridden
+        comb += self.p.o_ready.eq(1)
 
-                # fake NOP - this isn't really used (Issuer detects NOP)
-                with m.Case(MicrOp.OP_NOP):
-                    sync += counter.eq(2)
-                    comb += busy_o.eq(1)
+        l_issue_conflict = Signal()
 
-                with m.Default():
-                    # connect up instructions.  only one enabled at a time
+        with m.FSM():
+            with m.State("READY"):
+                with m.If(self.p.i_valid): # run only when valid
+                    comb += self.instruction_active.eq(1)
+                    with m.Switch(self.ireg.e.do.insn_type):
+                        # check for ATTN: halt if true
+                        with m.Case(MicrOp.OP_ATTN):
+                            m.d.sync += self.o.core_terminate_o.eq(1)
+
+                        # fake NOP - this isn't really used (Issuer detects NOP)
+                        with m.Case(MicrOp.OP_NOP):
+                            sync += counter.eq(2)
+                            comb += busy_o.eq(1)
+
+                        with m.Default():
+                            comb += self.p.o_ready.eq(0)
+                            # connect instructions. only one enabled at a time
+                            for funame, fu in fus.items():
+                                do = self.des[funame]
+                                enable = fu_bitdict[funame]
+
+                                # run this FunctionUnit if enabled route op,
+                                # issue, busy, read flags and mask to FU
+                                with m.If(enable & fu_found):
+                                    # operand comes from the *local*  decoder
+                                    comb += fu.oper_i.eq_from(do)
+                                    comb += fu.issue_i.eq(1) # issue when valid
+                                    # rdmask, which is for registers,
+                                    # needs to come
+                                    # from the *main* decoder
+                                    rdmask = get_rdflags(self.ireg.e, fu)
+                                    comb += fu.rdmaskn.eq(~rdmask)
+                                    # instruction ok, indicate ready
+                                    comb += self.p.o_ready.eq(1)
+
+                            with m.If(~fu_found):
+                                # latch copy of instruction
+                                sync += ilatch.eq(self.i)
+                                sync += l_issue_conflict.eq(issue_conflict)
+                                comb += self.p.o_ready.eq(1) # accept
+                                comb += busy_o.eq(1)
+                                m.next = "WAITING"
+
+            with m.State("WAITING"):
+                comb += self.instruction_active.eq(1)
+                with m.If(fu_found):
+                    sync += l_issue_conflict.eq(0)
+                comb += self.p.o_ready.eq(0)
+                comb += busy_o.eq(1)
+                # using copy of instruction, keep waiting until an FU is free
+                comb += self.ireg.eq(ilatch)
+                with m.If(~l_issue_conflict): # wait for conflict to clear
+                    # connect instructions. only one enabled at a time
                     for funame, fu in fus.items():
                         do = self.des[funame]
                         enable = fu_bitdict[funame]
 
-                        # run this FunctionUnit if enabled
-                        # route op, issue, busy, read flags and mask to FU
+                        # run this FunctionUnit if enabled route op,
+                        # issue, busy, read flags and mask to FU
                         with m.If(enable):
                             # operand comes from the *local*  decoder
                             comb += fu.oper_i.eq_from(do)
-                            comb += fu.issue_i.eq(1) # issue when input valid
-                            # rdmask, which is for registers, needs to come
+                            comb += fu.issue_i.eq(1) # issue when valid
+                            # rdmask, which is for registers,
+                            # needs to come
                             # from the *main* decoder
-                            rdmask = get_rdflags(self.i.e, fu)
+                            rdmask = get_rdflags(self.ireg.e, fu)
                             comb += fu.rdmaskn.eq(~rdmask)
+                            comb += self.p.o_ready.eq(1)
+                            comb += busy_o.eq(0)
+                            m.next = "READY"
 
-        # if instruction is busy, set busy output for core.
-        busys = map(lambda fu: fu.busy_o, fus.values())
-        comb += busy_o.eq(Cat(*busys).bool())
-
-        # ready/valid signalling.  if busy, means refuse incoming issue.
-        # (this is a global signal, TODO, change to one which allows
-        # overlapping instructions)
-        # also, if there was no fu found we must not send back a valid
-        # indicator.  BUT, of course, when there is no instruction
-        # we must ignore the fu_found flag, otherwise o_ready will never
-        # be set when everything is idle
-        comb += self.p.o_ready.eq(fu_found | ~self.p.i_valid)
+        print ("core: overlap allowed", self.allow_overlap)
+        if not self.allow_overlap:
+            # for simple non-overlap, if any instruction is busy, set
+            # busy output for core.
+            busys = map(lambda fu: fu.busy_o, fus.values())
+            comb += busy_o.eq(Cat(*busys).bool())
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
@@ -364,7 +427,6 @@ class NonProductionCore(ControlBase):
 
         rdflags = []
         pplen = 0
-        reads = []
         ppoffs = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
@@ -376,7 +438,6 @@ class NonProductionCore(ControlBase):
             rdflag = Signal(name=name, reset_less=True)
             comb += rdflag.eq(rf)
             rdflags.append(rdflag)
-            reads.append(read)
 
         print ("pplen", pplen)
 
@@ -389,16 +450,33 @@ class NonProductionCore(ControlBase):
         wvens = []
 
         for i, fspec in enumerate(fspecs):
-            (rf, wf, read, write, wid, fuspec) = fspec
+            (rf, wf, _read, _write, wid, fuspec) = fspec
             # connect up the FU req/go signals, and the reg-read to the FU
             # and create a Read Broadcast Bus
             for pi, (funame, fu, idx) in enumerate(fuspec):
                 pi += ppoffs[i]
+                name = "%s_%s_%s_%i" % (regfile, rpidx, funame, pi)
+                fu_active = fu_bitdict[funame]
+
+                # get (or set up) a latched copy of read register number
+                rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
+                read = Signal.like(_read, name="read_"+name)
+                if rname not in fu.rd_latches:
+                    rdl = Signal.like(_read, name="rdlatch_"+rname)
+                    fu.rd_latches[rname] = rdl
+                    with m.If(fu.issue_i):
+                        sync += rdl.eq(_read)
+                else:
+                    rdl = fu.rd_latches[rname]
+                # latch to make the read immediately available on issue cycle
+                # after the read cycle, use the latched copy
+                #with m.If(fu.issue_i):
+                comb += read.eq(_read)
+                #with m.Else():
+                #    comb += read.eq(rdl)
 
                 # connect request-read to picker input, and output to go-rd
-                fu_active = fu_bitdict[funame]
-                name = "%s_%s_%s_%i" % (regfile, rpidx, funame, pi)
-                addr_en = Signal.like(reads[i], name="addr_en_"+name)
+                addr_en = Signal.like(read, name="addr_en_"+name)
                 pick = Signal(name="pick_"+name)     # picker input
                 rp = Signal(name="rp_"+name)         # picker output
                 delay_pick = Signal(name="dp_"+name) # read-enable "underway"
@@ -412,7 +490,7 @@ class NonProductionCore(ControlBase):
                 # if picked, select read-port "reg select" number to port
                 comb += rp.eq(rdpick.o[pi] & rdpick.en_o)
                 sync += delay_pick.eq(rp) # delayed "pick"
-                comb += addr_en.eq(Mux(rp, reads[i], 0))
+                comb += addr_en.eq(Mux(rp, read, 0))
 
                 # the read-enable happens combinatorially (see mux-bus below)
                 # but it results in the data coming out on a one-cycle delay.
@@ -438,12 +516,12 @@ class NonProductionCore(ControlBase):
                 # read the write-hazard bitvector (wv) for any bit that is
                 wvchk_en = Signal(len(wvchk.ren), name="wv_chk_addr_en_"+name)
                 issue_active = Signal(name="rd_iactive_"+name)
-                comb += issue_active.eq(fu.issue_i & rdflags[i])
+                comb += issue_active.eq(self.instruction_active & rdflags[i])
                 with m.If(issue_active):
                     if rfile.unary:
-                        comb += wvchk_en.eq(reads[i])
+                        comb += wvchk_en.eq(read)
                     else:
-                        comb += wvchk_en.eq(1<<reads[i])
+                        comb += wvchk_en.eq(1<<read)
                 wvens.append(wvchk_en)
 
         # or-reduce the muxed read signals
@@ -503,11 +581,12 @@ class NonProductionCore(ControlBase):
                         fuspecs['fast1'].append(fuspecs.pop('fast3'))
 
             # for each named regfile port, connect up all FUs to that port
+            # also return (and collate) hazard detection)
             for (regname, fspec) in sort_fuspecs(fuspecs):
                 print("connect rd", regname, fspec)
                 rh = self.connect_rdport(m, fu_bitdict, rdpickers, regfile,
                                        regname, fspec)
-                #rd_hazard.append(rh)
+                rd_hazard.append(rh)
 
         return Cat(*rd_hazard).bool()
 
@@ -644,10 +723,17 @@ class NonProductionCore(ControlBase):
             # connect up the FU req/go signals and the reg-read to the FU
             # these are arbitrated by Data.ok signals
             (rf, wf, read, _write, wid, fuspec) = fspec
-            wrname = "write_%s_%s_%d" % (regfile, regname, i)
-            write = Signal.like(_write, name=wrname)
-            comb += write.eq(_write)
             for pi, (funame, fu, idx) in enumerate(fuspec):
+                # get (or set up) a write-latched copy of write register number
+                rname = "%s_%s_%s" % (funame, regfile, regname)
+                if rname not in fu.wr_latches:
+                    write = Signal.like(_write, name="wrlatch_"+rname)
+                    fu.wr_latches[rname] = write
+                    with m.If(fu.issue_i):
+                        sync += write.eq(_write)
+                else:
+                    write = fu.wr_latches[rname]
+
                 pi += ppoffs[i]
 
                 # write-request comes from dest.ok
@@ -761,28 +847,43 @@ class NonProductionCore(ControlBase):
         mode = "read" if readmode else "write"
         regs = self.regs
         fus = self.fus.fus
-        e = self.i.e # decoded instruction to execute
+        e = self.ireg.e # decoded instruction to execute
 
-        # dictionary of lists of regfile ports
-        byregfiles = {}
-        byregfiles_spec = {}
+        # dictionary of dictionaries of lists of regfile ports.
+        # first key: regfile.  second key: regfile port name
+        byregfiles = defaultdict(dict)
+        byregfiles_spec = defaultdict(dict)
+
         for (funame, fu) in fus.items():
+            # create in each FU a receptacle for the read/write register
+            # hazard numbers.  to be latched in connect_rd/write_ports
+            # XXX better that this is moved into the actual FUs, but
+            # the issue there is that this function is actually better
+            # suited at the moment
+            if readmode:
+                fu.rd_latches = {}
+            else:
+                fu.wr_latches = {}
+
             print("%s ports for %s" % (mode, funame))
             for idx in range(fu.n_src if readmode else fu.n_dst):
+                # construct regfile specs: read uses inspec, write outspec
                 if readmode:
                     (regfile, regname, wid) = fu.get_in_spec(idx)
                 else:
                     (regfile, regname, wid) = fu.get_out_spec(idx)
                 print("    %d %s %s %s" % (idx, regfile, regname, str(wid)))
+
+                # the PowerDecoder2 (main one, not the satellites) contains
+                # the decoded regfile numbers. obtain these now
                 if readmode:
                     rdflag, read = regspec_decode_read(e, regfile, regname)
                     wrport, write = None, None
                 else:
                     rdflag, read = None, None
                     wrport, write = regspec_decode_write(e, regfile, regname)
-                if regfile not in byregfiles:
-                    byregfiles[regfile] = {}
-                    byregfiles_spec[regfile] = {}
+
+                # construct the dictionary of regspec information by regfile
                 if regname not in byregfiles_spec[regfile]:
                     byregfiles_spec[regfile][regname] = \
                         (rdflag, wrport, read, write, wid, [])
@@ -793,7 +894,19 @@ class NonProductionCore(ControlBase):
                 byregfiles[regfile][idx].append(fuspec)
                 byregfiles_spec[regfile][regname][5].append(fuspec)
 
-        # ok just print that out, for convenience
+                continue
+                # append a latch Signal to the FU's list of latches
+                rname = "%s_%s" % (regfile, regname)
+                if readmode:
+                    if rname not in fu.rd_latches:
+                        rdl = Signal.like(read, name="rdlatch_"+rname)
+                        fu.rd_latches[rname] = rdl
+                else:
+                    if rname not in fu.wr_latches:
+                        wrl = Signal.like(write, name="wrlatch_"+rname)
+                        fu.wr_latches[rname] = wrl
+
+        # ok just print that all out, for convenience
         for regfile, spec in byregfiles.items():
             print("regfile %s ports:" % mode, regfile)
             fuspecs = byregfiles_spec[regfile]
