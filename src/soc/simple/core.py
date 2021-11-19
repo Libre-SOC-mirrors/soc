@@ -188,7 +188,8 @@ class NonProductionCore(ControlBase):
         fu_bitdict, fu_selected = self.connect_instruction(m, issue_conflict)
         raw_hazard = self.connect_rdports(m, fu_selected)
         self.connect_wrports(m, fu_selected)
-        comb += issue_conflict.eq(raw_hazard)
+        if self.allow_overlap:
+            comb += issue_conflict.eq(raw_hazard)
 
         # note if an exception happened.  in a pipelined or OoO design
         # this needs to be accompanied by "shadowing" (or stalling)
@@ -305,6 +306,11 @@ class NonProductionCore(ControlBase):
             # for each input, Cat them together and drop them into the picker
             comb += i_pp.i.eq(Cat(*i_l))
 
+        # rdmask, which is for registers needs to come from the *main* decoder
+        for funame, fu in fus.items():
+            rdmask = get_rdflags(self.ireg.e, fu)
+            comb += fu.rdmaskn.eq(~rdmask)
+
         # sigh - need a NOP counter
         counter = Signal(2)
         with m.If(counter != 0):
@@ -322,7 +328,6 @@ class NonProductionCore(ControlBase):
         with m.FSM():
             with m.State("READY"):
                 with m.If(self.p.i_valid): # run only when valid
-                    comb += self.instr_active.eq(1)
                     with m.Switch(self.ireg.e.do.insn_type):
                         # check for ATTN: halt if true
                         with m.Case(MicrOp.OP_ATTN):
@@ -334,6 +339,7 @@ class NonProductionCore(ControlBase):
                             comb += busy_o.eq(1)
 
                         with m.Default():
+                            comb += self.instr_active.eq(1)
                             comb += self.p.o_ready.eq(0)
                             # connect instructions. only one enabled at a time
                             for funame, fu in fus.items():
@@ -342,25 +348,21 @@ class NonProductionCore(ControlBase):
 
                                 # run this FunctionUnit if enabled route op,
                                 # issue, busy, read flags and mask to FU
-                                with m.If(enable & fu_found):
+                                with m.If(enable & ~issue_conflict):
                                     # operand comes from the *local*  decoder
                                     comb += fu.oper_i.eq_from(do)
                                     comb += fu.issue_i.eq(1) # issue when valid
-                                    # rdmask, which is for registers,
-                                    # needs to come
-                                    # from the *main* decoder
-                                    rdmask = get_rdflags(self.ireg.e, fu)
-                                    comb += fu.rdmaskn.eq(~rdmask)
                                     # instruction ok, indicate ready
                                     comb += self.p.o_ready.eq(1)
 
-                            with m.If(~fu_found):
-                                # latch copy of instruction
-                                sync += ilatch.eq(self.i)
-                                sync += l_issue_conflict.eq(issue_conflict)
-                                comb += self.p.o_ready.eq(1) # accept
-                                comb += busy_o.eq(1)
-                                m.next = "WAITING"
+                            if self.allow_overlap:
+                                with m.If(~fu_found):
+                                    # latch copy of instruction
+                                    sync += ilatch.eq(self.i)
+                                    sync += l_issue_conflict.eq(issue_conflict)
+                                    comb += self.p.o_ready.eq(1) # accept
+                                    comb += busy_o.eq(1)
+                                    m.next = "WAITING"
 
             with m.State("WAITING"):
                 comb += self.instr_active.eq(1)
@@ -382,11 +384,6 @@ class NonProductionCore(ControlBase):
                             # operand comes from the *local*  decoder
                             comb += fu.oper_i.eq_from(do)
                             comb += fu.issue_i.eq(1) # issue when valid
-                            # rdmask, which is for registers,
-                            # needs to come
-                            # from the *main* decoder
-                            rdmask = get_rdflags(self.ireg.e, fu)
-                            comb += fu.rdmaskn.eq(~rdmask)
                             comb += self.p.o_ready.eq(1)
                             comb += busy_o.eq(0)
                             m.next = "READY"
@@ -517,7 +514,7 @@ class NonProductionCore(ControlBase):
                 wvchk_en = Signal(len(wvchk.ren), name="wv_chk_addr_en_"+name)
                 issue_active = Signal(name="rd_iactive_"+name)
                 # XXX combinatorial loop here
-                #comb += issue_active.eq(self.instr_active & rdflags[i])
+                comb += issue_active.eq(self.instr_active & rf)
                 with m.If(issue_active):
                     if rfile.unary:
                         comb += wvchk_en.eq(read)
@@ -725,17 +722,21 @@ class NonProductionCore(ControlBase):
             # these are arbitrated by Data.ok signals
             (rf, wf, read, _write, wid, fuspec) = fspec
             for pi, (funame, fu, idx) in enumerate(fuspec):
+                pi += ppoffs[i]
+                name = "%s_%s_%s_%d" % (funame, regfile, regname, idx)
                 # get (or set up) a write-latched copy of write register number
+                write = Signal.like(_write, name="write_"+name)
                 rname = "%s_%s_%s" % (funame, regfile, regname)
                 if rname not in fu.wr_latches:
-                    write = Signal.like(_write, name="wrlatch_"+rname)
+                    wrl = Signal.like(_write, name="wrlatch_"+rname)
                     fu.wr_latches[rname] = write
                     with m.If(fu.issue_i):
-                        sync += write.eq(_write)
+                        sync += wrl.eq(_write)
+                        comb += write.eq(_write)
+                    with m.Else():
+                        comb += write.eq(wrl)
                 else:
                     write = fu.wr_latches[rname]
-
-                pi += ppoffs[i]
 
                 # write-request comes from dest.ok
                 dest = fu.get_out(idx)
