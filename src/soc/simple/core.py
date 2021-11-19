@@ -470,10 +470,10 @@ class NonProductionCore(ControlBase):
                     rdl = fu.rd_latches[rname]
                 # latch to make the read immediately available on issue cycle
                 # after the read cycle, use the latched copy
-                #with m.If(fu.issue_i):
-                comb += read.eq(_read)
-                #with m.Else():
-                #    comb += read.eq(rdl)
+                with m.If(fu.issue_i):
+                    comb += read.eq(_read)
+                with m.Else():
+                    comb += read.eq(rdl)
 
                 # connect request-read to picker input, and output to go-rd
                 addr_en = Signal.like(read, name="addr_en_"+name)
@@ -516,7 +516,8 @@ class NonProductionCore(ControlBase):
                 # read the write-hazard bitvector (wv) for any bit that is
                 wvchk_en = Signal(len(wvchk.ren), name="wv_chk_addr_en_"+name)
                 issue_active = Signal(name="rd_iactive_"+name)
-                comb += issue_active.eq(self.instruction_active & rdflags[i])
+                # XXX combinatorial loop here
+                #comb += issue_active.eq(self.instruction_active & rdflags[i])
                 with m.If(issue_active):
                     if rfile.unary:
                         comb += wvchk_en.eq(read)
