@@ -450,15 +450,32 @@ class NonProductionCore(ControlBase):
         wvens = []
 
         for i, fspec in enumerate(fspecs):
-            (rf, wf, read, write, wid, fuspec) = fspec
+            (rf, wf, _read, _write, wid, fuspec) = fspec
             # connect up the FU req/go signals, and the reg-read to the FU
             # and create a Read Broadcast Bus
             for pi, (funame, fu, idx) in enumerate(fuspec):
                 pi += ppoffs[i]
+                name = "%s_%s_%s_%i" % (regfile, rpidx, funame, pi)
+                fu_active = fu_bitdict[funame]
+
+                # get (or set up) a latched copy of read register number
+                rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
+                read = Signal.like(_read, name="read_"+name)
+                if rname not in fu.rd_latches:
+                    rdl = Signal.like(_read, name="rdlatch_"+rname)
+                    fu.rd_latches[rname] = rdl
+                    with m.If(fu.issue_i):
+                        sync += rdl.eq(_read)
+                else:
+                    rdl = fu.rd_latches[rname]
+                # latch to make the read immediately available on issue cycle
+                # after the read cycle, use the latched copy
+                #with m.If(fu.issue_i):
+                comb += read.eq(_read)
+                #with m.Else():
+                #    comb += read.eq(rdl)
 
                 # connect request-read to picker input, and output to go-rd
-                fu_active = fu_bitdict[funame]
-                name = "%s_%s_%s_%i" % (regfile, rpidx, funame, pi)
                 addr_en = Signal.like(read, name="addr_en_"+name)
                 pick = Signal(name="pick_"+name)     # picker input
                 rp = Signal(name="rp_"+name)         # picker output
