@@ -827,9 +827,11 @@ class NonProductionCore(ControlBase):
         fus = self.fus.fus
         e = self.ireg.e # decoded instruction to execute
 
-        # dictionary of lists of regfile ports
-        byregfiles = {}
-        byregfiles_spec = {}
+        # dictionary of dictionaries of lists of regfile ports.
+        # first key: regfile.  second key: regfile port name
+        byregfiles = defaultdict({})
+        byregfiles_spec = defaultdict({})
+
         for (funame, fu) in fus.items():
             # create in each FU a receptacle for the read/write register
             # hazard numbers.  to be latched in connect_rd/write_ports
@@ -840,23 +842,26 @@ class NonProductionCore(ControlBase):
                 fu.rd_latches = []
             else:
                 fu.wr_latches = []
+
             print("%s ports for %s" % (mode, funame))
             for idx in range(fu.n_src if readmode else fu.n_dst):
+                # construct regfile specs: read uses inspec, write outspec
                 if readmode:
                     (regfile, regname, wid) = fu.get_in_spec(idx)
                 else:
                     (regfile, regname, wid) = fu.get_out_spec(idx)
                 print("    %d %s %s %s" % (idx, regfile, regname, str(wid)))
-                name = "%s_%s_%s" % (regfile, idx, funame)
+
+                # the PowerDecoder2 (main one, not the satellites) contains
+                # the decoded regfile numbers. obtain these now
                 if readmode:
                     rdflag, read = regspec_decode_read(e, regfile, regname)
                     wrport, write = None, None
                 else:
                     rdflag, read = None, None
                     wrport, write = regspec_decode_write(e, regfile, regname)
-                if regfile not in byregfiles:
-                    byregfiles[regfile] = {}
-                    byregfiles_spec[regfile] = {}
+
+                # construct the dictionary of regspec information by regfile
                 if regname not in byregfiles_spec[regfile]:
                     byregfiles_spec[regfile][regname] = \
                         (rdflag, wrport, read, write, wid, [])
@@ -877,7 +882,7 @@ class NonProductionCore(ControlBase):
                     wrl = Signal.like(write, name="wrlatch_"+name)
                     fu.wr_latches.append(wrl)
 
-        # ok just print that out, for convenience
+        # ok just print that all out, for convenience
         for regfile, spec in byregfiles.items():
             print("regfile %s ports:" % mode, regfile)
             fuspecs = byregfiles_spec[regfile]
