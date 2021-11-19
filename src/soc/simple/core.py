@@ -831,6 +831,15 @@ class NonProductionCore(ControlBase):
         byregfiles = {}
         byregfiles_spec = {}
         for (funame, fu) in fus.items():
+            # create in each FU a receptacle for the read/write register
+            # hazard numbers.  to be latched in connect_rd/write_ports
+            # XXX better that this is moved into the actual FUs, but
+            # the issue there is that this function is actually better
+            # suited at the moment
+            if readmode:
+                fu.rd_latches = []
+            else:
+                fu.wr_latches = []
             print("%s ports for %s" % (mode, funame))
             for idx in range(fu.n_src if readmode else fu.n_dst):
                 if readmode:
@@ -838,6 +847,7 @@ class NonProductionCore(ControlBase):
                 else:
                     (regfile, regname, wid) = fu.get_out_spec(idx)
                 print("    %d %s %s %s" % (idx, regfile, regname, str(wid)))
+                name = "%s_%s_%s" % (regfile, idx, funame)
                 if readmode:
                     rdflag, read = regspec_decode_read(e, regfile, regname)
                     wrport, write = None, None
@@ -856,6 +866,16 @@ class NonProductionCore(ControlBase):
                 fuspec = (funame, fu, idx)
                 byregfiles[regfile][idx].append(fuspec)
                 byregfiles_spec[regfile][regname][5].append(fuspec)
+
+                # append a latch Signal to the FU's list of latches
+                regidx = len(byregfiles_spec[regfile][regname][5])-1
+                name = "%s_%s_%s_%i" % (regfile, idx, funame, regidx)
+                if readmode:
+                    rdl = Signal.like(read, name="rdlatch_"+name)
+                    fu.rd_latches.append(rdl)
+                else:
+                    wrl = Signal.like(write, name="wrlatch_"+name)
+                    fu.wr_latches.append(wrl)
 
         # ok just print that out, for convenience
         for regfile, spec in byregfiles.items():

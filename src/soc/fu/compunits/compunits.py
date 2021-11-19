@@ -108,6 +108,11 @@ class FunctionUnitBaseSingle(MultiCompUnit):
     note that the rdflags function obtains (dynamically, from instruction
     decoding) which read-register ports are to be requested.  this is not
     ideal (it could be a lot neater) but works for now.
+
+    also note: additional members, fu.rd_latches and fu.wr_latches
+    are replaced, here, by core.py.  those contain the latched
+    read/write register information which the FU needs in order
+    to actually read (and write) the correct register number
     """
 
     def __init__(self, speckls, pipekls, idx):
@@ -118,6 +123,10 @@ class FunctionUnitBaseSingle(MultiCompUnit):
         alu = pipekls(pspec)                     # create actual NNNBasePipe
         self.pspec = pspec
         super().__init__(regspec, alu, opsubset, name=alu_name)  # MultiCompUnit
+        # these are set to None for now: core get_byregfiles fills them in
+        # (for now)
+        self.fu_rdlatches = None
+        self.fu_wrlatches = None
 
 
 ##############################################################
