@@ -221,7 +221,7 @@ def jtag_sim(dut, srv_dut):
 
 
 if __name__ == '__main__':
-    dut = JTAG(test_pinset(), wb_data_wid=64)
+    dut = JTAG(test_pinset(), wb_data_wid=64, domain="sync")
     dut.stop = False
 
     # rather than the client access the JTAG bus directly
