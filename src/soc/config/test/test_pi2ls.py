@@ -88,6 +88,13 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     yield port1.addr.ok.eq(1)  # set ok
     yield Settle()
     yield from wait_addr(port1)             # wait until addr ok
+    exc_happened = yield port1.exc_o.happened
+    if exc_happened:
+        print("print fast exception happened")
+        yield port1.is_ld_i.eq(0)  # end
+        yield port1.addr.ok.eq(0)  # set !ok
+        return 0, "fast"
+
     yield
     yield from wait_ldok(port1)             # wait until ld ok
     data = yield port1.ld.data
@@ -97,11 +104,11 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     yield port1.is_ld_i.eq(0)  # end
     yield port1.addr.ok.eq(0)  # set !ok
     if exc_happened:
-        return 0
+        return 0, "slow"
 
     yield from wait_busy(port1,debug="pi_ld_E") # wait while busy
 
-    return data
+    return data, None
 
 
 def pi_ldst(arg, dut, msr_pr=0):

@@ -115,40 +115,44 @@ def _test_loadstore1(dut, mem):
     yield from pi_st(pi, addr, data, 8, msr_pr=1)
     yield
 
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
+    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
     assert ld_data == 0xf553b658ba7e1f51
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
+    assert exc is None
+    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
     assert ld_data == 0xf553b658ba7e1f51
+    assert exc is None
 
     print("do_dcbz ===============")
     yield from pi_st(pi, addr, data, 8, msr_pr=1, is_dcbz=1)
     print("done_dcbz ===============")
     yield
 
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
+    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
     print("ld_data after dcbz")
     print(ld_data)
     assert ld_data == 0
+    assert exc is None
 
     if test_exceptions:
-        # causes next test to hang
         print("=== alignment error ===")
         addr = 0xFF100e0FF
-        ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
         alignment = yield pi.exc_o.alignment
         happened = yield pi.exc_o.happened
         dar = yield pi.dar_o
         assert(happened==1)
         assert(alignment==1)
         assert(dar==addr)
+        assert(exc=="fast")
         yield from wait_busy(pi, debug="pi_ld_E_alignment_error")
         # wait is only needed in case of in exception here
         print("=== alignment error test passed ===")
 
+    print("=== next ld test ===")
     addr = 0xFF100e000
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=1)
-
-    yield
+    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+    print("ld_data",ld_data,exc)
+    print("=== done ===")
     stop = True
 
 def test_loadstore1():
