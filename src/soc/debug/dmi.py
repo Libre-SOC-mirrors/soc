@@ -98,6 +98,7 @@ class CoreDebug(Elaboratable):
         self.core_stop_o       = Signal()
         self.core_rst_o        = Signal()
         self.icache_rst_o      = Signal()
+        self.stopping_o = Signal(name="stopping")
 
         # Core status inputs
         self.terminate_i    = Signal()
@@ -135,7 +136,7 @@ class CoreDebug(Elaboratable):
         stat_reg = Signal(64)
 
         # Some internal latches
-        stopping     = Signal()
+        stopping     = self.stopping_o
         do_step      = Signal()
         do_reset     = Signal()
         do_icreset   = Signal()
