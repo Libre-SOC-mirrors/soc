@@ -649,25 +649,33 @@ class TestIssuerInternal(Elaboratable):
 
             # wait for an instruction to arrive from Fetch
             with m.State("INSN_WAIT"):
-                comb += fetch_insn_i_ready.eq(1)
-                with m.If(fetch_insn_o_valid):
-                    # loop into ISSUE_START if it's a SVP64 instruction
-                    # and VL == 0.  this because VL==0 is a for-loop
-                    # from 0 to 0 i.e. always, always a NOP.
-                    cur_vl = cur_state.svstate.vl
-                    with m.If(is_svp64_mode & (cur_vl == 0)):
-                        # update the PC before fetching the next instruction
-                        # since we are in a VL==0 loop, no instruction was
-                        # executed that we could be overwriting
-                        comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
-                        comb += self.state_w_pc.i_data.eq(nia)
-                        comb += self.insn_done.eq(1)
-                        m.next = "ISSUE_START"
-                    with m.Else():
-                        if self.svp64_en:
-                            m.next = "PRED_START"  # start fetching predicate
-                        else:
-                            m.next = "DECODE_SV"  # skip predication
+                if self.allow_overlap:
+                    stopping = dbg.stopping_o
+                else:
+                    stopping = Const(0)
+                with m.If(stopping):
+                    # stopping: jump back to idle
+                    m.next = "ISSUE_START"
+                with m.Else():
+                    comb += fetch_insn_i_ready.eq(1)
+                    with m.If(fetch_insn_o_valid):
+                        # loop into ISSUE_START if it's a SVP64 instruction
+                        # and VL == 0.  this because VL==0 is a for-loop
+                        # from 0 to 0 i.e. always, always a NOP.
+                        cur_vl = cur_state.svstate.vl
+                        with m.If(is_svp64_mode & (cur_vl == 0)):
+                            # update the PC before fetching the next instruction
+                            # since we are in a VL==0 loop, no instruction was
+                            # executed that we could be overwriting
+                            comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
+                            comb += self.state_w_pc.i_data.eq(nia)
+                            comb += self.insn_done.eq(1)
+                            m.next = "ISSUE_START"
+                        with m.Else():
+                            if self.svp64_en:
+                                m.next = "PRED_START"  # fetching predicate
+                            else:
+                                m.next = "DECODE_SV"  # skip predication
 
             with m.State("PRED_START"):
                 comb += pred_insn_i_valid.eq(1)  # tell fetch_pred to start
