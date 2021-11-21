@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     # detect overlap case
     allow_overlap = False
-    if sys.argv[1] == '--allow-overlap':
+    if len(sys.argv) >= 2 and sys.argv[1] == '--allow-overlap':
         allow_overlap = True
         del sys.argv[1]
 
