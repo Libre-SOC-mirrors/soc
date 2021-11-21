@@ -491,9 +491,9 @@ class NonProductionCore(ControlBase):
 
                 # exclude any currently-enabled read-request (mask out active)
                 comb += pick.eq(fu.rd_rel_o[idx] & fu_active & rdflags[i] &
-                                ~delay_pick)
+                                ~delay_pick & ~hazard_detected)
                 # entirely block anything hazarded from being picked
-                comb += rdpick.i[pi].eq(pick & ~hazard_detected)
+                comb += rdpick.i[pi].eq(pick)
                 comb += fu.go_rd_i[idx].eq(delay_pick) # pass in *delayed* pick
 
                 # if picked, select read-port "reg select" number to port
