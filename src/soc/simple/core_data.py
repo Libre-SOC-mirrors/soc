@@ -99,12 +99,14 @@ class CoreOutput:
     def __init__(self):
         # start/stop and terminated signalling
         self.core_terminate_o = Signal()  # indicates stopped
-        self.busy_o = Signal(name="corebusy_o")  # at least one ALU busy
+        self.busy_o = Signal(name="corebusy_o")  # ALU is busy, no input
+        self.any_busy_o = Signal(name="any_busy_o")  # at least one ALU busy
         self.exc_happened = Signal()             # exception happened
 
     def eq(self, i):
         return [self.core_terminate_o.eq(i.core_terminate_o),
                 self.busy_o.eq(i.busy_o),
+                self.any_busy_o.eq(i.any_busy_o),
                 self.exc_happened.eq(i.exc_happened),
                ]
 

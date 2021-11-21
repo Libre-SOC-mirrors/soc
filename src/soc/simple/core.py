@@ -19,7 +19,8 @@ and consequently it is safer to wait for the Function Unit to complete
 before allowing a new instruction to proceed.
 """
 
-from nmigen import Elaboratable, Module, Signal, ResetSignal, Cat, Mux
+from nmigen import (Elaboratable, Module, Signal, ResetSignal, Cat, Mux,
+                    Const)
 from nmigen.cli import rtlil
 
 from openpower.decoder.power_decoder2 import PowerDecodeSubset
@@ -242,6 +243,7 @@ class NonProductionCore(ControlBase):
 
         # indicate if core is busy
         busy_o = self.o.busy_o
+        any_busy_o = self.o.any_busy_o
 
         # connect up temporary copy of incoming instruction. the FSM will
         # either blat the incoming instruction (if valid) into self.ireg
@@ -302,7 +304,7 @@ class NonProductionCore(ControlBase):
                 # if we don't do this, then when there are no FUs available,
                 # the "p.o_ready" signal will go back "ok we accepted this
                 # instruction" which of course isn't true.
-                with m.If(~self.issue_conflict & i_pp.en_o):
+                with m.If(i_pp.en_o):
                     comb += fu_found.eq(1)
             # for each input, Cat them together and drop them into the picker
             comb += i_pp.i.eq(Cat(*i_l))
@@ -323,8 +325,6 @@ class NonProductionCore(ControlBase):
         comb += self.ireg.eq(self.i)
         # always say "ready" except if overridden
         comb += self.p.o_ready.eq(1)
-
-        l_issue_conflict = Signal()
 
         with m.FSM():
             with m.State("READY"):
@@ -349,34 +349,28 @@ class NonProductionCore(ControlBase):
 
                                 # run this FunctionUnit if enabled route op,
                                 # issue, busy, read flags and mask to FU
-                                with m.If(enable & ~self.issue_conflict):
+                                with m.If(enable):
                                     # operand comes from the *local*  decoder
                                     comb += fu.oper_i.eq_from(do)
                                     comb += fu.issue_i.eq(1) # issue when valid
                                     # instruction ok, indicate ready
                                     comb += self.p.o_ready.eq(1)
-                                    comb += busy_o.eq(1)
 
                             if self.allow_overlap:
                                 with m.If(~fu_found):
-                                    comb += self.instr_active.eq(1)
                                     # latch copy of instruction
                                     sync += ilatch.eq(self.i)
-                                    sync += l_issue_conflict.eq(
-                                                      self.issue_conflict)
                                     comb += self.p.o_ready.eq(1) # accept
                                     comb += busy_o.eq(1)
                                     m.next = "WAITING"
 
             with m.State("WAITING"):
                 comb += self.instr_active.eq(1)
-                with m.If(fu_found):
-                    sync += l_issue_conflict.eq(0)
                 comb += self.p.o_ready.eq(0)
                 comb += busy_o.eq(1)
                 # using copy of instruction, keep waiting until an FU is free
                 comb += self.ireg.eq(ilatch)
-                with m.If(~l_issue_conflict): # wait for conflict to clear
+                with m.If(fu_found): # wait for conflict to clear
                     # connect instructions. only one enabled at a time
                     for funame, fu in fus.items():
                         do = self.des[funame]
@@ -393,11 +387,17 @@ class NonProductionCore(ControlBase):
                             m.next = "READY"
 
         print ("core: overlap allowed", self.allow_overlap)
+        busys = map(lambda fu: fu.busy_o, fus.values())
+        comb += any_busy_o.eq(Cat(*busys).bool())
         if not self.allow_overlap:
             # for simple non-overlap, if any instruction is busy, set
             # busy output for core.
-            busys = map(lambda fu: fu.busy_o, fus.values())
-            comb += busy_o.eq(Cat(*busys).bool())
+            comb += busy_o.eq(any_busy_o)
+        else:
+            # sigh deal with a fun situation that needs to be investigated
+            # and resolved
+            with m.If(self.issue_conflict):
+                comb += busy_o.eq(1)
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
@@ -422,6 +422,11 @@ class NonProductionCore(ControlBase):
         if self.make_hazard_vecs:
             wv = regs.wv[regfile.lower()]
             wvchk = wv.r_ports["issue"] # write-vec bit-level hazard check
+
+        # if a hazard is detected on this read port, simply blithely block
+        # every FU from reading on it.  this is complete overkill but very
+        # simple for now.
+        hazard_detected = Signal(name="raw_%s_%s" % (regfile, rpidx))
 
         fspecs = fspec
         if not isinstance(fspecs, list):
@@ -459,6 +464,7 @@ class NonProductionCore(ControlBase):
                 pi += ppoffs[i]
                 name = "%s_%s_%s_%i" % (regfile, rpidx, funame, pi)
                 fu_active = fu_selected[funame]
+                fu_issued = fu_bitdict[funame]
 
                 # get (or set up) a latched copy of read register number
                 rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
@@ -486,7 +492,8 @@ class NonProductionCore(ControlBase):
                 # exclude any currently-enabled read-request (mask out active)
                 comb += pick.eq(fu.rd_rel_o[idx] & fu_active & rdflags[i] &
                                 ~delay_pick)
-                comb += rdpick.i[pi].eq(pick)
+                # entirely block anything hazarded from being picked
+                comb += rdpick.i[pi].eq(pick & ~hazard_detected)
                 comb += fu.go_rd_i[idx].eq(delay_pick) # pass in *delayed* pick
 
                 # if picked, select read-port "reg select" number to port
@@ -519,12 +526,18 @@ class NonProductionCore(ControlBase):
                 wvchk_en = Signal(len(wvchk.ren), name="wv_chk_addr_en_"+name)
                 issue_active = Signal(name="rd_iactive_"+name)
                 # XXX combinatorial loop here
-                comb += issue_active.eq(self.instr_active & rf)
+                comb += issue_active.eq(fu_active & rf)
                 with m.If(issue_active):
                     if rfile.unary:
                         comb += wvchk_en.eq(read)
                     else:
                         comb += wvchk_en.eq(1<<read)
+                # if FU is busy (which doesn't get set at the same time as
+                # issue) and no hazard was detected, clear wvchk_en (i.e.
+                # stop checking for hazards)
+                with m.If(fu.busy_o & ~hazard_detected):
+                        comb += wvchk_en.eq(0)
+
                 wvens.append(wvchk_en)
 
         # or-reduce the muxed read signals
@@ -543,7 +556,6 @@ class NonProductionCore(ControlBase):
         # enable the read bitvectors for this issued instruction
         # and return whether any write-hazard bit is set
         comb += wvchk.ren.eq(ortreereduce_sig(wvens))
-        hazard_detected = Signal(name="raw_%s_%s" % (regfile, rpidx))
         comb += hazard_detected.eq(wvchk.o_data.bool())
         return hazard_detected
 
