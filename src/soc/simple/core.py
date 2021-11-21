@@ -488,10 +488,11 @@ class NonProductionCore(ControlBase):
                 pick = Signal(name="pick_"+name)     # picker input
                 rp = Signal(name="rp_"+name)         # picker output
                 delay_pick = Signal(name="dp_"+name) # read-enable "underway"
+                rhazard = Signal(name="rhaz_"+name)
 
                 # exclude any currently-enabled read-request (mask out active)
                 comb += pick.eq(fu.rd_rel_o[idx] & fu_active & rdflags[i] &
-                                ~delay_pick & ~hazard_detected)
+                                ~delay_pick & ~rhazard)
                 # entirely block anything hazarded from being picked
                 comb += rdpick.i[pi].eq(pick)
                 comb += fu.go_rd_i[idx].eq(delay_pick) # pass in *delayed* pick
@@ -535,8 +536,10 @@ class NonProductionCore(ControlBase):
                 # if FU is busy (which doesn't get set at the same time as
                 # issue) and no hazard was detected, clear wvchk_en (i.e.
                 # stop checking for hazards)
-                with m.If(fu.busy_o & ~hazard_detected):
+                with m.If(fu.busy_o & ~rhazard):
                         comb += wvchk_en.eq(0)
+
+                comb += rhazard.eq((wvchk.o_data & wvchk_en).bool())
 
                 wvens.append(wvchk_en)
 
