@@ -180,9 +180,6 @@ class FetchFSM(ControlBase):
         self.p.i_data, self.n.o_data = self.new_specs(None)
         self.i, self.o = self.p.i_data, self.n.o_data
 
-        staterf = self.core.regs.rf['state']
-        self.state_r_msr = staterf.r_ports['msr'] # MSR rd
-
     # next 3 functions are Stage API Compliance
     def setup(self, m, i):
         pass
@@ -222,7 +219,10 @@ class FetchFSM(ControlBase):
         msr_read = Signal(reset=1)
 
         # don't read msr every cycle
-        comb += self.state_r_msr.ren.eq(0)
+        staterf = self.core.regs.rf['state']
+        state_r_msr = staterf.r_ports['msr'] # MSR rd
+
+        comb += state_r_msr.ren.eq(0)
 
         with m.FSM(name='fetch_fsm'):
 
@@ -242,7 +242,7 @@ class FetchFSM(ControlBase):
                     sync += cur_state.svstate.eq(svstate) # and svstate
 
                     # initiate read of MSR. arrives one clock later
-                    comb += self.state_r_msr.ren.eq(1 << StateRegs.MSR)
+                    comb += state_r_msr.ren.eq(1 << StateRegs.MSR)
                     sync += msr_read.eq(0)
 
                     m.next = "INSN_READ"  # move to "wait for bus" phase
@@ -260,7 +260,7 @@ class FetchFSM(ControlBase):
                     # one cycle later, msr/sv read arrives.  valid only once.
                     with m.If(~msr_read):
                         sync += msr_read.eq(1) # yeah don't read it again
-                        sync += cur_state.msr.eq(self.state_r_msr.o_data)
+                        sync += cur_state.msr.eq(state_r_msr.o_data)
                     with m.If(self.imem.f_busy_o): # zzz...
                         # busy: stay in wait-read
                         comb += self.imem.a_i_valid.eq(1)
