@@ -11,6 +11,23 @@ from openpower.decoder.decode2execute1 import IssuerDecode2ToOperand
 from soc.config.state import CoreState
 
 
+class FetchInput:
+    """FetchInput: the input to the Fetch Unit
+
+    * pc - the current Program Counter
+
+    pretty much it for now!
+
+    """
+    def __init__(self):
+
+        self.pc = Signal(64)
+
+    def eq(self, i):
+        return [self.pc.eq(i.pc),
+               ]
+
+
 class FetchOutput:
     """FetchOutput: the output from the fetch unit: one single instruction
 

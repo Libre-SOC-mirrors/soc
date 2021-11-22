@@ -22,7 +22,7 @@ from nmigen.cli import main
 import sys
 
 from nmutil.singlepipe import ControlBase
-from soc.simple.core_data import FetchOutput
+from soc.simple.core_data import FetchOutput, FetchInput
 
 from nmigen.lib.coding import PriorityEncoder
 
@@ -160,7 +160,7 @@ def get_predcr(m, mask, name):
 class FetchFSM(ControlBase):
     def __init__(self, allow_overlap, svp64_en, imem, core_rst,
                        pdecode2, cur_state,
-                       dbg, core, pc, svstate, nia, is_svp64_mode):
+                       dbg, core, svstate, nia, is_svp64_mode):
         self.allow_overlap = allow_overlap
         self.svp64_en = svp64_en
         self.imem = imem
@@ -169,7 +169,6 @@ class FetchFSM(ControlBase):
         self.cur_state = cur_state
         self.dbg = dbg
         self.core = core
-        self.pc = pc
         self.svstate = svstate
         self.nia = nia
         self.is_svp64_mode = is_svp64_mode
@@ -185,7 +184,7 @@ class FetchFSM(ControlBase):
         pass
 
     def ispec(self):
-        return Signal(name="dummy_for_now", reset_less=True)
+        return FetchInput()
 
     def ospec(self):
         return FetchOutput()
@@ -201,7 +200,7 @@ class FetchFSM(ControlBase):
 
         dbg = self.dbg
         core = self.core,
-        pc = self.pc
+        pc = self.i.pc
         svstate = self.svstate
         nia = self.nia
         is_svp64_mode = self.is_svp64_mode
@@ -1171,8 +1170,11 @@ class TestIssuerInternal(Elaboratable):
         # set up Fetch FSM
         fetch = FetchFSM(self.allow_overlap, self.svp64_en,
                         self.imem, core_rst, pdecode2, cur_state,
-                       dbg, core, pc, svstate, nia, is_svp64_mode)
+                       dbg, core, svstate, nia, is_svp64_mode)
         m.submodules.fetch = fetch
+        # connect up in/out data to existing Signals
+        comb += fetch.p.i_data.pc.eq(pc)
+        # and the ready/valid signalling
         comb += fetch_pc_o_ready.eq(fetch.p.o_ready)
         comb += fetch.p.i_valid.eq(fetch_pc_i_valid)
         comb += fetch_insn_o_valid.eq(fetch.n.o_valid)
