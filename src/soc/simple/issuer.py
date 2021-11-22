@@ -21,6 +21,9 @@ from nmigen.cli import rtlil
 from nmigen.cli import main
 import sys
 
+from nmutil.singlepipe import ControlBase
+from soc.simple.core_data import FetchOutput
+
 from nmigen.lib.coding import PriorityEncoder
 
 from openpower.decoder.power_decoder import create_pdecode
@@ -76,6 +79,7 @@ def state_get(m, core_rst, state_i, name, regfile, regnum):
             comb += res.eq(regfile.o_data)
     return res
 
+
 def get_predint(m, mask, name):
     """decode SVP64 predicate integer mask field to reg number and invert
     this is identical to the equivalent function in ISACaller except that
@@ -115,6 +119,7 @@ def get_predint(m, mask, name):
             comb += invert.eq(1)
     return regread, invert, unary, all1s
 
+
 def get_predcr(m, mask, name):
     """decode SVP64 predicate CR to reg number field and invert status
     this is identical to _get_predcr in ISACaller
@@ -148,6 +153,189 @@ def get_predcr(m, mask, name):
             comb += idx.eq(CR.SO)
             comb += invert.eq(1)
     return idx, invert
+
+
+# Fetch Finite State Machine.
+# WARNING: there are currently DriverConflicts but it's actually working.
+class FetchFSM(ControlBase):
+    def __init__(self, allow_overlap, svp64_en, imem, core_rst,
+                       pdecode2, cur_state,
+                       dbg, core, pc, svstate, nia, is_svp64_mode):
+        self.allow_overlap = allow_overlap
+        self.svp64_en = svp64_en
+        self.imem = imem
+        self.core_rst = core_rst
+        self.pdecode2 = pdecode2
+        self.cur_state = cur_state
+        self.dbg = dbg
+        self.core = core
+        self.pc = pc
+        self.svstate = svstate
+        self.nia = nia
+        self.is_svp64_mode = is_svp64_mode
+
+        # set up pipeline ControlBase and allocate i/o specs
+        # (unusual: normally done by the Pipeline API)
+        super().__init__(stage=self)
+        self.p.i_data, self.n.o_data = self.new_specs(None)
+        self.i, self.o = self.p.i_data, self.n.o_data
+
+        staterf = self.core.regs.rf['state']
+        self.state_r_msr = staterf.r_ports['msr'] # MSR rd
+
+    # next 3 functions are Stage API Compliance
+    def setup(self, m, i):
+        pass
+
+    def ispec(self):
+        return Signal(name="dummy_for_now", reset_less=True)
+
+    def ospec(self):
+        return FetchOutput()
+
+    def elaborate(self, platform):
+        """fetch FSM
+
+        this FSM performs fetch of raw instruction data, partial-decodes
+        it 32-bit at a time to detect SVP64 prefixes, and will optionally
+        read a 2nd 32-bit quantity if that occurs.
+        """
+        m = super().elaborate(platform)
+
+        dbg = self.dbg
+        core = self.core,
+        pc = self.pc
+        svstate = self.svstate
+        nia = self.nia
+        is_svp64_mode = self.is_svp64_mode
+        fetch_pc_o_ready = self.p.o_ready
+        fetch_pc_i_valid = self.p.i_valid
+        fetch_insn_o_valid = self.n.o_valid
+        fetch_insn_i_ready = self.n.i_ready
+
+        comb = m.d.comb
+        sync = m.d.sync
+        pdecode2 = self.pdecode2
+        cur_state = self.cur_state
+        dec_opcode_o = pdecode2.dec.raw_opcode_in # raw opcode
+
+        msr_read = Signal(reset=1)
+
+        # don't read msr every cycle
+        comb += self.state_r_msr.ren.eq(0)
+
+        with m.FSM(name='fetch_fsm'):
+
+            # waiting (zzz)
+            with m.State("IDLE"):
+                with m.If(~dbg.stopping_o):
+                    comb += fetch_pc_o_ready.eq(1)
+                with m.If(fetch_pc_i_valid):
+                    # instruction allowed to go: start by reading the PC
+                    # capture the PC and also drop it into Insn Memory
+                    # we have joined a pair of combinatorial memory
+                    # lookups together.  this is Generally Bad.
+                    comb += self.imem.a_pc_i.eq(pc)
+                    comb += self.imem.a_i_valid.eq(1)
+                    comb += self.imem.f_i_valid.eq(1)
+                    sync += cur_state.pc.eq(pc)
+                    sync += cur_state.svstate.eq(svstate) # and svstate
+
+                    # initiate read of MSR. arrives one clock later
+                    comb += self.state_r_msr.ren.eq(1 << StateRegs.MSR)
+                    sync += msr_read.eq(0)
+
+                    m.next = "INSN_READ"  # move to "wait for bus" phase
+
+            # dummy pause to find out why simulation is not keeping up
+            with m.State("INSN_READ"):
+                if self.allow_overlap:
+                    stopping = dbg.stopping_o
+                else:
+                    stopping = Const(0)
+                with m.If(stopping):
+                    # stopping: jump back to idle
+                    m.next = "IDLE"
+                with m.Else():
+                    # one cycle later, msr/sv read arrives.  valid only once.
+                    with m.If(~msr_read):
+                        sync += msr_read.eq(1) # yeah don't read it again
+                        sync += cur_state.msr.eq(self.state_r_msr.o_data)
+                    with m.If(self.imem.f_busy_o): # zzz...
+                        # busy: stay in wait-read
+                        comb += self.imem.a_i_valid.eq(1)
+                        comb += self.imem.f_i_valid.eq(1)
+                    with m.Else():
+                        # not busy: instruction fetched
+                        insn = get_insn(self.imem.f_instr_o, cur_state.pc)
+                        if self.svp64_en:
+                            svp64 = self.svp64
+                            # decode the SVP64 prefix, if any
+                            comb += svp64.raw_opcode_in.eq(insn)
+                            comb += svp64.bigendian.eq(self.core_bigendian_i)
+                            # pass the decoded prefix (if any) to PowerDecoder2
+                            sync += pdecode2.sv_rm.eq(svp64.svp64_rm)
+                            sync += pdecode2.is_svp64_mode.eq(is_svp64_mode)
+                            # remember whether this is a prefixed instruction,
+                            # so the FSM can readily loop when VL==0
+                            sync += is_svp64_mode.eq(svp64.is_svp64_mode)
+                            # calculate the address of the following instruction
+                            insn_size = Mux(svp64.is_svp64_mode, 8, 4)
+                            sync += nia.eq(cur_state.pc + insn_size)
+                            with m.If(~svp64.is_svp64_mode):
+                                # with no prefix, store the instruction
+                                # and hand it directly to the next FSM
+                                sync += dec_opcode_o.eq(insn)
+                                m.next = "INSN_READY"
+                            with m.Else():
+                                # fetch the rest of the instruction from memory
+                                comb += self.imem.a_pc_i.eq(cur_state.pc + 4)
+                                comb += self.imem.a_i_valid.eq(1)
+                                comb += self.imem.f_i_valid.eq(1)
+                                m.next = "INSN_READ2"
+                        else:
+                            # not SVP64 - 32-bit only
+                            sync += nia.eq(cur_state.pc + 4)
+                            sync += dec_opcode_o.eq(insn)
+                            m.next = "INSN_READY"
+
+            with m.State("INSN_READ2"):
+                with m.If(self.imem.f_busy_o):  # zzz...
+                    # busy: stay in wait-read
+                    comb += self.imem.a_i_valid.eq(1)
+                    comb += self.imem.f_i_valid.eq(1)
+                with m.Else():
+                    # not busy: instruction fetched
+                    insn = get_insn(self.imem.f_instr_o, cur_state.pc+4)
+                    sync += dec_opcode_o.eq(insn)
+                    m.next = "INSN_READY"
+                    # TODO: probably can start looking at pdecode2.rm_dec
+                    # here or maybe even in INSN_READ state, if svp64_mode
+                    # detected, in order to trigger - and wait for - the
+                    # predicate reading.
+                    if self.svp64_en:
+                        pmode = pdecode2.rm_dec.predmode
+                    """
+                    if pmode != SVP64PredMode.ALWAYS.value:
+                        fire predicate loading FSM and wait before
+                        moving to INSN_READY
+                    else:
+                        sync += self.srcmask.eq(-1) # set to all 1s
+                        sync += self.dstmask.eq(-1) # set to all 1s
+                        m.next = "INSN_READY"
+                    """
+
+            with m.State("INSN_READY"):
+                # hand over the instruction, to be decoded
+                comb += fetch_insn_o_valid.eq(1)
+                with m.If(fetch_insn_i_ready):
+                    m.next = "IDLE"
+
+        # whatever was done above, over-ride it if core reset is held
+        with m.If(self.core_rst):
+            sync += nia.eq(0)
+
+        return m
 
 
 class TestIssuerInternal(Elaboratable):
@@ -255,7 +443,6 @@ class TestIssuerInternal(Elaboratable):
         staterf = self.core.regs.rf['state']
         self.state_r_pc = staterf.r_ports['cia'] # PC rd
         self.state_w_pc = staterf.w_ports['d_wr1'] # PC wr
-        self.state_r_msr = staterf.r_ports['msr'] # MSR rd
         self.state_r_sv = staterf.r_ports['sv'] # SVSTATE rd
         self.state_w_sv = staterf.w_ports['sv'] # SVSTATE wr
 
@@ -286,130 +473,6 @@ class TestIssuerInternal(Elaboratable):
             # store copies of predicate masks
             self.srcmask = Signal(64)
             self.dstmask = Signal(64)
-
-    def fetch_fsm(self, m, dbg, core, pc, svstate, nia, is_svp64_mode,
-                        fetch_pc_o_ready, fetch_pc_i_valid,
-                        fetch_insn_o_valid, fetch_insn_i_ready):
-        """fetch FSM
-
-        this FSM performs fetch of raw instruction data, partial-decodes
-        it 32-bit at a time to detect SVP64 prefixes, and will optionally
-        read a 2nd 32-bit quantity if that occurs.
-        """
-        comb = m.d.comb
-        sync = m.d.sync
-        pdecode2 = self.pdecode2
-        cur_state = self.cur_state
-        dec_opcode_i = pdecode2.dec.raw_opcode_in # raw opcode
-
-        msr_read = Signal(reset=1)
-
-        with m.FSM(name='fetch_fsm'):
-
-            # waiting (zzz)
-            with m.State("IDLE"):
-                with m.If(~dbg.stopping_o):
-                    comb += fetch_pc_o_ready.eq(1)
-                with m.If(fetch_pc_i_valid):
-                    # instruction allowed to go: start by reading the PC
-                    # capture the PC and also drop it into Insn Memory
-                    # we have joined a pair of combinatorial memory
-                    # lookups together.  this is Generally Bad.
-                    comb += self.imem.a_pc_i.eq(pc)
-                    comb += self.imem.a_i_valid.eq(1)
-                    comb += self.imem.f_i_valid.eq(1)
-                    sync += cur_state.pc.eq(pc)
-                    sync += cur_state.svstate.eq(svstate) # and svstate
-
-                    # initiate read of MSR. arrives one clock later
-                    comb += self.state_r_msr.ren.eq(1 << StateRegs.MSR)
-                    sync += msr_read.eq(0)
-
-                    m.next = "INSN_READ"  # move to "wait for bus" phase
-
-            # dummy pause to find out why simulation is not keeping up
-            with m.State("INSN_READ"):
-                if self.allow_overlap:
-                    stopping = dbg.stopping_o
-                else:
-                    stopping = Const(0)
-                with m.If(stopping):
-                    # stopping: jump back to idle
-                    m.next = "IDLE"
-                with m.Else():
-                    # one cycle later, msr/sv read arrives.  valid only once.
-                    with m.If(~msr_read):
-                        sync += msr_read.eq(1) # yeah don't read it again
-                        sync += cur_state.msr.eq(self.state_r_msr.o_data)
-                    with m.If(self.imem.f_busy_o): # zzz...
-                        # busy: stay in wait-read
-                        comb += self.imem.a_i_valid.eq(1)
-                        comb += self.imem.f_i_valid.eq(1)
-                    with m.Else():
-                        # not busy: instruction fetched
-                        insn = get_insn(self.imem.f_instr_o, cur_state.pc)
-                        if self.svp64_en:
-                            svp64 = self.svp64
-                            # decode the SVP64 prefix, if any
-                            comb += svp64.raw_opcode_in.eq(insn)
-                            comb += svp64.bigendian.eq(self.core_bigendian_i)
-                            # pass the decoded prefix (if any) to PowerDecoder2
-                            sync += pdecode2.sv_rm.eq(svp64.svp64_rm)
-                            sync += pdecode2.is_svp64_mode.eq(is_svp64_mode)
-                            # remember whether this is a prefixed instruction, 
-                            # so the FSM can readily loop when VL==0
-                            sync += is_svp64_mode.eq(svp64.is_svp64_mode)
-                            # calculate the address of the following instruction
-                            insn_size = Mux(svp64.is_svp64_mode, 8, 4)
-                            sync += nia.eq(cur_state.pc + insn_size)
-                            with m.If(~svp64.is_svp64_mode):
-                                # with no prefix, store the instruction
-                                # and hand it directly to the next FSM
-                                sync += dec_opcode_i.eq(insn)
-                                m.next = "INSN_READY"
-                            with m.Else():
-                                # fetch the rest of the instruction from memory
-                                comb += self.imem.a_pc_i.eq(cur_state.pc + 4)
-                                comb += self.imem.a_i_valid.eq(1)
-                                comb += self.imem.f_i_valid.eq(1)
-                                m.next = "INSN_READ2"
-                        else:
-                            # not SVP64 - 32-bit only
-                            sync += nia.eq(cur_state.pc + 4)
-                            sync += dec_opcode_i.eq(insn)
-                            m.next = "INSN_READY"
-
-            with m.State("INSN_READ2"):
-                with m.If(self.imem.f_busy_o):  # zzz...
-                    # busy: stay in wait-read
-                    comb += self.imem.a_i_valid.eq(1)
-                    comb += self.imem.f_i_valid.eq(1)
-                with m.Else():
-                    # not busy: instruction fetched
-                    insn = get_insn(self.imem.f_instr_o, cur_state.pc+4)
-                    sync += dec_opcode_i.eq(insn)
-                    m.next = "INSN_READY"
-                    # TODO: probably can start looking at pdecode2.rm_dec
-                    # here or maybe even in INSN_READ state, if svp64_mode
-                    # detected, in order to trigger - and wait for - the
-                    # predicate reading.
-                    if self.svp64_en:
-                        pmode = pdecode2.rm_dec.predmode
-                    """
-                    if pmode != SVP64PredMode.ALWAYS.value:
-                        fire predicate loading FSM and wait before
-                        moving to INSN_READY
-                    else:
-                        sync += self.srcmask.eq(-1) # set to all 1s
-                        sync += self.dstmask.eq(-1) # set to all 1s
-                        m.next = "INSN_READY"
-                    """
-
-            with m.State("INSN_READY"):
-                # hand over the instruction, to be decoded
-                comb += fetch_insn_o_valid.eq(1)
-                with m.If(fetch_insn_i_ready):
-                    m.next = "IDLE"
 
     def fetch_predicate_fsm(self, m,
                             pred_insn_i_valid, pred_insn_o_ready,
@@ -1053,9 +1116,6 @@ class TestIssuerInternal(Elaboratable):
         comb += self.state_w_pc.wen.eq(0)
         comb += self.state_w_pc.i_data.eq(0)
 
-        # don't read msr every cycle
-        comb += self.state_r_msr.ren.eq(0)
-
         # address of the next instruction, in the absence of a branch
         # depends on the instruction size
         nia = Signal(64)
@@ -1108,9 +1168,15 @@ class TestIssuerInternal(Elaboratable):
         # Issue is where the VL for-loop # lives.  the ready/valid
         # signalling is used to communicate between the four.
 
-        self.fetch_fsm(m, dbg, core, pc, svstate, nia, is_svp64_mode,
-                       fetch_pc_o_ready, fetch_pc_i_valid,
-                       fetch_insn_o_valid, fetch_insn_i_ready)
+        # set up Fetch FSM
+        fetch = FetchFSM(self.allow_overlap, self.svp64_en,
+                        self.imem, core_rst, pdecode2, cur_state,
+                       dbg, core, pc, svstate, nia, is_svp64_mode)
+        m.submodules.fetch = fetch
+        comb += fetch_pc_o_ready.eq(fetch.p.o_ready)
+        comb += fetch.p.i_valid.eq(fetch_pc_i_valid)
+        comb += fetch_insn_o_valid.eq(fetch.n.o_valid)
+        comb += fetch.n.i_ready.eq(fetch_insn_i_ready)
 
         self.issue_fsm(m, core, pc_changed, sv_changed, nia,
                        dbg, core_rst, is_svp64_mode,
@@ -1129,10 +1195,6 @@ class TestIssuerInternal(Elaboratable):
         self.execute_fsm(m, core, pc_changed, sv_changed,
                          exec_insn_i_valid, exec_insn_o_ready,
                          exec_pc_o_valid, exec_pc_i_ready)
-
-        # whatever was done above, over-ride it if core reset is held
-        with m.If(core_rst):
-            sync += nia.eq(0)
 
         # this bit doesn't have to be in the FSM: connect up to read
         # regfiles on demand from DMI
