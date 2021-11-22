@@ -58,13 +58,6 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield Settle()
     yield from wait_addr(port1)             # wait until addr ok
     yield from wait_addr(port1)             # wait until addr ok
-    exc_happened = yield port1.exc_o.happened
-    if exc_happened:
-        print("print fast exception happened")
-        yield port1.is_st_i.eq(0)  # end
-        yield port1.addr.ok.eq(0)  # set !ok
-        yield port1.is_dcbz_i.eq(0)  # reset dcbz too
-        return "fast"
 
     # yield # not needed, just for checking
     # yield # not needed, just for checking
@@ -73,9 +66,14 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.st.ok.eq(1)
     yield
     yield port1.st.ok.eq(0)
+    exc_happened = yield port1.exc_o.happened
+    if exc_happened:
+        print("print fast exception happened")
+        yield port1.is_st_i.eq(0)  # end
+        yield port1.addr.ok.eq(0)  # set !ok
+        yield port1.is_dcbz_i.eq(0)  # reset dcbz too
+        return "fast"
     yield from wait_busy(port1,debug="pi_st_E") # wait while busy
-
-    # TODO: fast exception handling
 
     # can go straight to reset.
     yield port1.is_st_i.eq(0)  # end
