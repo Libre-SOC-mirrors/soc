@@ -216,8 +216,8 @@ class HDLRunner(StateRunner):
 
             # okaaay long story: in overlap mode, PC is updated one cycle
             # late.
-            #if self.dut.allow_overlap:
-            yield
+            if self.dut.allow_overlap:
+                yield
             yield Settle()
 
             index = (yield self.issuer.cur_state.pc) // 4
