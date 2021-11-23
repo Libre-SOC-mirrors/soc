@@ -157,6 +157,10 @@ def get_predcr(m, mask, name):
 
 # Fetch Finite State Machine.
 # WARNING: there are currently DriverConflicts but it's actually working.
+# TODO, here: everything that is global in nature, information from the
+# main TestIssuerInternal, needs to move to either ispec() or ospec().
+# not only that: TestIssuerInternal.imem can entirely move into here
+# because imem is only ever accessed inside the FetchFSM.
 class FetchFSM(ControlBase):
     def __init__(self, allow_overlap, svp64_en, imem, core_rst,
                        pdecode2, cur_state,
