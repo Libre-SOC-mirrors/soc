@@ -8,6 +8,7 @@ from nmigen.sim import Simulator, Delay, Settle
 from nmutil.util import wrap
 
 from soc.config.test.test_pi2ls import pi_ld, pi_st, pi_ldst, wait_busy
+#from soc.config.test.test_pi2ls import pi_st_debug
 from soc.config.test.test_loadstore import TestMemPspec
 from soc.config.loadstore import ConfigMemoryPortInterface
 
@@ -161,12 +162,14 @@ def _test_loadstore1(dut, mem):
         yield from wait_busy(pi, debug="pi_st_E_alignment_error")
         # wait is only needed in case of in exception here
         print("=== alignment error test passed (st) ===")
+        yield # IMPORTANT: wait one clock cycle after failed st
 
-    ##TODO
-    ##addr = 0xFF100e000
-    ##ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-    ##print("ld_data",ld_data,exc)
-    ##print("=== done ===")
+        print("=== no error ===")
+        addr = 0x100e0
+        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        print("ld_data",ld_data,exc)
+        print("=== no error done ===")
+
     stop = True
 
 def test_loadstore1():
