@@ -40,7 +40,7 @@ from soc.config.test.test_loadstore import TestMemPspec
 from openpower.decoder.power_enums import MicrOp, Function
 from soc.simple.core_data import CoreInput, CoreOutput
 
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import operator
 
 from nmutil.util import rising_edge
@@ -873,9 +873,9 @@ class NonProductionCore(ControlBase):
         fus = self.fus.fus
         e = self.ireg.e # decoded instruction to execute
 
-        # dictionary of dictionaries of lists of regfile ports.
+        # dictionary of dictionaries of lists/tuples of regfile ports.
         # first key: regfile.  second key: regfile port name
-        byregfiles = defaultdict(dict)
+        byregfiles = defaultdict(lambda: defaultdict(list))
         byregfiles_spec = defaultdict(dict)
 
         for (funame, fu) in fus.items():
@@ -912,8 +912,6 @@ class NonProductionCore(ControlBase):
                     byregfiles_spec[regfile][regname] = \
                         (rdflag, wrport, read, write, wid, [])
                 # here we start to create "lanes"
-                if idx not in byregfiles[regfile]:
-                    byregfiles[regfile][idx] = []
                 fuspec = (funame, fu, idx)
                 byregfiles[regfile][idx].append(fuspec)
                 byregfiles_spec[regfile][regname][5].append(fuspec)
