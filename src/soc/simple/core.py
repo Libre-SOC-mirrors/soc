@@ -440,8 +440,10 @@ class NonProductionCore(ControlBase):
         ppoffs = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
-            (rf, wf, read, write, wid, fuspec) = fspec
-            print ("fpsec", i, fspec, len(fuspec))
+            (rf, wf, _read, _write, wid, fuspecs) = \
+                (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
+                 fspec.wid, fspec.specs)
+            print ("fpsec", i, fspec, len(fuspecs))
             ppoffs.append(pplen) # record offset for picker
             pplen += len(fspec.specs)
             name = "rdflag_%s_%s_%d" % (regfile, regname, i)
@@ -460,7 +462,9 @@ class NonProductionCore(ControlBase):
         wvens = []
 
         for i, fspec in enumerate(fspecs):
-            (rf, wf, _read, _write, wid, fuspecs) = fspec
+            (rf, wf, _read, _write, wid, fuspecs) = \
+                (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
+                 fspec.wid, fspec.specs)
             # connect up the FU req/go signals, and the reg-read to the FU
             # and create a Read Broadcast Bus
             for pi, fuspec in enumerate(fspec.specs):
@@ -717,10 +721,12 @@ class NonProductionCore(ControlBase):
         wrflags = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
-            (rf, wf, read, write, wid, fuspec) = fspec
-            print ("fpsec", i, "wrflag", wf, fspec, len(fuspec))
+            (rf, wf, _read, _write, wid, fuspecs) = \
+                (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
+                 fspec.wid, fspec.specs)
+            print ("fpsec", i, "wrflag", wf, fspec, len(fuspecs))
             ppoffs.append(pplen) # record offset for picker
-            pplen += len(fuspec)
+            pplen += len(fuspecs)
 
             name = "%s_%s_%d" % (regfile, regname, i)
             rdflag = Signal(name="rd_flag_"+name)
@@ -749,8 +755,11 @@ class NonProductionCore(ControlBase):
         for i, fspec in enumerate(fspecs):
             # connect up the FU req/go signals and the reg-read to the FU
             # these are arbitrated by Data.ok signals
-            (rf, wf, read, _write, wid, fuspec) = fspec
-            for pi, (funame, fu, idx) in enumerate(fuspec):
+            (rf, wf, _read, _write, wid, fuspecs) = \
+                (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
+                 fspec.wid, fspec.specs)
+            for pi, fuspec in enumerate(fspec.specs):
+                (funame, fu, idx) = (fuspec.funame, fuspec.fu, fuspec.idx)
                 pi += ppoffs[i]
                 name = "%s_%s_%s_%d" % (funame, regfile, regname, idx)
                 # get (or set up) a write-latched copy of write register number
