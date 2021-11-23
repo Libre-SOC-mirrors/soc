@@ -152,6 +152,12 @@ class NonProductionCore(ControlBase):
                                             regreduce_en=self.regreduce_en)
             self.des[funame] = self.decoders[funame].do
 
+        # create per-Function Unit write-after-write hazard signals
+        # yes, really, this should have been added in ReservationStations
+        # but hey.
+        for funame, fu in self.fus.fus.items():
+            fu._waw_hazard = Signal(name="waw_%s" % funame)
+
         # share the SPR decoder with the MMU if it exists
         if "mmu0" in self.decoders:
             self.decoders["mmu0"].mmu0_spr_dec = self.decoders["spr0"]
@@ -182,6 +188,10 @@ class NonProductionCore(ControlBase):
         self.regs.elaborate_into(m, platform)
         regs = self.regs
         fus = self.fus.fus
+
+        # set FU hazards default to 1 (as a test)
+        for funame, fu in self.fus.fus.items():
+            comb += fu._waw_hazard.eq(1)
 
         # connect decoders
         self.connect_satellite_decoders(m)
