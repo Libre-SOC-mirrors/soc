@@ -17,6 +17,8 @@ the brain-dead part of this module is that even though there is no
 conflict of access, regfile read/write hazards are *not* analysed,
 and consequently it is safer to wait for the Function Unit to complete
 before allowing a new instruction to proceed.
+(update: actually this is being added now:
+https://bugs.libre-soc.org/show_bug.cgi?id=737)
 """
 
 from nmigen import (Elaboratable, Module, Signal, ResetSignal, Cat, Mux,
