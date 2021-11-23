@@ -263,7 +263,7 @@ class PortInterfaceBase(Elaboratable):
             with m.If(pi.addr.ok):
                 self.set_wr_addr(m, pi.addr.data, lenexp.lexp_o, misalign, pr,
                                  pi.is_dcbz_i)
-                with m.If(adrok_l.qn):
+                with m.If(adrok_l.qn & self.pi.exc_o.happened==0):
                     comb += pi.addr_ok_o.eq(1)  # acknowledge addr ok
                     sync += adrok_l.s.eq(1)       # and pull "ack" latch
 
@@ -312,7 +312,6 @@ class PortInterfaceBase(Elaboratable):
         # monitor for an exception, clear busy immediately
         with m.If(self.pi.exc_o.happened):
             comb += busy_l.r.eq(1)
-            #sync += Display("slow exception -- busy reset")
 
         # however ST needs one cycle before busy is reset
         #with m.If(self.pi.st.ok | self.pi.ld.ok):
@@ -322,7 +321,6 @@ class PortInterfaceBase(Elaboratable):
         with m.If(cyc_l.q):
             comb += cyc_l.r.eq(1)
             comb += busy_l.r.eq(1)
-            #sync += Display("busy reset")
 
         # busy latch outputs to interface
         comb += pi.busy_o.eq(busy_l.q)
