@@ -45,6 +45,9 @@ import operator
 
 from nmutil.util import rising_edge
 
+FUSpec = namedtuple("FUSpec", ["funame", "fu", "idx"])
+ByRegSpec = namedtuple("ByRegSpec", ["rdflag", "wrport", "read",
+                                     "write", "wid", "specs"])
 
 # helper function for reducing a list of signals down to a parallel
 # ORed single signal.
@@ -901,20 +904,20 @@ class NonProductionCore(ControlBase):
                 # the PowerDecoder2 (main one, not the satellites) contains
                 # the decoded regfile numbers. obtain these now
                 if readmode:
-                    rdflag, read = regspec_decode_read(e, regfile, regname)
+                    rdport, read = regspec_decode_read(e, regfile, regname)
                     wrport, write = None, None
                 else:
-                    rdflag, read = None, None
+                    rdport, read = None, None
                     wrport, write = regspec_decode_write(e, regfile, regname)
 
                 # construct the dictionary of regspec information by regfile
                 if regname not in byregfiles_spec[regfile]:
                     byregfiles_spec[regfile][regname] = \
-                        (rdflag, wrport, read, write, wid, [])
+                        ByRegSpec(rdport, wrport, read, write, wid, [])
                 # here we start to create "lanes"
-                fuspec = (funame, fu, idx)
+                fuspec = FUSpec(funame, fu, idx)
                 byregfiles[regfile][idx].append(fuspec)
-                byregfiles_spec[regfile][regname][5].append(fuspec)
+                byregfiles_spec[regfile][regname].specs.append(fuspec)
 
                 continue
                 # append a latch Signal to the FU's list of latches
@@ -933,10 +936,10 @@ class NonProductionCore(ControlBase):
             print("regfile %s ports:" % mode, regfile)
             fuspecs = byregfiles_spec[regfile]
             for regname, fspec in fuspecs.items():
-                [rdflag, wrflag, read, write, wid, fuspec] = fspec
+                [rdport, wrport, read, write, wid, fuspecs] = fspec
                 print("  rf %s port %s lane: %s" % (mode, regfile, regname))
-                print("  %s" % regname, wid, read, write, rdflag, wrflag)
-                for (funame, fu, idx) in fuspec:
+                print("  %s" % regname, wid, read, write, rdport, wrport)
+                for (funame, fu, idx) in fuspecs:
                     fusig = fu.src_i[idx] if readmode else fu.dest[idx]
                     print("    ", funame, fu.__class__.__name__, idx, fusig)
                     print()
