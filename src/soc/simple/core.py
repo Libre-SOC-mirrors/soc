@@ -46,7 +46,7 @@ import operator
 from nmutil.util import rising_edge
 
 FUSpec = namedtuple("FUSpec", ["funame", "fu", "idx"])
-ByRegSpec = namedtuple("ByRegSpec", ["rdflag", "wrport", "read",
+ByRegSpec = namedtuple("ByRegSpec", ["rdport", "wrport", "read",
                                      "write", "wid", "specs"])
 
 # helper function for reducing a list of signals down to a parallel
@@ -443,10 +443,10 @@ class NonProductionCore(ControlBase):
             (rf, wf, read, write, wid, fuspec) = fspec
             print ("fpsec", i, fspec, len(fuspec))
             ppoffs.append(pplen) # record offset for picker
-            pplen += len(fuspec)
+            pplen += len(fspec.specs)
             name = "rdflag_%s_%s_%d" % (regfile, regname, i)
             rdflag = Signal(name=name, reset_less=True)
-            comb += rdflag.eq(rf)
+            comb += rdflag.eq(fspec.rdport)
             rdflags.append(rdflag)
 
         print ("pplen", pplen)
@@ -460,10 +460,11 @@ class NonProductionCore(ControlBase):
         wvens = []
 
         for i, fspec in enumerate(fspecs):
-            (rf, wf, _read, _write, wid, fuspec) = fspec
+            (rf, wf, _read, _write, wid, fuspecs) = fspec
             # connect up the FU req/go signals, and the reg-read to the FU
             # and create a Read Broadcast Bus
-            for pi, (funame, fu, idx) in enumerate(fuspec):
+            for pi, fuspec in enumerate(fspec.specs):
+                (funame, fu, idx) = (fuspec.funame, fuspec.fu, fuspec.idx)
                 pi += ppoffs[i]
                 name = "%s_%s_%s_%i" % (regfile, rpidx, funame, pi)
                 fu_active = fu_selected[funame]
@@ -494,9 +495,9 @@ class NonProductionCore(ControlBase):
                 rhazard = Signal(name="rhaz_"+name)
 
                 # exclude any currently-enabled read-request (mask out active)
+                # entirely block anything hazarded from being picked
                 comb += pick.eq(fu.rd_rel_o[idx] & fu_active & rdflags[i] &
                                 ~delay_pick & ~rhazard)
-                # entirely block anything hazarded from being picked
                 comb += rdpick.i[pi].eq(pick)
                 comb += fu.go_rd_i[idx].eq(delay_pick) # pass in *delayed* pick
 
@@ -538,10 +539,13 @@ class NonProductionCore(ControlBase):
                         comb += wvchk_en.eq(1<<read)
                 # if FU is busy (which doesn't get set at the same time as
                 # issue) and no hazard was detected, clear wvchk_en (i.e.
-                # stop checking for hazards)
+                # stop checking for hazards).  there is a loop here, but it's
+                # via a DFF, so is ok. some linters may complain, but hey.
                 with m.If(fu.busy_o & ~rhazard):
                         comb += wvchk_en.eq(0)
 
+                # read-hazard is ANDed with (filtered by) what is actually
+                # being requested.
                 comb += rhazard.eq((wvchk.o_data & wvchk_en).bool())
 
                 wvens.append(wvchk_en)
