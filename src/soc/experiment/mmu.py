@@ -315,7 +315,7 @@ class MMU(Elaboratable):
             sync += Display("MMU completing op without error")
 
         with m.If(l_out.err):
-            sync += Display("MMU completing op with err invalid"
+            sync += Display("MMU completing op with err invalid="
                             "%d badtree=%d", l_out.invalid, l_out.badtree)
 
         with m.If(rin.state == State.RADIX_LOOKUP):
