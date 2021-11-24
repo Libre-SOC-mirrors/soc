@@ -93,7 +93,7 @@ class NonProductionCore(ControlBase):
                              (pspec.allow_overlap == True))
 
         # test core type
-        self.make_hazard_vecs = True
+        self.make_hazard_vecs = self.allow_overlap
         self.core_type = "fsm"
         if hasattr(pspec, "core_type"):
             self.core_type = pspec.core_type
