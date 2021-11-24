@@ -415,8 +415,9 @@ class NonProductionCore(ControlBase):
                                 m.next = "READY"
 
         print ("core: overlap allowed", self.allow_overlap)
-        busys = map(lambda fu: fu.busy_o, fus.values())
-        comb += any_busy_o.eq(Cat(*busys).bool())
+        # true when any FU is busy (including the cycle where it is perhaps
+        # to be issued - because that's what fu_busy is)
+        comb += any_busy_o.eq(fu_busy.bool())
         if not self.allow_overlap:
             # for simple non-overlap, if any instruction is busy, set
             # busy output for core.
@@ -424,7 +425,7 @@ class NonProductionCore(ControlBase):
         else:
             # sigh deal with a fun situation that needs to be investigated
             # and resolved
-            with m.If(self.issue_conflict | self.waw_hazard):
+            with m.If(self.issue_conflict):
                 comb += busy_o.eq(1)
 
         # return both the function unit "enable" dict as well as the "busy".
@@ -852,14 +853,15 @@ class NonProductionCore(ControlBase):
                 wvsets.append(wv_issue_en)  # because enable needs a 1
 
                 # read the write-hazard bitvector (wv) for any bit that is
-                fu_issue = fu_bitdict[funame]
+                fu_requested = fu_bitdict[funame]
                 wvchk_en = Signal(len(wvchk.ren), name="waw_chk_addr_en_"+name)
                 issue_active = Signal(name="waw_iactive_"+name)
                 whazard = Signal(name="whaz_"+name)
                 if wf is None:
                     # XXX EEK! STATE regfile (branch) does not have an
                     # write-active indicator in regspec_decode_write()
-                    print ("XXX FIXME waw_iactive", issue_active, fu_issue, wf)
+                    print ("XXX FIXME waw_iactive", issue_active,
+                                                    fu_requested, wf)
                 else:
                     # check bits from the incoming instruction.  note (back
                     # in connect_instruction) that the decoder is held for
@@ -880,7 +882,8 @@ class NonProductionCore(ControlBase):
                         comb += wvchk_en.eq(0)
 
                 # write-hazard is ANDed with (filtered by) what is actually
-                # being requested.
+                # being requested.  the wvchk data is on a one-clock delay,
+                # and wvchk_en comes directly from the main decoder
                 comb += whazard.eq((wvchk.o_data & wvchk_en).bool())
                 with m.If(whazard):
                     comb += fu._waw_hazard.eq(1)
