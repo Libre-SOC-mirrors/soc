@@ -243,9 +243,12 @@ class HDLRunner(StateRunner):
             if terminated:
                 break
 
-        # wait until all settled
-        #while (yield self.issuer.any_busy):
-        #    yield
+        if self.dut.allow_overlap:
+            # wait until all settled
+            # XXX really this should be in DMI, which should in turn
+            # use issuer.any_busy to not send back "stopped" signal
+            while (yield self.issuer.any_busy):
+                yield
 
         if self.dut.allow_overlap:
             # get last state, at end of run
