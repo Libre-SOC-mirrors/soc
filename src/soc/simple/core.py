@@ -777,7 +777,7 @@ class NonProductionCore(ControlBase):
         wvsets = []
         wvseten = []
         wvclren = []
-        wvens = []
+        #wvens = [] - not needed: reading of writevec is permanently held hi
         addrs = []
         for i, fspec in enumerate(fspecs):
             # connect up the FU req/go signals and the reg-read to the FU
@@ -861,7 +861,11 @@ class NonProductionCore(ControlBase):
                     # write-active indicator in regspec_decode_write()
                     print ("XXX FIXME waw_iactive", issue_active, fu_issue, wf)
                 else:
-                    #comb += issue_active.eq(fu_issue & wf)
+                    # check bits from the incoming instruction.  note (back
+                    # in connect_instruction) that the decoder is held for
+                    # us to be able to do this, here... *without* issue being
+                    # held HI.  we MUST NOT gate this with fu.issue_i or
+                    # with fu_bitdict "enable": it would create a loop
                     comb += issue_active.eq(wf)
                 with m.If(issue_active):
                     if rfile.unary:
@@ -902,7 +906,11 @@ class NonProductionCore(ControlBase):
         comb += wvset.i_data.eq(ortreereduce_sig(wvsets))
 
         # for write-after-write.  this gets the write vector one cycle
-        # late but that's ok
+        # late but that's ok... no, actually it's essential, and here's why:
+        # on issue, the write-to-bitvector occurs, but occurs one cycle late.
+        # if we were not reading the write-bitvector one cycle early (its
+        # previous state on the previous cycle), we would end up reading
+        # our *own* write-request as a write-after-write hazard!
         comb += wvchk.ren.eq(-1) # always enable #ortreereduce_sig(wvens))
 
     def connect_wrports(self, m, fu_bitdict, fu_selected):
