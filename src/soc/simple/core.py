@@ -189,9 +189,12 @@ class NonProductionCore(ControlBase):
         regs = self.regs
         fus = self.fus.fus
 
-        # set FU hazards default to 1 (as a test)
+        # amalgamate write-hazards into a single top-level Signal
+        self.waw_hazard = Signal()
+        whaz = []
         for funame, fu in self.fus.fus.items():
-            comb += fu._waw_hazard.eq(1)
+            whaz.append(fu._waw_hazard)
+        comb += self.waw_hazard.eq(Cat(*whaz).bool())
 
         # connect decoders
         self.connect_satellite_decoders(m)
@@ -366,13 +369,17 @@ class NonProductionCore(ControlBase):
                                 # issue, busy, read flags and mask to FU
                                 with m.If(enable):
                                     # operand comes from the *local*  decoder
+                                    # do not actually issue, though, if there
+                                    # is a waw hazard. decoder has to still
+                                    # be asserted in order to detect that, tho
                                     comb += fu.oper_i.eq_from(do)
-                                    comb += fu.issue_i.eq(1) # issue when valid
+                                    # issue when valid (and no write-hazard)
+                                    comb += fu.issue_i.eq(~self.waw_hazard)
                                     # instruction ok, indicate ready
                                     comb += self.p.o_ready.eq(1)
 
                             if self.allow_overlap:
-                                with m.If(~fu_found):
+                                with m.If(~fu_found | self.waw_hazard):
                                     # latch copy of instruction
                                     sync += ilatch.eq(self.i)
                                     comb += self.p.o_ready.eq(1) # accept
@@ -394,16 +401,23 @@ class NonProductionCore(ControlBase):
                         # run this FunctionUnit if enabled route op,
                         # issue, busy, read flags and mask to FU
                         with m.If(enable):
-                            # operand comes from the *local*  decoder
+                            # operand comes from the *local* decoder,
+                            # which is asserted even if not issued,
+                            # so that WaW-detection can check for hazards.
+                            # only if the waw hazard is clear does the
+                            # instruction actually get issued
                             comb += fu.oper_i.eq_from(do)
-                            comb += fu.issue_i.eq(1) # issue when valid
-                            comb += self.p.o_ready.eq(1)
-                            comb += busy_o.eq(0)
-                            m.next = "READY"
+                            # issue when valid
+                            comb += fu.issue_i.eq(~self.waw_hazard)
+                            with m.If(~self.waw_hazard):
+                                comb += self.p.o_ready.eq(1)
+                                comb += busy_o.eq(0)
+                                m.next = "READY"
 
         print ("core: overlap allowed", self.allow_overlap)
-        busys = map(lambda fu: fu.busy_o, fus.values())
-        comb += any_busy_o.eq(Cat(*busys).bool())
+        # true when any FU is busy (including the cycle where it is perhaps
+        # to be issued - because that's what fu_busy is)
+        comb += any_busy_o.eq(fu_busy.bool())
         if not self.allow_overlap:
             # for simple non-overlap, if any instruction is busy, set
             # busy output for core.
@@ -721,6 +735,7 @@ class NonProductionCore(ControlBase):
             wv = regs.wv[regfile.lower()]
             wvset = wv.w_ports["set"] # write-vec bit-level hazard ctrl
             wvclr = wv.w_ports["clr"] # write-vec bit-level hazard ctrl
+            wvchk = wv.r_ports["whazard"] # write-after-write hazard check
 
         fspecs = fspec
         if not isinstance(fspecs, list):
@@ -763,6 +778,7 @@ class NonProductionCore(ControlBase):
         wvsets = []
         wvseten = []
         wvclren = []
+        #wvens = [] - not needed: reading of writevec is permanently held hi
         addrs = []
         for i, fspec in enumerate(fspecs):
             # connect up the FU req/go signals and the reg-read to the FU
@@ -791,8 +807,8 @@ class NonProductionCore(ControlBase):
                 # write-request comes from dest.ok
                 dest = fu.get_out(idx)
                 fu_dest_latch = fu.get_fu_out(idx)  # latched output
-                name = "fu_wrok_%s_%s_%d" % (funame, regname, idx)
-                fu_wrok = Signal(name=name, reset_less=True)
+                name = "%s_%s_%d" % (funame, regname, idx)
+                fu_wrok = Signal(name="fu_wrok_"+name, reset_less=True)
                 comb += fu_wrok.eq(dest.ok & fu.busy_o)
 
                 # connect request-write to picker input, and output to go-wr
@@ -836,6 +852,44 @@ class NonProductionCore(ControlBase):
                 wvseten.append(wv_issue_en) # set data same as enable
                 wvsets.append(wv_issue_en)  # because enable needs a 1
 
+                # read the write-hazard bitvector (wv) for any bit that is
+                fu_requested = fu_bitdict[funame]
+                wvchk_en = Signal(len(wvchk.ren), name="waw_chk_addr_en_"+name)
+                issue_active = Signal(name="waw_iactive_"+name)
+                whazard = Signal(name="whaz_"+name)
+                if wf is None:
+                    # XXX EEK! STATE regfile (branch) does not have an
+                    # write-active indicator in regspec_decode_write()
+                    print ("XXX FIXME waw_iactive", issue_active,
+                                                    fu_requested, wf)
+                else:
+                    # check bits from the incoming instruction.  note (back
+                    # in connect_instruction) that the decoder is held for
+                    # us to be able to do this, here... *without* issue being
+                    # held HI.  we MUST NOT gate this with fu.issue_i or
+                    # with fu_bitdict "enable": it would create a loop
+                    comb += issue_active.eq(wf)
+                with m.If(issue_active):
+                    if rfile.unary:
+                        comb += wvchk_en.eq(write)
+                    else:
+                        comb += wvchk_en.eq(1<<write)
+                # if FU is busy (which doesn't get set at the same time as
+                # issue) and no hazard was detected, clear wvchk_en (i.e.
+                # stop checking for hazards).  there is a loop here, but it's
+                # via a DFF, so is ok. some linters may complain, but hey.
+                with m.If(fu.busy_o & ~whazard):
+                        comb += wvchk_en.eq(0)
+
+                # write-hazard is ANDed with (filtered by) what is actually
+                # being requested.  the wvchk data is on a one-clock delay,
+                # and wvchk_en comes directly from the main decoder
+                comb += whazard.eq((wvchk.o_data & wvchk_en).bool())
+                with m.If(whazard):
+                    comb += fu._waw_hazard.eq(1)
+
+                #wvens.append(wvchk_en)
+
         # here is where we create the Write Broadcast Bus. simple, eh?
         comb += wport.i_data.eq(ortreereduce_sig(wsigs))
         if rfile.unary:
@@ -853,6 +907,14 @@ class NonProductionCore(ControlBase):
         comb += wvclr.wen.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
         comb += wvset.wen.eq(ortreereduce_sig(wvseten)) # set (issue time)
         comb += wvset.i_data.eq(ortreereduce_sig(wvsets))
+
+        # for write-after-write.  this gets the write vector one cycle
+        # late but that's ok... no, actually it's essential, and here's why:
+        # on issue, the write-to-bitvector occurs, but occurs one cycle late.
+        # if we were not reading the write-bitvector one cycle early (its
+        # previous state on the previous cycle), we would end up reading
+        # our *own* write-request as a write-after-write hazard!
+        comb += wvchk.ren.eq(-1) # always enable #ortreereduce_sig(wvens))
 
     def connect_wrports(self, m, fu_bitdict, fu_selected):
         """connect write ports
