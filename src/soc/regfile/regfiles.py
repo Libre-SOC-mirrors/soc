@@ -285,9 +285,9 @@ class RegFiles:
 
     def make_hazard_vec(self, rf, name):
         if isinstance(rf, VirtualRegPort):
-            vec = VirtualRegPort(rf.nregs, rf.nregs, wr2=True)
+            vec = VirtualRegPort(rf.nregs, rf.nregs, rd2=True, wr2=True)
         else:
-            vec = VirtualRegPort(rf.depth, rf.depth, wr2=True)
+            vec = VirtualRegPort(rf.depth, rf.depth, rd2=True, wr2=True)
         # get read/write port specs and create bitvector ports with same names
         wr_spec, rd_spec = rf.get_port_specs()
         # ok, this is complicated/fun.
@@ -297,7 +297,7 @@ class RegFiles:
         # bitvector *ALSO* needs to be wrtten (a 0).  therefore we need to
         # MERGE the wr_spec and rd_spec with some appropriate name prefixes
         # to make sure they do not clash
-        rd_bvspec = {'issue': 'full_rd'}
+        rd_bvspec = {'issue': 'full_rd', 'whazard': 'full_rd2'}
         wr_bvspec = {'set': 'full_wr', 'clr': 'full_wr2'}
         create_ports(vec, wr_bvspec, rd_bvspec)
         return vec
