@@ -450,7 +450,7 @@ class NonProductionCore(ControlBase):
         # for checking if the read port has an outstanding write
         if self.make_hazard_vecs:
             wv = regs.wv[regfile.lower()]
-            wvchk = wv.r_ports["issue"] # write-vec bit-level hazard check
+            wvchk = wv.q_int # write-vec bit-level hazard check
 
         # if a hazard is detected on this read port, simply blithely block
         # every FU from reading on it.  this is complete overkill but very
@@ -558,7 +558,7 @@ class NonProductionCore(ControlBase):
                     continue
 
                 # read the write-hazard bitvector (wv) for any bit that is
-                wvchk_en = Signal(len(wvchk.ren), name="wv_chk_addr_en_"+name)
+                wvchk_en = Signal(len(wvchk), name="wv_chk_addr_en_"+name)
                 issue_active = Signal(name="rd_iactive_"+name)
                 # XXX combinatorial loop here
                 comb += issue_active.eq(fu_active & rf)
@@ -576,7 +576,7 @@ class NonProductionCore(ControlBase):
 
                 # read-hazard is ANDed with (filtered by) what is actually
                 # being requested.
-                comb += rhazard.eq((wvchk.o_data & wvchk_en).bool())
+                comb += rhazard.eq((wvchk & wvchk_en).bool())
 
                 wvens.append(wvchk_en)
 
@@ -595,8 +595,9 @@ class NonProductionCore(ControlBase):
 
         # enable the read bitvectors for this issued instruction
         # and return whether any write-hazard bit is set
-        comb += wvchk.ren.eq(ortreereduce_sig(wvens))
-        comb += hazard_detected.eq(wvchk.o_data.bool())
+        wvchk_and = Signal(len(wvchk), name="wv_chk_"+name)
+        comb += wvchk_and.eq(wvchk & ortreereduce_sig(wvens))
+        comb += hazard_detected.eq(wvchk_and.bool())
         return hazard_detected
 
     def connect_rdports(self, m, fu_bitdict, fu_selected):
@@ -671,7 +672,7 @@ class NonProductionCore(ControlBase):
         # the detection of what shall be written to is based
         # on *issue*
         print ("write vector (for regread)", regfile, wvset)
-        wviaddr_en = Signal(len(wvset.wen), name="wv_issue_addr_en_"+name)
+        wviaddr_en = Signal(len(wvset), name="wv_issue_addr_en_"+name)
         issue_active = Signal(name="iactive_"+name)
         comb += issue_active.eq(fu.issue_i & fu_active & wrflag)
         with m.If(issue_active):
@@ -683,7 +684,7 @@ class NonProductionCore(ControlBase):
         # deal with write vector clear: this kicks in when the regfile
         # is written to, and clears the corresponding bitvector entry
         print ("write vector", regfile, wvclr)
-        wvaddr_en = Signal(len(wvclr.wen), name="wvaddr_en_"+name)
+        wvaddr_en = Signal(len(wvclr), name="wvaddr_en_"+name)
         if rfile.unary:
             comb += wvaddr_en.eq(addr_en)
         else:
@@ -733,9 +734,10 @@ class NonProductionCore(ControlBase):
         # to RAISE the bitvector (set it to 1), which, duh, requires a WRITE
         if self.make_hazard_vecs:
             wv = regs.wv[regfile.lower()]
-            wvset = wv.w_ports["set"] # write-vec bit-level hazard ctrl
-            wvclr = wv.w_ports["clr"] # write-vec bit-level hazard ctrl
-            wvchk = wv.r_ports["whazard"] # write-after-write hazard check
+            wvset = wv.s # write-vec bit-level hazard ctrl
+            wvclr = wv.r # write-vec bit-level hazard ctrl
+            wvchk = wv.q # write-after-write hazard check
+            wvchk_qint = wv.q_int # write-after-write hazard check, delayed
 
         fspecs = fspec
         if not isinstance(fspecs, list):
@@ -850,11 +852,10 @@ class NonProductionCore(ControlBase):
                 wvaddr_en, wv_issue_en = res
                 wvclren.append(wvaddr_en)   # set only: no data => clear bit
                 wvseten.append(wv_issue_en) # set data same as enable
-                wvsets.append(wv_issue_en)  # because enable needs a 1
 
                 # read the write-hazard bitvector (wv) for any bit that is
                 fu_requested = fu_bitdict[funame]
-                wvchk_en = Signal(len(wvchk.ren), name="waw_chk_addr_en_"+name)
+                wvchk_en = Signal(len(wvchk), name="waw_chk_addr_en_"+name)
                 issue_active = Signal(name="waw_iactive_"+name)
                 whazard = Signal(name="whaz_"+name)
                 if wf is None:
@@ -884,7 +885,7 @@ class NonProductionCore(ControlBase):
                 # write-hazard is ANDed with (filtered by) what is actually
                 # being requested.  the wvchk data is on a one-clock delay,
                 # and wvchk_en comes directly from the main decoder
-                comb += whazard.eq((wvchk.o_data & wvchk_en).bool())
+                comb += whazard.eq((wvchk_qint & wvchk_en).bool())
                 with m.If(whazard):
                     comb += fu._waw_hazard.eq(1)
 
@@ -904,17 +905,8 @@ class NonProductionCore(ControlBase):
             return
 
         # for write-vectors
-        comb += wvclr.wen.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
-        comb += wvset.wen.eq(ortreereduce_sig(wvseten)) # set (issue time)
-        comb += wvset.i_data.eq(ortreereduce_sig(wvsets))
-
-        # for write-after-write.  this gets the write vector one cycle
-        # late but that's ok... no, actually it's essential, and here's why:
-        # on issue, the write-to-bitvector occurs, but occurs one cycle late.
-        # if we were not reading the write-bitvector one cycle early (its
-        # previous state on the previous cycle), we would end up reading
-        # our *own* write-request as a write-after-write hazard!
-        comb += wvchk.ren.eq(-1) # always enable #ortreereduce_sig(wvens))
+        comb += wvclr.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
+        comb += wvset.eq(ortreereduce_sig(wvseten)) # set (issue time)
 
     def connect_wrports(self, m, fu_bitdict, fu_selected):
         """connect write ports
