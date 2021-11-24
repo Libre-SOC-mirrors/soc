@@ -776,7 +776,7 @@ class NonProductionCore(ControlBase):
                 name = "%s_%s_%s_%d" % (funame, regfile, regname, idx)
                 # get (or set up) a write-latched copy of write register number
                 write = Signal.like(_write, name="write_"+name)
-                rname = "%s_%s_%s" % (funame, regfile, regname)
+                rname = "%s_%s_%s_%d" % (funame, regfile, regname, idx)
                 if rname not in fu.wr_latches:
                     wrl = Signal.like(_write, name="wrlatch_"+rname)
                     fu.wr_latches[rname] = write
