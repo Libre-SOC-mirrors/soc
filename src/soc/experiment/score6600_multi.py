@@ -93,9 +93,9 @@ class CompUnitsBase(Elaboratable):
         self.issue_i = Signal(n_units, reset_less=True)
         self.rd0 = go_record(n_units, "rd0")
         self.rd1 = go_record(n_units, "rd1")
-        self.go_rd_i = [self.rd0.go, self.rd1.go]  # XXX HACK!
+        self.go_rd_i = [self.rd0.go_i, self.rd1.go_i]  # XXX HACK!
         self.wr0 = go_record(n_units, "wr0")
-        self.go_wr_i = [self.wr0.go]
+        self.go_wr_i = [self.wr0.go_i]
         self.shadown_i = Signal(n_units, reset_less=True)
         self.go_die_i = Signal(n_units, reset_less=True)
         if ldstmode:
@@ -104,8 +104,8 @@ class CompUnitsBase(Elaboratable):
 
         # outputs
         self.busy_o = Signal(n_units, reset_less=True)
-        self.rd_rel_o = [self.rd0.rel, self.rd1.rel]  # HACK!
-        self.req_rel_o = self.wr0.rel
+        self.rd_rel_o = [self.rd0.rel_o, self.rd1.rel_o]  # HACK!
+        self.req_rel_o = self.wr0.rel_o
         self.done_o = Signal(n_units, reset_less=True)
         if ldstmode:
             self.ld_o = Signal(n_units, reset_less=True)  # op is LD
@@ -230,7 +230,7 @@ class CompUnitLDSTs(CompUnitsBase):
         # LD/ST Units
         units = []
         for i in range(n_ldsts):
-            pi = l0.l0.dports[i].pi
+            pi = l0.l0.dports[i]
             units.append(LDSTCompUnit(pi, rwid, awid=48))
 
         CompUnitsBase.__init__(self, rwid, units, ldstmode=True)
@@ -854,13 +854,13 @@ class IssueToScoreboard(Elaboratable):
         with m.If(iq.qlen_o != 0):
             # get the operands and operation
             instr = iq.o_data[0]
-            imm = instr.imm_data.data
+            imm = instr.do.imm_data.data
             dest = instr.write_reg.data
             src1 = instr.read_reg1.data
             src2 = instr.read_reg2.data
-            op = instr.insn_type
-            fu = instr.fn_unit
-            opi = instr.imm_data.ok  # immediate set
+            op = instr.do.insn_type
+            fu = instr.do.fn_unit
+            opi = instr.do.imm_data.ok  # immediate set
 
             # set the src/dest regs
             comb += sc.int_dest_i.eq(dest)
