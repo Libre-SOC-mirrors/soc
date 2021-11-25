@@ -240,7 +240,6 @@ class LoadStore1(PortInterfaceBase):
             # waiting here for the MMU TLB lookup to complete.
             # either re-try the dcache lookup or throw MMU exception
             with m.Case(State.MMU_LOOKUP):
-                comb += Display("MMUTEST: MMU_LOOKUP")
                 comb += self.busy.eq(1)
                 with m.If(m_in.done):
                     with m.If(~self.instr_fault):
@@ -257,6 +256,7 @@ class LoadStore1(PortInterfaceBase):
                         comb += exc.happened.eq(1) # reason = MMU_LOOKUP
                         # mark dar as updated ?
                         comb += self.pi.dar_o.eq(self.addr)
+                        sync += self.state.eq(State.IDLE)
 
                 with m.If(m_in.err):
                     # MMU RADIX exception thrown
@@ -267,6 +267,7 @@ class LoadStore1(PortInterfaceBase):
                     sync += self.dsisr[63 - 38].eq(self.load)
                     sync += self.dsisr[63 - 44].eq(m_in.badtree)
                     sync += self.dsisr[63 - 45].eq(m_in.rc_error)
+                    sync += self.state.eq(State.IDLE)
 
             with m.Case(State.TLBIE_WAIT):
                 pass
