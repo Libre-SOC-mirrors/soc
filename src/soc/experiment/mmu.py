@@ -33,6 +33,9 @@ from soc.experiment.mem_types import (LoadStore1ToMMUType,
                                  MMUToICacheType)
 
 
+# for debugging
+display_invalid = True
+
 @unique
 class State(Enum):
     IDLE = 0            # zero is default on reset for r.state
@@ -166,6 +169,9 @@ class MMU(Elaboratable):
                     # Use RPDS = 0 to disable radix tree walks
                     comb += v.state.eq(State.RADIX_FINISH)
                     comb += v.invalid.eq(1)
+                    if(display_invalid):
+                        sync += Display("MMUBUG: Use RPDS = 0 to disable"
+                                        " radix tree walks")
                 with m.Else():
                     comb += v.state.eq(State.SEGMENT_CHECK)
 
@@ -212,6 +218,7 @@ class MMU(Elaboratable):
         with m.Else():
             comb += v.state.eq(State.RADIX_FINISH)
             comb += v.invalid.eq(1)
+            if(display_invalid): m.d.sync += Display("MMUBUG: mbits is invalid")
 
     def radix_read_wait(self, m, v, r, d_in, data):
         comb = m.d.comb
@@ -278,6 +285,8 @@ class MMU(Elaboratable):
             # non-present PTE, generate a DSI
             comb += v.state.eq(State.RADIX_FINISH)
             comb += v.invalid.eq(1)
+            if(display_invalid):
+                sync += Display("MMUBUG: non-present PTE, generate a DSI")
 
     def segment_check(self, m, v, r, data, finalmask):
         comb = m.d.comb
