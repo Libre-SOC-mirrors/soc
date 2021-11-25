@@ -265,8 +265,12 @@ class RegSim:
         src2 = self.regs[src2]
         if op == IADD:
             val = (src1 + src2) & ((1 << (self.rwidth))-1)
+            print ("RegSim op: ADD", hex(src1), hex(src2), hex(val))
         elif op == ISUB:
             val = (src1 - src2) & ((1 << (self.rwidth))-1)
+            print ("RegSim op: SUB", hex(src1), hex(src2), hex(val))
+        else:
+            print ("RegSim op: UNSUPPORTED", op)
         self.regs[dest] = val
 
     def setval(self, dest, val):
