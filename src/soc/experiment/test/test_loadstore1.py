@@ -100,12 +100,26 @@ def setup_mmu():
     return m, cmpi
 
 test_exceptions = True
+test_invalid = False
 
 def _test_loadstore1(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
     global stop
     stop = False
+
+    if test_invalid:
+        print("=== test invalid ===")
+        # no process table for this test
+        yield mmu.rin.prtbl.eq(0) # set process table
+        yield
+        addr = 0
+        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        print("ld_data",ld_data,exc)
+        assert(exc=="slow")
+        invalid = yield pi.exc_o.invalid
+        assert(invalid==1)
+        print("=== test invalid done ===")
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
