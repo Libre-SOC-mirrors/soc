@@ -181,6 +181,10 @@ class CompUnitsBase(Elaboratable):
         for i, alu in enumerate(self.units):
             comb += alu.src1_i.eq(self.src1_i)
             comb += alu.src2_i.eq(self.src2_i)
+            # temporary: set read mask to 0b111111111
+            if hasattr(alu, "rdmaskn"):
+                with m.If(alu.busy_o):
+                    comb += alu.rdmaskn.eq(-1)
 
         if not self.ldstmode:
             return m
@@ -649,6 +653,7 @@ class Scoreboard(Elaboratable):
 
         # Group Picker... done manually for now.
         go_rd_o = ipick1.go_rd_o
+        delay_pick_l = []
         go_wr_o = ipick1.go_wr_o
         go_rd_i = intfus.go_rd_i
         go_wr_i = intfus.go_wr_i
@@ -666,8 +671,16 @@ class Scoreboard(Elaboratable):
         rrel_o = cu.rd_rel_o
         rqrl_o = cu.req_rel_o
         for i in range(fu_n_src):
-            comb += ipick1.rd_rel_i[i][0:n_intfus].eq(rrel_o[i][0:n_intfus])
+            # connect with a delay so that src data arrives at the right time
+            pick = Signal(n_intfus, name="pick_%d" % i)
+            delay_pick = Signal(n_intfus, name="dp_%d" % i)
+            rp = Signal(n_intfus, name="rp_%d" % i)
+            comb += pick[0:n_intfus].eq(rrel_o[i][0:n_intfus] & ~delay_pick)
+            comb += ipick1.rd_rel_i[i][0:n_intfus].eq(pick[0:n_intfus])
             comb += ipick1.readable_i[i][0:n_intfus].eq(int_rd_o[0:n_intfus])
+            sync += delay_pick.eq(rp)
+            comb += rp.eq(go_rd_o[i])
+            delay_pick_l.append(delay_pick)
         int_wr_o = intfus.writable_o
         for i in range(fu_n_dst):
             # XXX FIXME: rqrl_o[i] here
@@ -762,7 +775,7 @@ class Scoreboard(Elaboratable):
 
         # connect ALU Computation Units
         for i in range(fu_n_src):
-            comb += cu.go_rd_i[i][0:n_intfus].eq(go_rd_o[i][0:n_intfus])
+            comb += cu.go_rd_i[i][0:n_intfus].eq(delay_pick_l[i][0:n_intfus])
         for i in range(fu_n_dst):
             comb += cu.go_wr_i[i][0:n_intfus].eq(go_wr_o[i][0:n_intfus])
         comb += cu.issue_i[0:n_intfus].eq(fn_issue_o[0:n_intfus])
@@ -934,18 +947,18 @@ def instr_q(dut, op, funit, op_imm, imm, src1, src2, dest,
         dest = instr['write_reg']
         insn_type = instr['insn_type']
         fn_unit = instr['fn_unit']
-        yield dut.i_data[idx].insn_type.eq(insn_type)
-        yield dut.i_data[idx].fn_unit.eq(fn_unit)
+        yield dut.i_data[idx].do.insn_type.eq(insn_type)
+        yield dut.i_data[idx].do.fn_unit.eq(fn_unit)
         yield dut.i_data[idx].read_reg1.data.eq(reg1)
         yield dut.i_data[idx].read_reg1.ok.eq(1)  # XXX TODO
         yield dut.i_data[idx].read_reg2.data.eq(reg2)
         yield dut.i_data[idx].read_reg2.ok.eq(1)  # XXX TODO
         yield dut.i_data[idx].write_reg.data.eq(dest)
         yield dut.i_data[idx].write_reg.ok.eq(1)  # XXX TODO
-        yield dut.i_data[idx].imm_data.data.eq(imm)
-        yield dut.i_data[idx].imm_data.ok.eq(op_imm)
-        di = yield dut.i_data[idx]
-        print("senddata %d %x" % (idx, di))
+        yield dut.i_data[idx].do.imm_data.data.eq(imm)
+        yield dut.i_data[idx].do.imm_data.ok.eq(op_imm)
+        #di = yield dut.i_data[idx]
+        #print("senddata %d %x" % (idx, di))
     yield dut.p_add_i.eq(sendlen)
     yield
     o_p_ready = yield dut.p_o_ready
@@ -1244,7 +1257,7 @@ def scoreboard_sim(dut, alusim):
                            0, 0, (0, 0)))
             instrs.append((5, 3, 3, MicrOp.OP_ADD, Function.ALU,
                            0, 0, (0, 0)))
-        if False:
+        if True:
             instrs.append((3, 5, 5, MicrOp.OP_MUL_L64, Function.ALU,
                            1, 7, (0, 0)))
         if False:
@@ -1342,8 +1355,9 @@ def scoreboard_sim(dut, alusim):
             instrs.append((6, 7, 7, 0, 0, (0, 0)))
 
         # issue instruction(s), wait for issue to be free before proceeding
+        print("instructions", instrs)
         for i, instr in enumerate(instrs):
-            print(i, instr)
+            print("issue instruction", i, instr)
             src1, src2, dest, op, fn_unit, opi, imm, (br_ok, br_fail) = instr
 
             print("instr %d: (%d, %d, %d, %s, %s, %d, %d)" %
@@ -1393,11 +1407,11 @@ def test_scoreboard():
     with open("test_scoreboard6600.il", "w") as f:
         f.write(vl)
 
-    run_simulation(m, power_sim(m, dut, pdecode2, instruction, alusim),
-                   vcd_name='test_powerboard6600.vcd')
+    #run_simulation(m, power_sim(m, dut, pdecode2, instruction, alusim),
+    #               vcd_name='test_powerboard6600.vcd')
 
-    # run_simulation(dut, scoreboard_sim(dut, alusim),
-    #               vcd_name='test_scoreboard6600.vcd')
+    run_simulation(dut, scoreboard_sim(dut, alusim),
+                  vcd_name='test_scoreboard6600.vcd')
 
     # run_simulation(dut, scoreboard_branch_sim(dut, alusim),
     #                    vcd_name='test_scoreboard6600.vcd')
