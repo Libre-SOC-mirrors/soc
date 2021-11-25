@@ -20,6 +20,8 @@ from soc.experiment.compldst_multi import LDSTCompUnit
 from soc.experiment.compldst_multi import CompLDSTOpSubset
 from soc.experiment.l0_cache import TstL0CacheBuffer
 
+# for testing purposes
+from soc.config.test.test_loadstore import TestMemPspec
 from soc.experiment.alu_hier import ALU, BranchALU
 from soc.fu.alu.alu_input_record import CompALUOpSubset
 
@@ -436,7 +438,12 @@ class Scoreboard(Elaboratable):
         self.fpregs = RegFileArray(rwid, n_regs)
 
         # Memory (test for now)
-        self.l0 = TstL0CacheBuffer()
+        pspec = TestMemPspec(ldst_ifacetype='testpi',
+                             addr_wid=48,
+                             mask_wid=8,
+                             reg_wid=64)
+        dut = TstL0CacheBuffer(pspec)
+        self.l0 = TstL0CacheBuffer(pspec)
 
         # issue q needs to get at these
         self.aluissue = IssueUnitGroup(2)
