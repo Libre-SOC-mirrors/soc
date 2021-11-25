@@ -44,11 +44,13 @@ class RegSim:
             src2 = self.regs[src2] & maxbits
         if op == MicrOp.OP_ADD:
             val = src1 + src2
+            print("    add src1, src2", src1, src2, val)
         elif op == MicrOp.OP_MUL_L64:
             val = src1 * src2
-            print("mul src1, src2", src1, src2, val)
+            print("    mul src1, src2", src1, src2, val)
         elif op == ISUB:
             val = src1 - src2
+            print("    sub src1, src2", src1, src2, val)
         elif op == ISHF:
             val = src1 >> (src2 & maxbits)
         elif op == IBGT:
