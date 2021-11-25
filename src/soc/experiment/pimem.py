@@ -312,6 +312,7 @@ class PortInterfaceBase(Elaboratable):
         # monitor for an exception, clear busy immediately
         with m.If(self.pi.exc_o.happened):
             comb += busy_l.r.eq(1)
+            comb += reset_l.s.eq(1) # also reset whole unit
 
         # however ST needs one cycle before busy is reset
         #with m.If(self.pi.st.ok | self.pi.ld.ok):
