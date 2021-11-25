@@ -100,26 +100,32 @@ def setup_mmu():
     return m, cmpi
 
 test_exceptions = True
-test_invalid = False
+
+def _test_loadstore1_invalid(dut, mem):
+    mmu = dut.submodules.mmu
+    pi = dut.submodules.ldst.pi
+    global stop
+    stop = False
+
+    print("=== test invalid ===")
+
+    addr = 0
+    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+    print("ld_data",ld_data,exc)
+    assert(exc=="slow")
+    invalid = yield pi.exc_o.invalid
+    assert(invalid==1)
+
+    print("=== test invalid done ===")
+
+    stop = True
+
 
 def _test_loadstore1(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
     global stop
     stop = False
-
-    if test_invalid:
-        print("=== test invalid ===")
-        # no process table for this test
-        yield mmu.rin.prtbl.eq(0) # set process table
-        yield
-        addr = 0
-        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-        print("ld_data",ld_data,exc)
-        assert(exc=="slow")
-        invalid = yield pi.exc_o.invalid
-        assert(invalid==1)
-        print("=== test invalid done ===")
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
@@ -201,5 +207,21 @@ def test_loadstore1():
     with sim.write_vcd('test_loadstore1.vcd'):
         sim.run()
 
+def test_loadstore1_invalid():
+
+    m, cmpi = setup_mmu()
+
+    mem = {}
+
+    # nmigen Simulation
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    sim.add_sync_process(wrap(_test_loadstore1_invalid(m, mem)))
+    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    with sim.write_vcd('test_loadstore1_invalid.vcd'):
+        sim.run()
+
 if __name__ == '__main__':
     test_loadstore1()
+    test_loadstore1_invalid()
