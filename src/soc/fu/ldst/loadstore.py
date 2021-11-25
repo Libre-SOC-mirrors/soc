@@ -84,12 +84,6 @@ class LoadStore1(PortInterfaceBase):
         self.d_w_valid = Signal()
         self.d_validblip = Signal()
 
-        # DSISR and DAR cached values.  note that the MMU FSM is where
-        # these are accessed by OP_MTSPR/OP_MFSPR, on behalf of LoadStore1.
-        # by contrast microwatt has the spr set/get done *in* loadstore1.vhdl
-        self.dsisr = Signal(64)
-        #self.dar = Signal(64)
-
         # state info for LD/ST
         self.done          = Signal()
         # latch most of the input request
@@ -217,10 +211,10 @@ class LoadStore1(PortInterfaceBase):
                         sync += self.state.eq(State.IDLE)
                         sync += ldst_r.eq(0)
                         sync += Display("cache error -> update dsisr")
-                        sync += self.dsisr[63 - 38].eq(~self.load)
+                        #sync += self.dsisr[63 - 38].eq(~self.load)
                         # XXX there is no architected bit for this
                         # (probably should be a machine check in fact)
-                        sync += self.dsisr[63 - 35].eq(d_in.cache_paradox)
+                        #sync += self.dsisr[63 - 35].eq(d_in.cache_paradox)
 
                     with m.Else():
                         # Look up the translation for TLB miss
@@ -262,11 +256,11 @@ class LoadStore1(PortInterfaceBase):
                     # MMU RADIX exception thrown
                     comb += exception.eq(1)
                     sync += Display("MMU RADIX exception thrown")
-                    sync += self.dsisr[63 - 33].eq(m_in.invalid)
-                    sync += self.dsisr[63 - 36].eq(m_in.perm_error)
-                    sync += self.dsisr[63 - 38].eq(self.load)
-                    sync += self.dsisr[63 - 44].eq(m_in.badtree)
-                    sync += self.dsisr[63 - 45].eq(m_in.rc_error)
+                    #sync += self.dsisr[63 - 33].eq(m_in.invalid)
+                    #sync += self.dsisr[63 - 36].eq(m_in.perm_error)
+                    #sync += self.dsisr[63 - 38].eq(self.load)
+                    #sync += self.dsisr[63 - 44].eq(m_in.badtree)
+                    #sync += self.dsisr[63 - 45].eq(m_in.rc_error)
                     sync += self.state.eq(State.IDLE)
 
             with m.Case(State.TLBIE_WAIT):
