@@ -153,16 +153,16 @@ class CompUnitsBase(Elaboratable):
             go_rd_l1.append(alu.go_rd_i[1])
             issue_l.append(alu.issue_i)
             busy_l.append(alu.busy_o)
-        comb += self.rd0.rel.eq(Cat(*rd_rel0_l))
-        comb += self.rd1.rel.eq(Cat(*rd_rel1_l))
+        comb += self.rd0.rel_o.eq(Cat(*rd_rel0_l))
+        comb += self.rd1.rel_o.eq(Cat(*rd_rel1_l))
         comb += self.req_rel_o.eq(Cat(*req_rel_l))
         comb += self.done_o.eq(Cat(*done_l))
         comb += self.busy_o.eq(Cat(*busy_l))
         comb += Cat(*godie_l).eq(self.go_die_i)
         comb += Cat(*shadow_l).eq(self.shadown_i)
-        comb += Cat(*go_wr_l).eq(self.wr0.go)  # XXX TODO
-        comb += Cat(*go_rd_l0).eq(self.rd0.go)
-        comb += Cat(*go_rd_l1).eq(self.rd1.go)
+        comb += Cat(*go_wr_l).eq(self.wr0.go_i)  # XXX TODO
+        comb += Cat(*go_rd_l0).eq(self.rd0.go_i)
+        comb += Cat(*go_rd_l1).eq(self.rd1.go_i)
         comb += Cat(*issue_l).eq(self.issue_i)
 
         # connect data register input/output
@@ -565,10 +565,10 @@ class Scoreboard(Elaboratable):
                  ]
 
         # take these to outside (issue needs them)
-        comb += cua.op.eq_from_execute1(self.instr)
+        comb += cua.op.eq_from_execute1(self.instr.do)
         comb += cub.oper_i.eq(self.br_oper_i)
         comb += cub.imm_i.eq(self.br_imm_i)
-        comb += cul.op.eq_from_execute1(self.instr)
+        comb += cul.op.eq_from_execute1(self.instr.do)
 
         # TODO: issueunit.f (FP)
 
@@ -907,8 +907,8 @@ def power_instr_q(dut, pdecode2, ins, code):
     sendlen = 1
     for idx, instr in enumerate(instrs):
         yield dut.i_data[idx].eq(instr)
-        insn_type = yield instr.insn_type
-        fn_unit = yield instr.fn_unit
+        insn_type = yield instr.do.insn_type
+        fn_unit = yield instr.do.fn_unit
         print("senddata ", idx, insn_type, fn_unit, instr)
     yield dut.p_add_i.eq(sendlen)
     yield
@@ -1177,7 +1177,7 @@ def power_sim(m, dut, pdecode2, instruction, alusim):
 
                     ]
 
-        with Program(lst) as program:
+        with Program(lst, bigendian=False) as program:
             gen = program.generate_instructions()
 
             # issue instruction(s), wait for issue to be free before proceeding
