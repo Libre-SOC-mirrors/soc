@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Elaboratable, Array, Cat, Repl
+from nmigen import Module, Signal, Elaboratable, Cat, Repl
 from nmutil.latch import SRLatch
 from functools import reduce
 from operator import or_
@@ -43,7 +43,7 @@ class DependencyRow(Elaboratable):
 
         # inputs
         self.dest_i = Signal(n_reg, reset_less=True)     # Dest in (top)
-        self.src_i = Array(src)     # operands in (top)
+        self.src_i = tuple(src)     # operands in (top)
         self.issue_i = Signal(reset_less=True)    # Issue in (top)
 
         self.rd_pend_i = Signal(n_reg, reset_less=True) # Read pend in (top)
@@ -60,11 +60,11 @@ class DependencyRow(Elaboratable):
 
         # for Register File Select Lines (vertical)
         self.dest_rsel_o = Signal(n_reg, reset_less=True)  # dest reg sel (bot)
-        self.src_rsel_o = Array(rsel)   # src reg sel (bot)
+        self.src_rsel_o = tuple(rsel)   # src reg sel (bot)
 
         # for Function Unit "forward progress" (horizontal)
         self.dest_fwd_o = Signal(n_reg, reset_less=True)   # dest FU fw (right)
-        self.src_fwd_o = Array(fwd)    # src FU fw (right)
+        self.src_fwd_o = tuple(fwd)    # src FU fw (right)
 
     def elaborate(self, platform):
         m = Module()

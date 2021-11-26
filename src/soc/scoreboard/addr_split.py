@@ -8,7 +8,7 @@ Links:
 
 #from soc.experiment.pimem import PortInterface
 
-from nmigen import Elaboratable, Module, Signal, Record, Array, Const, Cat
+from nmigen import Elaboratable, Module, Signal, Record, Const, Cat
 from nmutil.latch import SRLatch, latchregister
 from nmigen.back.pysim import Simulator, Delay
 from nmigen.cli import verilog, rtlil
@@ -97,12 +97,12 @@ class LDSTSplitter(Elaboratable):
 
         self.sld_o_valid = Signal(2, reset_less=True)
         self.sld_i_valid = Signal(2, reset_less=True)
-        self.sld_data_i = Array((LDData(cline_wid, "ld_data_i1"),
+        self.sld_data_i = tuple((LDData(cline_wid, "ld_data_i1"),
                                  LDData(cline_wid, "ld_data_i2")))
 
         self.sst_o_valid = Signal(2, reset_less=True)
         self.sst_i_valid = Signal(2, reset_less=True)
-        self.sst_data_o = Array((LDData(cline_wid, "st_data_i1"),
+        self.sst_data_o = tuple((LDData(cline_wid, "st_data_i1"),
                                  LDData(cline_wid, "st_data_i2")))
 
     def elaborate(self, platform):

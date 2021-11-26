@@ -32,7 +32,7 @@ Notes:
 
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Elaboratable, Array, Cat, Const
+from nmigen import Module, Signal, Elaboratable, Cat, Const
 
 from .ldst_dep_cell import LDSTDepCell
 
@@ -69,7 +69,7 @@ class LDSTDepMatrix(Elaboratable):
         # ---
         # matrix of dependency cells.  actually, LDSTDepCell is a row, now
         # ---
-        dm = Array(LDSTDepCell(self.n_ldst) for f in range(self.n_ldst))
+        dm = tuple(LDSTDepCell(self.n_ldst) for f in range(self.n_ldst))
         for fu in range(self.n_ldst):
             setattr(m.submodules, "dm_fu%d" % (fu), dm[fu])
 

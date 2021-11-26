@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Elaboratable, Array, Cat
+from nmigen import Module, Signal, Elaboratable, Cat
 
 from soc.scoreboard.mem_dependence_cell import MemDepRow
 from soc.scoreboard.mem_fu_pending import MemFU_Pend
@@ -45,21 +45,21 @@ class MemFUDepMatrix(Elaboratable):
         # ---
         # matrix of dependency cells
         # ---
-        dm = Array(MemDepRow(self.n_reg_col) for r in range(self.n_fu_row))
+        dm = tuple(MemDepRow(self.n_reg_col) for r in range(self.n_fu_row))
         for fu in range(self.n_fu_row):
             setattr(m.submodules, "dr_fu%d" % fu, dm[fu])
 
         # ---
         # array of Function Unit Pending vectors
         # ---
-        fupend = Array(MemFU_Pend(self.n_reg_col) for f in range(self.n_fu_row))
+        fupend = tuple(MemFU_Pend(self.n_reg_col) for f in range(self.n_fu_row))
         for fu in range(self.n_fu_row):
             setattr(m.submodules, "fu_fu%d" % (fu), fupend[fu])
 
         # ---
         # array of Register Reservation vectors
         # ---
-        regrsv = Array(Mem_Rsv(self.n_fu_row) for r in range(self.n_reg_col))
+        regrsv = tuple(Mem_Rsv(self.n_fu_row) for r in range(self.n_reg_col))
         for rn in range(self.n_reg_col):
             setattr(m.submodules, "rr_r%d" % (rn), regrsv[rn])
 

@@ -45,7 +45,7 @@ In theory (and in practice!) the following is possible:
 
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Elaboratable, Array
+from nmigen import Module, Signal, Elaboratable
 
 #from nmutil.picker import MultiPriorityPicker as MPP
 from nmutil.picker import PriorityPicker
@@ -75,14 +75,14 @@ class GroupPicker(Elaboratable):
             wi.append(Signal(wid, name="writable%d_i" % i, reset_less=True))
 
         # inputs
-        self.rd_rel_i = Array(rdr)  # go read in (top)
-        self.req_rel_i = Array(wrr) # release request in (top)
-        self.readable_i = Array(ri) # readable in (top)
-        self.writable_i = Array(wi) # writable in (top)
+        self.rd_rel_i = tuple(rdr)  # go read in (top)
+        self.req_rel_i = tuple(wrr) # release request in (top)
+        self.readable_i = tuple(ri) # readable in (top)
+        self.writable_i = tuple(wi) # writable in (top)
 
         # outputs
-        self.go_rd_o = Array(rd)  # go read (bottom)
-        self.go_wr_o = Array(wr)  # go write (bottom)
+        self.go_rd_o = tuple(rd)  # go read (bottom)
+        self.go_wr_o = tuple(wr)  # go write (bottom)
 
     def elaborate(self, platform):
         m = Module()

@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Elaboratable, Array, Cat, Repl
+from nmigen import Module, Signal, Elaboratable, Cat, Repl
 
 from soc.scoreboard.dependence_cell import DependencyRow
 from soc.scoreboard.fu_wr_pending import FU_RW_Pend
@@ -46,7 +46,7 @@ class FURegDepMatrix(Elaboratable):
             pend.append(Signal(nf, name="rd_src%d_pend_o" % j, reset_less=True))
 
         self.dest_i = Signal(n_reg_col, reset_less=True)     # Dest in (top)
-        self.src_i = Array(src)                              # oper in (top)
+        self.src_i = tuple(src)                              # oper in (top)
 
         # cancellation array (from Address Matching), ties in with go_die_i
         self.cancel = cancel
@@ -64,12 +64,12 @@ class FURegDepMatrix(Elaboratable):
 
         # for Register File Select Lines (horizontal), per-reg
         self.dest_rsel_o = Signal(n_reg_col, reset_less=True) # dest reg (bot)
-        self.src_rsel_o = Array(rsel)                         # src reg (bot)
+        self.src_rsel_o = tuple(rsel)                         # src reg (bot)
 
         # for Function Unit "forward progress" (vertical), per-FU
         self.wr_pend_o = Signal(n_fu_row, reset_less=True) # wr pending (right)
         self.rd_pend_o = Signal(n_fu_row, reset_less=True) # rd pending (right)
-        self.rd_src_pend_o = Array(pend) # src1 pending
+        self.rd_src_pend_o = tuple(pend) # src1 pending
 
     def elaborate(self, platform):
         m = Module()
@@ -81,7 +81,7 @@ class FURegDepMatrix(Elaboratable):
         # matrix of dependency cells
         # ---
         cancel_mode = self.cancel is not None
-        dm = Array(DependencyRow(self.n_reg_col, self.n_src, cancel_mode) \
+        dm = tuple(DependencyRow(self.n_reg_col, self.n_src, cancel_mode) \
                     for r in range(self.n_fu_row))
         for fu in range(self.n_fu_row):
             setattr(m.submodules, "dr_fu%d" % fu, dm[fu])
@@ -89,7 +89,7 @@ class FURegDepMatrix(Elaboratable):
         # ---
         # array of Function Unit Pending vectors
         # ---
-        fupend = Array(FU_RW_Pend(self.n_reg_col, self.n_src) \
+        fupend = tuple(FU_RW_Pend(self.n_reg_col, self.n_src) \
                         for f in range(self.n_fu_row))
         for fu in range(self.n_fu_row):
             setattr(m.submodules, "fu_fu%d" % (fu), fupend[fu])
@@ -97,7 +97,7 @@ class FURegDepMatrix(Elaboratable):
         # ---
         # array of Register Reservation vectors
         # ---
-        regrsv = Array(Reg_Rsv(self.n_fu_row, self.n_src) \
+        regrsv = tuple(Reg_Rsv(self.n_fu_row, self.n_src) \
                         for r in range(self.n_reg_col))
         for rn in range(self.n_reg_col):
             setattr(m.submodules, "rr_r%d" % (rn), regrsv[rn])

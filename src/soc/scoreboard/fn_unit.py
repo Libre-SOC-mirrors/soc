@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Cat, Array, Const, Elaboratable
+from nmigen import Module, Signal, Cat, Const, Elaboratable
 from nmigen.lib.coding import Decoder
 
 from nmutil.latch import SRLatch, latchregister
@@ -46,7 +46,7 @@ class FnUnit(Elaboratable):
         if n_dests > 1:
             self.rfile_sel_i = Signal(range(n_dests), reset_less=True)
         else:
-            self.rfile_sel_i = Const(0)  # no selection.  gets Array[0]
+            self.rfile_sel_i = Const(0)  # no selection.  gets 0
         self.dest_i = Signal(range(wid), reset_less=True)  # Dest R# in (top)
         self.src1_i = Signal(range(wid), reset_less=True)  # oper1 R# in (top)
         self.src2_i = Signal(range(wid), reset_less=True)  # oper2 R# in (top)
@@ -56,7 +56,7 @@ class FnUnit(Elaboratable):
         self.go_rd_i = Signal(reset_less=True)  # Go Read in (left)
         self.req_rel_i = Signal(reset_less=True)  # request release (left)
 
-        self.g_xx_pend_i = Array(Signal(wid, reset_less=True, name="g_pend_i")
+        self.g_xx_pend_i = tuple(Signal(wid, reset_less=True, name="g_pend_i")
                                  for i in range(n_dests))  # global rd (right)
         self.g_wr_pend_i = Signal(wid, reset_less=True)  # global wr (right)
 
@@ -68,14 +68,14 @@ class FnUnit(Elaboratable):
 
         # outputs
         self.readable_o = Signal(reset_less=True)  # Readable out (right)
-        self.writable_o = Array(Signal(reset_less=True, name="writable_o")
+        self.writable_o = tuple(Signal(reset_less=True, name="writable_o")
                                 for i in range(n_dests))  # writable out (right)
         self.busy_o = Signal(reset_less=True)  # busy out (left)
 
         self.src1_pend_o = Signal(wid, reset_less=True)  # src1 pending
         self.src2_pend_o = Signal(wid, reset_less=True)  # src1 pending
         self.rd_pend_o = Signal(wid, reset_less=True)  # rd pending (right)
-        self.xx_pend_o = Array(Signal(wid, reset_less=True, name="pend_o")
+        self.xx_pend_o = tuple(Signal(wid, reset_less=True, name="pend_o")
                                for i in range(n_dests))  # wr pending (right)
 
     def elaborate(self, platform):

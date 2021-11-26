@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Cat, Array, Const, Elaboratable, Repl
+from nmigen import Module, Signal, Cat, Const, Elaboratable, Repl
 from nmigen.lib.coding import Decoder
 
 from soc.scoreboard.shadow_fn import ShadowFn
@@ -42,11 +42,11 @@ class ShadowMatrix(Elaboratable):
         # inputs
         self.issue_i = Signal(n_fus, reset_less=True)
         self.reset_i = Signal(n_fus, reset_less=True)
-        self.shadow_i = Array(Signal(shadow_wid, name="sh_i", reset_less=True) \
+        self.shadow_i = tuple(Signal(shadow_wid, name="sh_i", reset_less=True) \
                             for f in range(n_fus))
-        self.s_fail_i = Array(Signal(shadow_wid, name="fl_i", reset_less=True) \
+        self.s_fail_i = tuple(Signal(shadow_wid, name="fl_i", reset_less=True) \
                             for f in range(n_fus))
-        self.s_good_i = Array(Signal(shadow_wid, name="gd_i", reset_less=True) \
+        self.s_good_i = tuple(Signal(shadow_wid, name="gd_i", reset_less=True) \
                             for f in range(n_fus))
         # outputs
         self.go_die_o = Signal(n_fus, reset_less=True)
@@ -176,7 +176,7 @@ class WaWGrid(Elaboratable):
         self.shadow_i = Signal(shadow_wid, reset_less=True)
         self.fu_i = Signal(n_fus, reset_less=True)
 
-        self.waw_o = Array(Signal(shadow_wid, name="waw_o", reset_less=True) \
+        self.waw_o = tuple(Signal(shadow_wid, name="waw_o", reset_less=True) \
                             for f in range(n_fus))
 
     def elaborate(self, platform):

@@ -33,7 +33,7 @@ Notes:
 
 from nmigen.compat.sim import run_simulation, Settle
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Const, Array, Cat, Elaboratable, Repl
+from nmigen import Module, Signal, Const, Cat, Elaboratable, Repl
 from nmigen.lib.coding import Decoder
 from nmigen.utils import log2_int
 
@@ -48,14 +48,14 @@ class PartialAddrMatch(Elaboratable):
         self.n_adr = n_adr
         self.bitwid = bitwid
         # inputs
-        self.addrs_i = Array(Signal(bitwid, name="addr") for i in range(n_adr))
+        self.addrs_i = tuple(Signal(bitwid, name="addr") for i in range(n_adr))
         # self.addr_we_i = Signal(n_adr, reset_less=True) # write-enable
         self.addr_en_i = Signal(n_adr, reset_less=True)  # address latched in
         self.addr_rs_i = Signal(n_adr, reset_less=True)  # address deactivated
 
         # output: a nomatch for each address plus individual nomatch signals
         self.addr_nomatch_o = Signal(n_adr, name="nomatch_o", reset_less=True)
-        self.addr_nomatch_a_o = Array(Signal(n_adr, reset_less=True,
+        self.addr_nomatch_a_o = tuple(Signal(n_adr, reset_less=True,
                                              name="nomatch_array_o")
                                       for i in range(n_adr))
 
@@ -69,7 +69,7 @@ class PartialAddrMatch(Elaboratable):
 
         # array of address-latches
         m.submodules.l = self.l = l = SRLatch(llen=self.n_adr, sync=False)
-        self.adrs_r = adrs_r = Array(Signal(self.bitwid, reset_less=True,
+        self.adrs_r = adrs_r = tuple(Signal(self.bitwid, reset_less=True,
                                             name="a_r")
                                      for i in range(self.n_adr))
 
@@ -183,14 +183,14 @@ class TwinPartialAddrBitmap(PartialAddrMatch):
 
         # input: length of the LOAD/STORE
         expwid = 1+self.lsbwid  # XXX assume LD/ST no greater than 8
-        self.lexp_i = Array(Signal(1 << expwid, reset_less=True,
+        self.lexp_i = tuple(Signal(1 << expwid, reset_less=True,
                                    name="len") for i in range(n_adr))
         # input: full address
-        self.faddrs_i = Array(Signal(bitlen, reset_less=True,
+        self.faddrs_i = tuple(Signal(bitlen, reset_less=True,
                                      name="fadr") for i in range(n_adr))
 
         # registers for expanded len
-        self.len_r = Array(Signal(expwid, reset_less=True, name="l_r")
+        self.len_r = tuple(Signal(expwid, reset_less=True, name="l_r")
                            for i in range(self.n_adr))
 
     def elaborate(self, platform):
@@ -268,20 +268,20 @@ class PartialAddrBitmap(PartialAddrMatch):
         PartialAddrMatch.__init__(self, n_adr, self.midlen)
 
         # input: length of the LOAD/STORE
-        self.len_i = Array(Signal(lsbwid, reset_less=True,
+        self.len_i = tuple(Signal(lsbwid, reset_less=True,
                                   name="len") for i in range(n_adr))
         # input: full address
-        self.faddrs_i = Array(Signal(bitlen, reset_less=True,
+        self.faddrs_i = tuple(Signal(bitlen, reset_less=True,
                                      name="fadr") for i in range(n_adr))
 
         # intermediary: address + 1
-        self.addr1s = Array(Signal(self.midlen, reset_less=True,
+        self.addr1s = tuple(Signal(self.midlen, reset_less=True,
                                    name="adr1")
                             for i in range(n_adr))
 
         # expanded lengths, needed in match
         expwid = 1+self.lsbwid  # XXX assume LD/ST no greater than 8
-        self.lexp = Array(Signal(1 << expwid, reset_less=True,
+        self.lexp = tuple(Signal(1 << expwid, reset_less=True,
                                  name="a_l")
                           for i in range(self.n_adr))
 
@@ -291,7 +291,7 @@ class PartialAddrBitmap(PartialAddrMatch):
 
         # intermediaries
         adrs_r, l = self.adrs_r, self.l
-        len_r = Array(Signal(self.lsbwid, reset_less=True,
+        len_r = tuple(Signal(self.lsbwid, reset_less=True,
                              name="l_r")
                       for i in range(self.n_adr))
 

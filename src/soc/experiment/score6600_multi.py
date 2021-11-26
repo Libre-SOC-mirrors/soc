@@ -364,15 +364,15 @@ class FunctionUnits(Elaboratable):
             wpnd.append(Signal(nf, name="wr_dst%d_pend_o" %
                                j, reset_less=True))
 
-        self.dest_i = Array(dst)     # Dest in (top)
-        self.src_i = Array(src)      # oper in (top)
+        self.dest_i = dst     # Dest in (top)
+        self.src_i = src      # oper in (top)
 
         # for Register File Select Lines (horizontal), per-reg
-        self.dst_rsel_o = Array(dsel)  # dest reg (bot)
-        self.src_rsel_o = Array(rsel)  # src reg (bot)
+        self.dst_rsel_o = dsel  # dest reg (bot)
+        self.src_rsel_o = rsel  # src reg (bot)
 
-        self.go_rd_i = Array(rd)
-        self.go_wr_i = Array(wr)
+        self.go_rd_i = rd
+        self.go_wr_i = wr
 
         self.go_die_i = Signal(n_int_alus, reset_less=True)
         self.fn_issue_i = Signal(n_int_alus, reset_less=True)

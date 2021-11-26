@@ -1,4 +1,4 @@
-from nmigen import Elaboratable, Module, Signal, Array
+from nmigen import Elaboratable, Module, Signal
 
 
 class Reg_Rsv(Elaboratable):
@@ -9,7 +9,7 @@ class Reg_Rsv(Elaboratable):
         self.n_src = n_src
         self.fu_count = fu_count
         self.dest_rsel_i = Signal(fu_count, reset_less=True)
-        self.src_rsel_i = Array(Signal(fu_count, name="src_rsel_i",
+        self.src_rsel_i = tuple(Signal(fu_count, name="src_rsel_i",
                                        reset_less=True) \
                                 for i in range(n_src))
         self.dest_rsel_o = Signal(reset_less=True)

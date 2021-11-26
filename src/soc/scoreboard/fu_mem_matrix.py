@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Elaboratable, Array, Cat, Const
+from nmigen import Module, Signal, Elaboratable, Cat, Const
 
 from soc.scoreboard.fumem_dep_cell import FUMemDependenceCell
 from soc.scoreboard.fu_mem_picker_vec import FUMem_Pick_Vec
@@ -36,7 +36,7 @@ class FUMemDepMatrix(Elaboratable):
         # ---
         # matrix of dependency cells
         # ---
-        dm = Array(FUMemDependenceCell(f, self.n_fu_col) \
+        dm = tuple(FUMemDependenceCell(f, self.n_fu_col) \
                                             for f in range(self.n_fu_row))
         for y in range(self.n_fu_row):
                 setattr(m.submodules, "dm%d" % y, dm[y])
@@ -44,7 +44,7 @@ class FUMemDepMatrix(Elaboratable):
         # ---
         # array of Function Unit Readable/Writable: row-length, horizontal
         # ---
-        fur = Array(FUMem_Pick_Vec(self.n_fu_row) for r in range(self.n_fu_col))
+        fur = tuple(FUMem_Pick_Vec(self.n_fu_row) for r in range(self.n_fu_col))
         for x in range(self.n_fu_col):
             setattr(m.submodules, "fur_x%d" % (x), fur[x])
 

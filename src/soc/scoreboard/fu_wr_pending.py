@@ -1,4 +1,4 @@
-from nmigen import Elaboratable, Module, Signal, Array
+from nmigen import Elaboratable, Module, Signal
 
 
 class FU_RW_Pend(Elaboratable):
@@ -13,7 +13,7 @@ class FU_RW_Pend(Elaboratable):
         for i in range(n_src):
             j = i + 1 # name numbering to match src1/src2
             src.append(Signal(reg_count, name="src%d" % j, reset_less=True))
-        self.src_fwd_i = Array(src)
+        self.src_fwd_i = tuple(src)
 
         self.reg_wr_pend_o = Signal(reset_less=True)
         self.reg_rd_pend_o = Signal(reset_less=True)

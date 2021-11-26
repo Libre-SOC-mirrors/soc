@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Array, Elaboratable
+from nmigen import Module, Signal, Elaboratable
 
 from soc.scoreboard.fu_fu_matrix import FUFUDepMatrix
 from soc.scoreboard.mdm import FUMemMatchMatrix
@@ -31,7 +31,7 @@ class MemFunctionUnits(Elaboratable):
         self.fn_issue_i = Signal(n_ldsts, reset_less=True)
 
         # address matching
-        self.addrs_i = Array(Signal(self.bitwid, name="addrs_i%d" % i) \
+        self.addrs_i = tuple(Signal(self.bitwid, name="addrs_i%d" % i) \
                              for i in range(n_ldsts))
         #self.addr_we_i = Signal(n_ldsts) # write-enable for incoming address
         self.addr_en_i = Signal(n_ldsts) # address latched in

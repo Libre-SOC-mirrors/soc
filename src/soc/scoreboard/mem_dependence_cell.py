@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Elaboratable, Array, Cat, Repl
+from nmigen import Module, Signal, Elaboratable, Cat, Repl
 from nmutil.latch import SRLatch
 
 
