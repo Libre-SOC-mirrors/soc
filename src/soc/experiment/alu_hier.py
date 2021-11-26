@@ -28,6 +28,10 @@ from openpower.decoder.power_enums import MicrOp, Function, CryIn
 from soc.fu.alu.alu_input_record import CompALUOpSubset
 from soc.fu.cr.cr_input_record import CompCROpSubset
 
+from soc.fu.pipe_data import FUBaseData
+from soc.fu.alu.pipe_data import CommonPipeSpec
+from soc.fu.compunits.compunits import FunctionUnitBaseSingle
+
 import operator
 
 
@@ -177,9 +181,53 @@ class DummyALU(Elaboratable):
     def ports(self):
         return list(self)
 
+#####################
+# converting even this dummy ALU over to the FunctionUnit RegSpecs API
+# which, errr, note that the regspecs are totally ignored below, but
+# at least the widths are all 64-bit so it's okay.
+#####################
+
+# input (and output) for logical initial stage (common input)
+class ALUInputData(FUBaseData):
+    regspec = [('INT', 'a', '0:63'), # RA
+               ('INT', 'b', '0:63'), # RB/immediate
+               ]
+    def __init__(self, pspec):
+        super().__init__(pspec, False)
+
+
+# output from ALU final stage
+class ALUOutputData(FUBaseData):
+    regspec = [('INT', 'o', '0:63'),        # RT
+               ]
+    def __init__(self, pspec):
+        super().__init__(pspec, True)
+
+
+# ALU pipe specification class
+class ALUPipeSpec(CommonPipeSpec):
+    regspec = (ALUInputData.regspec, ALUOutputData.regspec)
+    opsubsetkls = CompALUOpSubset
+
+
+class ALUFunctionUnit(FunctionUnitBaseSingle):
+#class ALUFunctionUnit(FunctionUnitBaseMulti):
+    fnunit = Function.ALU
+
+    def __init__(self, idx):
+        super().__init__(ALUPipeSpec, ALU, 1)
+
 
 class ALU(Elaboratable):
     def __init__(self, width):
+        # XXX major temporary hack: attempting to convert
+        # ALU over to RegSpecs API, FunctionUnitBaseSingle passes in
+        # a regspec here which we can't cope with.  therefore, errr...
+        # just throw it away and set the width to 64
+        if not isinstance(width, int):
+            width = 64
+        # TODO, really this should just inherit from ControlBase it would
+        # be a lot less messy.
         self.p = Dummy()  # make look like nmutil pipeline API
         self.p.i_data = Dummy()
         self.p.i_data.ctx = Dummy()
@@ -203,7 +251,7 @@ class ALU(Elaboratable):
         self.o = self.out[0]
         self.cr = self.out[1]
         self.width = width
-        # more "look like nmutil pipeline API"
+        # more "look like nmutil ControlBase pipeline API" stuff
         self.p.i_data.ctx.op = self.op
         self.p.i_data.a = self.a
         self.p.i_data.b = self.b

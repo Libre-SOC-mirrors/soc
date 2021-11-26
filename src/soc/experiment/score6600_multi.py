@@ -22,7 +22,7 @@ from soc.experiment.l0_cache import TstL0CacheBuffer
 
 # for testing purposes
 from soc.config.test.test_loadstore import TestMemPspec
-from soc.experiment.alu_hier import ALU, BranchALU
+from soc.experiment.alu_hier import ALUFunctionUnit, BranchALU
 from soc.fu.alu.alu_input_record import CompALUOpSubset
 
 from openpower.decoder.power_enums import MicrOp, Function
@@ -265,13 +265,12 @@ class CompUnitALUs(CompUnitsBase):
 
         # Int ALUs
         alus = []
-        for i in range(n_alus):
-            alus.append(ALU(rwid))
 
         units = []
-        for alu in alus:
-            aluopwid = 3  # extra bit for immediate mode
-            units.append(MultiCompUnit(rwid, alu, CompALUOpSubset))
+        for i in range(n_alus):
+            fu = ALUFunctionUnit(i)
+            units.append(fu)
+            alus.append(fu.alu)
 
         CompUnitsBase.__init__(self, rwid, units)
 
