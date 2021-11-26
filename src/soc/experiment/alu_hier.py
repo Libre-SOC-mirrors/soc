@@ -9,7 +9,7 @@ A "real" integer ALU would place the answers onto the output bus after
 only one cycle (sync)
 """
 
-from nmigen import Elaboratable, Signal, Module, Const, Mux, Array
+from nmigen import Elaboratable, Signal, Module, Const, Mux
 from nmigen.hdl.rec import Record, Layout
 from nmigen.cli import main
 from nmigen.cli import verilog, rtlil
@@ -119,9 +119,9 @@ class DummyALU(Elaboratable):
         i.append(Signal(width, name="i1"))
         i.append(Signal(width, name="i2"))
         i.append(Signal(width, name="i3"))
-        self.i = Array(i)
+        self.i = i
         self.a, self.b, self.c = i[0], i[1], i[2]
-        self.out = Array([Signal(width, name="alu_o")])
+        self.out = tuple([Signal(width, name="alu_o")])
         self.o = self.out[0]
         self.width = width
         # more "look like nmutil pipeline API"
@@ -194,12 +194,12 @@ class ALU(Elaboratable):
         i = []
         i.append(Signal(width, name="i1"))
         i.append(Signal(width, name="i2"))
-        self.i = Array(i)
+        self.i = i
         self.a, self.b = i[0], i[1]
         out = []
         out.append(Data(width, name="alu_o"))
         out.append(Data(width, name="alu_cr"))
-        self.out = Array(out)
+        self.out = tuple(out)
         self.o = self.out[0]
         self.cr = self.out[1]
         self.width = width
@@ -375,9 +375,9 @@ class BranchALU(Elaboratable):
         i = []
         i.append(Signal(width, name="i1"))
         i.append(Signal(width, name="i2"))
-        self.i = Array(i)
+        self.i = i
         self.a, self.b = i[0], i[1]
-        self.out = Array([Signal(width)])
+        self.out = tuple([Signal(width)])
         self.o = self.out[0]
         self.width = width
 

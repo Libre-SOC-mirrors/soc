@@ -1,6 +1,6 @@
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Const, Signal, Array, Cat, Elaboratable
+from nmigen import Module, Const, Signal, Cat, Elaboratable
 
 from regfile.regfile import RegFileArray, treereduce
 from scoreboard.fn_unit import IntFnUnit, FPFnUnit, LDFnUnit, STFnUnit
@@ -81,7 +81,7 @@ class Scoreboard(Elaboratable):
             int_src2_pend_v.append(fu.src2_pend_o)
             int_rd_pend_v.append(fu.int_rd_pend_o)
             int_wr_pend_v.append(fu.int_wr_pend_o)
-        int_fus = Array(if_l)
+        int_fus = if_l
 
         # Count of number of FUs
         n_int_fus = len(if_l)
