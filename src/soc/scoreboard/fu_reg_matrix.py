@@ -1,13 +1,11 @@
-from nmigen.compat.sim import run_simulation
-from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Elaboratable, Cat, Repl
+# (DO NOT REMOVE THESE NOTICES)
+# SPDX-License-Identifier: LGPLv3+
+# Copyright (C) 2019, 2020, 2021 Luke Kenneth Casson Leighton <lkcl@lkcl.net>
+# Part of the Libre-SOC Project.
+# Sponsored by NLnet       EU Grant No: 825310 and 825322
+# Sponsored by NGI POINTER EU Grant No: 871528
 
-from soc.scoreboard.dependence_cell import DependencyRow
-from soc.scoreboard.fu_wr_pending import FU_RW_Pend
-from soc.scoreboard.reg_select import Reg_Rsv
-from soc.scoreboard.global_pending import GlobalPending
-
-"""
+"""Mitch Alsup 6600 Dependency Matrices: Function Units to Registers (FU-REGs)
 
  6600 Dependency Table Matrix inputs / outputs
  ---------------------------------------------
@@ -24,6 +22,16 @@ from soc.scoreboard.global_pending import GlobalPending
                  reg sel    reg sel    reg sel    reg sel
 
 """
+
+from nmigen.compat.sim import run_simulation
+from nmigen.cli import verilog, rtlil
+from nmigen import Module, Signal, Elaboratable, Cat, Repl
+
+from soc.scoreboard.dependence_cell import DependencyRow
+from soc.scoreboard.fu_wr_pending import FU_RW_Pend
+from soc.scoreboard.reg_select import Reg_Rsv
+from soc.scoreboard.global_pending import GlobalPending
+
 
 class FURegDepMatrix(Elaboratable):
     """ implements 11.4.7 mitch alsup FU-to-Reg Dependency Matrix, p26
@@ -136,8 +144,7 @@ class FURegDepMatrix(Elaboratable):
                     # accumulate cell fwd outputs for dest/src1/src2
                     src_fwd_o.append(dc.src_fwd_o[i][rn])
                 # connect cell fwd outputs to FU Vector in [Cat is gooood]
-                m.d.comb += [fup.src_fwd_i[i].eq(Cat(*src_fwd_o)),
-                            ]
+                m.d.comb += fup.src_fwd_i[i].eq(Cat(*src_fwd_o))
                 # accumulate FU Vector outputs
                 rd_src_pend.append(fup.reg_rd_src_pend_o[i])
             # ... and output them from this module (vertical, width=FUs)
