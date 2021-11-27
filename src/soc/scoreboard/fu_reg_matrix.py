@@ -21,6 +21,18 @@
                  d  s1 s2   d  s1 s2   d  s1 s2   d  s1 s2
                  reg sel    reg sel    reg sel    reg sel
 
+Sub-module allocation:
+
+                <----------- DependenceRow dr_fu0 -------> FU_RW_Pend fu_fu_0
+                <----------- DependenceRow dr_fu1 -------> FU_RW_Pend fu_fu_1
+                <----------- DependenceRow dr_fu2 -------> FU_RW_Pend fu_fu_2
+                 |  |  |    |  |  |    |  |  |    |  |  |
+                 v  v  v    v  v  v    v  v  v    v  v  v
+                 Reg_Rsv    Reg_Rsv    Reg_Rsv    Reg_Rsv
+                 rr_r0      rr_r1      rr_r2      rr_r3
+                 |  |       |  |       |  |       |  |
+                <---------- GlobalPending rd_v --------->
+                <---------- GlobalPending wr_v --------->
 """
 
 from nmigen.compat.sim import run_simulation
@@ -172,8 +184,8 @@ class FURegDepMatrix(Elaboratable):
             dest_rsel = []
             for rn, rsv in enumerate(regrsv):
                 dst_rsel_o = []
+                # accumulate cell reg-select outputs dest1/2/...
                 for dc in dm:
-                    # accumulate cell reg-select outputs dest/src1/src2
                     dst_rsel_o.append(dc.dst_rsel_o[i][rn])
                 # connect cell reg-select outputs to Reg Vector In
                 m.d.comb += rsv.dst_rsel_i[i].eq(Cat(*dst_rsel_o)),
@@ -186,35 +198,30 @@ class FURegDepMatrix(Elaboratable):
         for i in range(self.n_src):
             src_rsel = []
             for rn, rsv in enumerate(regrsv):
-                rsv = regrsv[rn]
                 src_rsel_o = []
+                # accumulate cell reg-select outputs src1/src2
                 for dc in dm:
-                    # accumulate cell reg-select outputs dest/src1/src2
                     src_rsel_o.append(dc.src_rsel_o[i][rn])
                 # connect cell reg-select outputs to Reg Vector In
                 m.d.comb += rsv.src_rsel_i[i].eq(Cat(*src_rsel_o)),
                 # accumulate Reg-Sel Vector outputs
                 src_rsel.append(rsv.src_rsel_o[i])
-
             # ... and output them from this module (horizontal, width=REGs)
             m.d.comb += self.src_rsel_o[i].eq(Cat(*src_rsel))
 
         # ---
         # connect Dependency Matrix dest/src1/src2/issue to module d/s/s/i
         # ---
-        for fu in range(self.n_fu_row):
-            dc = dm[fu]
+        for dc in dm:
             # wire up inputs from module to row cell inputs (Cat is gooood)
             m.d.comb += [dc.rd_pend_i.eq(self.rd_pend_i),
                          dc.wr_pend_i.eq(self.wr_pend_i),
                         ]
-            # for dest
+            # for dest: wire up output from module to row cell outputs
             for i in range(self.n_dst):
-                # wire up output from module to row cell outputs
                 m.d.comb += dc.dst_i[i].eq(self.dst_i[i])
-            # same for src
+            # for src: wire up inputs from module to row cell inputs
             for i in range(self.n_src):
-                # wire up inputs from module to row cell inputs
                 m.d.comb += dc.src_i[i].eq(self.src_i[i])
 
         # accumulate rsel bits into read/write pending vectors.
