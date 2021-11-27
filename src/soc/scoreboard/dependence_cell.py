@@ -1,3 +1,10 @@
+# (DO NOT REMOVE THESE NOTICES)
+# SPDX-License-Identifier: LGPLv3+
+# Copyright (C) 2019, 2020, 2021 Luke Kenneth Casson Leighton <lkcl@lkcl.net>
+# Part of the Libre-SOC Project.
+# Sponsored by NLnet       EU Grant No: 825310 and 825322
+# Sponsored by NGI POINTER EU Grant No: 871528
+
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
 from nmigen import Module, Signal, Elaboratable, Cat, Repl
