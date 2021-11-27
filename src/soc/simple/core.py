@@ -670,11 +670,13 @@ class NonProductionCore(ControlBase):
         # the hazard)
 
         # the detection of what shall be written to is based
-        # on *issue*
+        # on *issue*.  it is delayed by 1 cycle so that instructions
+        # "addi 5,5,0x2" do not cause combinatorial loops due to
+        # fake-dependency on *themselves*
         print ("write vector (for regread)", regfile, wvset)
         wviaddr_en = Signal(len(wvset), name="wv_issue_addr_en_"+name)
         issue_active = Signal(name="iactive_"+name)
-        comb += issue_active.eq(fu.issue_i & fu_active & wrflag)
+        sync += issue_active.eq(fu.issue_i & fu_active & wrflag)
         with m.If(issue_active):
             if rfile.unary:
                 comb += wviaddr_en.eq(write)
@@ -790,6 +792,7 @@ class NonProductionCore(ControlBase):
                  fspec.wid, fspec.specs)
             for pi, fuspec in enumerate(fspec.specs):
                 (funame, fu, idx) = (fuspec.funame, fuspec.fu, fuspec.idx)
+                fu_requested = fu_bitdict[funame]
                 pi += ppoffs[i]
                 name = "%s_%s_%s_%d" % (funame, regfile, regname, idx)
                 # get (or set up) a write-latched copy of write register number
@@ -798,7 +801,12 @@ class NonProductionCore(ControlBase):
                 if rname not in fu.wr_latches:
                     wrl = Signal.like(_write, name="wrlatch_"+rname)
                     fu.wr_latches[rname] = write
-                    with m.If(fu.issue_i):
+                    # do not depend on fu.issue_i here, it creates a
+                    # combinatorial loop on waw checking. using the FU
+                    # "enable" bitdict entry for this FU is sufficient,
+                    # because the PowerDecoder2 read/write nums are
+                    # valid continuously when the instruction is valid
+                    with m.If(fu_requested):
                         sync += wrl.eq(_write)
                         comb += write.eq(_write)
                     with m.Else():
