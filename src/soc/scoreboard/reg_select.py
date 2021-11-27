@@ -17,10 +17,10 @@ class Reg_Rsv(Elaboratable):
         self.n_src = n_src
         self.n_dst = n_dst
         self.fu_count = fu_count
-        self.dst_rsel_i = tuple(Signal(fu_count, name="dst_rsel_i",
+        self.dst_rsel_i = tuple(Signal(fu_count, name="dst%i_rsel_i" % (i+1),
                                        reset_less=True) \
                                 for i in range(n_dst))
-        self.src_rsel_i = tuple(Signal(fu_count, name="src_rsel_i",
+        self.src_rsel_i = tuple(Signal(fu_count, name="src%i_rsel_i" % (i+1),
                                        reset_less=True) \
                                 for i in range(n_src))
         self.dst_rsel_o = Signal(n_dst, reset_less=True)
