@@ -96,25 +96,25 @@ class FURegDepMatrix(Elaboratable):
     def _elaborate(self, m, platform):
 
         # ---
-        # matrix of dependency cells
+        # matrix of dependency cells.  horizontal object, allocated vertically
         # ---
         cancel_mode = self.cancel is not None
         dm = tuple(DependencyRow(self.n_reg_col, self.n_src, self.n_dst,
                                  cancel_mode=cancel_mode) \
                     for r in range(self.n_fu_row))
-        for fu in range(self.n_fu_row):
-            m.submodules["dr_fu%d" % fu] = dm[fu]
+        for fu, dc in enumerate(dm):
+            m.submodules["dr_fu%d" % fu] = dc
 
         # ---
-        # array of Function Unit Pending vectors
+        # array of Function Unit Pending vecs. allocated vertically (per FU)
         # ---
         fupend = tuple(FU_RW_Pend(self.n_reg_col, self.n_src, self.n_dst) \
                         for f in range(self.n_fu_row))
-        for fu in range(self.n_fu_row):
-            m.submodules["fu_fu%d" % (fu)] = fupend[fu]
+        for fu, fup in enumerate(fupend):
+            m.submodules["fu_fu%d" % (fu)] = fup
 
         # ---
-        # array of Register Reservation vectors
+        # array of Register Reservation vecs.  allocated horizontally (per reg)
         # ---
         regrsv = tuple(Reg_Rsv(self.n_fu_row, self.n_src, self.n_dst) \
                         for r in range(self.n_reg_col))
@@ -126,8 +126,7 @@ class FURegDepMatrix(Elaboratable):
         # ---
         wr_pend = []
         rd_pend = []
-        for fu in range(self.n_fu_row):
-            fup = fupend[fu]
+        for fup in fupend:
             # accumulate FU Vector outputs
             wr_pend.append(fup.reg_wr_pend_o)
             rd_pend.append(fup.reg_rd_pend_o)
@@ -139,9 +138,7 @@ class FURegDepMatrix(Elaboratable):
         # connect dst fwd vectors
         for i in range(self.n_dst):
             wr_dst_pend = []
-            for fu in range(self.n_fu_row):
-                dc = dm[fu]
-                fup = fupend[fu]
+            for dc, fup in zip(dm, fupend):
                 dst_fwd_o = []
                 for rn in range(self.n_reg_col):
                     # accumulate cell fwd outputs for dest
@@ -156,9 +153,7 @@ class FURegDepMatrix(Elaboratable):
         # same for src
         for i in range(self.n_src):
             rd_src_pend = []
-            for fu in range(self.n_fu_row):
-                dc = dm[fu]
-                fup = fupend[fu]
+            for dc, fup in zip(dm, fupend):
                 src_fwd_o = []
                 for rn in range(self.n_reg_col):
                     # accumulate cell fwd outputs for dest/src1/src2
@@ -175,29 +170,25 @@ class FURegDepMatrix(Elaboratable):
         # ---
         for i in range(self.n_dst):
             dest_rsel = []
-            for rn in range(self.n_reg_col):
-                rsv = regrsv[rn]
+            for rn, rsv in enumerate(regrsv):
                 dst_rsel_o = []
-                for fu in range(self.n_fu_row):
-                    dc = dm[fu]
+                for dc in dm:
                     # accumulate cell reg-select outputs dest/src1/src2
                     dst_rsel_o.append(dc.dst_rsel_o[i][rn])
                 # connect cell reg-select outputs to Reg Vector In
                 m.d.comb += rsv.dst_rsel_i[i].eq(Cat(*dst_rsel_o)),
                 # accumulate Reg-Sel Vector outputs
                 dest_rsel.append(rsv.dst_rsel_o[i])
-
             # ... and output them from this module (horizontal, width=REGs)
             m.d.comb += self.dst_rsel_o[i].eq(Cat(*dest_rsel))
 
         # same for src
         for i in range(self.n_src):
             src_rsel = []
-            for rn in range(self.n_reg_col):
+            for rn, rsv in enumerate(regrsv):
                 rsv = regrsv[rn]
                 src_rsel_o = []
-                for fu in range(self.n_fu_row):
-                    dc = dm[fu]
+                for dc in dm:
                     # accumulate cell reg-select outputs dest/src1/src2
                     src_rsel_o.append(dc.src_rsel_o[i][rn])
                 # connect cell reg-select outputs to Reg Vector In
@@ -229,8 +220,7 @@ class FURegDepMatrix(Elaboratable):
         # accumulate rsel bits into read/write pending vectors.
         rd_pend_v = []
         wr_pend_v = []
-        for fu in range(self.n_fu_row):
-            dc = dm[fu]
+        for dc in dm:
             rd_pend_v.append(dc.v_rd_rsel_o)
             wr_pend_v.append(dc.v_wr_rsel_o)
         rd_v = GlobalPending(self.n_reg_col, rd_pend_v)
@@ -247,8 +237,7 @@ class FURegDepMatrix(Elaboratable):
         go_rd_i = []
         go_wr_i = []
         issue_i = []
-        for fu in range(self.n_fu_row):
-            dc = dm[fu]
+        for dc in dm:
             # accumulate cell fwd outputs for dest/src1/src2
             go_rd_i.append(dc.go_rd_i)
             go_wr_i.append(dc.go_wr_i)
@@ -263,15 +252,13 @@ class FURegDepMatrix(Elaboratable):
         # connect Dep go_die_i
         # ---
         if cancel_mode:
-            for fu in range(self.n_fu_row):
-                dc = dm[fu]
+            for fu, dc in enumerate(dm):
                 go_die = Repl(self.go_die_i[fu], self.n_fu_row)
                 go_die = go_die | self.cancel[fu]
                 m.d.comb += dc.go_die_i.eq(go_die)
         else:
             go_die_i = []
-            for fu in range(self.n_fu_row):
-                dc = dm[fu]
+            for dc in dm:
                 # accumulate cell fwd outputs for dest/src1/src2
                 go_die_i.append(dc.go_die_i)
             # wire up inputs from module to row cell inputs (Cat is gooood)
@@ -279,6 +266,8 @@ class FURegDepMatrix(Elaboratable):
         return m
 
     def __iter__(self):
+        if self.cancel is not None:
+            yield self.cancel
         yield self.dest_i
         yield from self.src_i
         yield self.issue_i
@@ -322,7 +311,9 @@ def d_matrix_sim(dut):
     yield
 
 def test_d_matrix():
-    dut = FURegDepMatrix(n_fu_row=3, n_reg_col=5, n_src=2, n_dst=2)
+    cancel = Signal(3)
+    dut = FURegDepMatrix(n_fu_row=3, n_reg_col=4, n_src=2, n_dst=2,
+                         cancel=cancel)
     vl = rtlil.convert(dut, ports=dut.ports())
     with open("test_fu_reg_matrix.il", "w") as f:
         f.write(vl)
