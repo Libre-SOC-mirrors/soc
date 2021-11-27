@@ -38,6 +38,7 @@ class FURegDepMatrix(Elaboratable):
     """
     def __init__(self, n_fu_row, n_reg_col, n_src, cancel=None):
         self.n_src = n_src
+        self.n_dst = 1 # XXX TODO
         self.n_fu_row = nf = n_fu_row      # Y (FUs)   ^v
         self.n_reg_col = n_reg = n_reg_col   # X (Regs)  <>
 
@@ -89,7 +90,8 @@ class FURegDepMatrix(Elaboratable):
         # matrix of dependency cells
         # ---
         cancel_mode = self.cancel is not None
-        dm = tuple(DependencyRow(self.n_reg_col, self.n_src, cancel_mode) \
+        dm = tuple(DependencyRow(self.n_reg_col, self.n_src, self.n_dst,
+                                 cancel_mode=cancel_mode) \
                     for r in range(self.n_fu_row))
         for fu in range(self.n_fu_row):
             setattr(m.submodules, "dr_fu%d" % fu, dm[fu])
