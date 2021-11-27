@@ -672,7 +672,8 @@ class NonProductionCore(ControlBase):
         # the detection of what shall be written to is based
         # on *issue*.  it is delayed by 1 cycle so that instructions
         # "addi 5,5,0x2" do not cause combinatorial loops due to
-        # fake-dependency on *themselves*
+        # fake-dependency on *themselves*.  this will totally fail
+        # spectacularly when doing multi-issue
         print ("write vector (for regread)", regfile, wvset)
         wviaddr_en = Signal(len(wvset), name="wv_issue_addr_en_"+name)
         issue_active = Signal(name="iactive_"+name)
