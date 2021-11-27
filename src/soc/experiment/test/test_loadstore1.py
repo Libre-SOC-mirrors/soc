@@ -17,6 +17,7 @@ from soc.experiment.mmu import MMU
 from soc.experiment.test import pagetables
 
 from nmigen.compat.sim import run_simulation
+from random import random
 
 stop = False
 
@@ -189,6 +190,16 @@ def _test_loadstore1(dut, mem):
         ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
         print("ld_data",ld_data,exc)
         print("=== no error done ===")
+
+        # test read at random addresses
+        for i in range(0,40):
+            n = int(random()*0x100000)
+            addr = 0x10000 + n*16
+            print("== random addr ==")
+            print("ld[RANDOM]",addr)
+            ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+            print("ld_data[RANDOM]",ld_data,exc,addr)
+            assert(exc==None)
 
     stop = True
 
