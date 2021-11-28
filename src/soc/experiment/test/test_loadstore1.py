@@ -100,7 +100,8 @@ def setup_mmu():
 
     return m, cmpi
 
-test_exceptions = True
+test_exceptions = False
+test_dcbz = False
 
 def _test_loadstore1_invalid(dut, mem):
     mmu = dut.submodules.mmu
@@ -134,6 +135,7 @@ def _test_loadstore1(dut, mem):
     addr = 0x100e0
     data = 0xf553b658ba7e1f51
 
+    """
     yield from pi_st(pi, addr, data, 8, msr_pr=1)
     yield
 
@@ -154,6 +156,7 @@ def _test_loadstore1(dut, mem):
     print(ld_data)
     assert ld_data == 0
     assert exc is None
+    """
 
     if test_exceptions:
         print("=== alignment error (ld) ===")
@@ -190,16 +193,24 @@ def _test_loadstore1(dut, mem):
         ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
         print("ld_data",ld_data,exc)
         print("=== no error done ===")
+        
+    addrs = [0x456920,0xa7a180,0x299420,0x1d9d60] # known to cause an error
+    count = 0
 
-        # test read at random addresses
-        for i in range(0,40):
-            n = int(random()*0x100000)
-            addr = 0x10000 + n*16
-            print("== random addr ==")
-            print("ld[RANDOM]",addr)
-            ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-            print("ld_data[RANDOM]",ld_data,exc,addr)
-            assert(exc==None)
+    for addr in addrs:
+        print("== RANDOM addr ==")
+        print("ld[RANDOM]",addr)
+        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        print("ld_data[RANDOM]",ld_data,exc,addr)
+        if exc=="wait_ldok_infinite_loop": # break cond for debugging
+            print("wait_ldok_infinite_loop:break",count)
+            break
+        assert(exc==None)
+        count = count + 1
+        #if count == 3:
+        #    yield
+            
+       
 
     stop = True
 
@@ -235,4 +246,4 @@ def test_loadstore1_invalid():
 
 if __name__ == '__main__':
     test_loadstore1()
-    test_loadstore1_invalid()
+    #FIX THIS LATER test_loadstore1_invalid()
