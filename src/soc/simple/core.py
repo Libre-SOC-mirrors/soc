@@ -226,7 +226,7 @@ class NonProductionCore(ControlBase):
             # connect each satellite decoder and give it the instruction.
             # as subset decoders this massively reduces wire fanout given
             # the large number of ALUs
-            setattr(m.submodules, "dec_%s" % v.fn_name, v)
+            m.submodules["dec_%s" % v.fn_name] = v
             comb += v.dec.raw_opcode_in.eq(self.ireg.raw_insn_i)
             comb += v.dec.bigendian.eq(self.ireg.bigendian_i)
             # sigh due to SVP64 RA_OR_ZERO detection connect these too
@@ -481,7 +481,7 @@ class NonProductionCore(ControlBase):
 
         # create a priority picker to manage this port
         rdpickers[regfile][rpidx] = rdpick = PriorityPicker(pplen)
-        setattr(m.submodules, "rdpick_%s_%s" % (regfile, rpidx), rdpick)
+        m.submodules["rdpick_%s_%s" % (regfile, rpidx)] = rdpick
 
         rens = []
         addrs = []
@@ -776,7 +776,7 @@ class NonProductionCore(ControlBase):
 
         # create a priority picker to manage this port
         wrpickers[regfile][rpidx] = wrpick = PriorityPicker(pplen)
-        setattr(m.submodules, "wrpick_%s_%s" % (regfile, rpidx), wrpick)
+        m.submodules["wrpick_%s_%s" % (regfile, rpidx)] = wrpick
 
         wsigs = []
         wens = []
