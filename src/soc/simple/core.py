@@ -427,6 +427,14 @@ class NonProductionCore(ControlBase):
             # and resolved
             with m.If(self.issue_conflict):
                 comb += busy_o.eq(1)
+            # make sure that LDST, Branch and Trap all say "busy"
+            # and do not allow overlap
+            for funame, fu in fus.items():
+                if (funame.lower().startswith('ldst') or
+                    funame.lower().startswith('branch') or
+                    funame.lower().startswith('trap')):
+                    with m.If(fu.busy_o):
+                        comb += busy_o.eq(1)
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
