@@ -98,7 +98,7 @@ class IntRegs(RegFileMem): #class IntRegs(RegFileArray):
     * write-through capability (read on same cycle as write)
     """
     def __init__(self, svp64_en=False, regreduce_en=False):
-        super().__init__(64, 32, fwd_bus_mode=not regreduce_en)
+        super().__init__(64, 32, fwd_bus_mode=False)
         self.svp64_en = svp64_en
         self.regreduce_en = regreduce_en
         wr_spec, rd_spec = self.get_port_specs()
@@ -135,7 +135,7 @@ class FastRegs(RegFileMem, FastRegsEnum): #RegFileArray):
     Note: r/w issue are used by issuer to increment/decrement TB/DEC.
     """
     def __init__(self, svp64_en=False, regreduce_en=False):
-        super().__init__(64, FastRegsEnum.N_REGS, fwd_bus_mode=not regreduce_en)
+        super().__init__(64, FastRegsEnum.N_REGS, fwd_bus_mode=False)
         self.svp64_en = svp64_en
         self.regreduce_en = regreduce_en
         wr_spec, rd_spec = self.get_port_specs()
@@ -234,7 +234,7 @@ class SPRRegs(RegFileMem):
         else:
             n_sprs = len(SPRfull)
         super().__init__(width=64, depth=n_sprs,
-                         fwd_bus_mode=not regreduce_en)
+                         fwd_bus_mode=False)
         self.svp64_en = svp64_en
         self.regreduce_en = regreduce_en
         wr_spec, rd_spec = self.get_port_specs()
