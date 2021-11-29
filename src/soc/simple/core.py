@@ -427,11 +427,15 @@ class NonProductionCore(ControlBase):
             # and resolved
             with m.If(self.issue_conflict):
                 comb += busy_o.eq(1)
-            # make sure that LDST, Branch and Trap all say "busy"
-            # and do not allow overlap
+            # make sure that LDST, SPR, MMU, Branch and Trap all say "busy"
+            # and do not allow overlap.  these are all the ones that
+            # are non-forward-progressing: exceptions etc. that otherwise
+            # change CoreState for some reason (MSR, PC, SVSTATE)
             for funame, fu in fus.items():
                 if (funame.lower().startswith('ldst') or
                     funame.lower().startswith('branch') or
+                    funame.lower().startswith('mmu') or
+                    funame.lower().startswith('spr') or
                     funame.lower().startswith('trap')):
                     with m.If(fu.busy_o):
                         comb += busy_o.eq(1)
