@@ -923,11 +923,19 @@ class NonProductionCore(ControlBase):
             comb += wport.wen.eq(ortreereduce_sig(wens))
 
         if not self.make_hazard_vecs:
-            return
+            return [], []
 
-        # for write-vectors
-        comb += wvclr.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
-        comb += wvset.eq(ortreereduce_sig(wvseten)) # set (issue time)
+        # return these here rather than set wvclr/wvset directly,
+        # because there may be more than one write-port to a given
+        # regfile.  example: XER has a write-port for SO, CA, and OV
+        # and the *last one added* of those would overwrite the other
+        # two.  solution: have connect_wrports collate all the
+        # or-tree-reduced bitvector set/clear requests and drop them
+        # in as a single "thing".  this can only be done because the
+        # set/get is an unary bitvector.
+        print ("make write-vecs", regfile, regname, wvset, wvclr)
+        return (ortreereduce_sig(wvclren), # clear (regfile write)
+                ortreereduce_sig(wvseten)) # set (issue time)
 
     def connect_wrports(self, m, fu_bitdict, fu_selected):
         """connect write ports
@@ -949,6 +957,8 @@ class NonProductionCore(ControlBase):
         # same for write ports.
         # BLECH!  complex code-duplication! BLECH!
         wrpickers = {}
+        wvclrers = defaultdict(list)
+        wvseters = defaultdict(list)
         for regfile, spec in byregfiles_wr.items():
             fuspecs = byregfiles_wrspec[regfile]
             wrpickers[regfile] = {}
@@ -965,9 +975,30 @@ class NonProductionCore(ControlBase):
                     if 'fast3' in fuspecs:
                         fuspecs['fast1'].append(fuspecs.pop('fast3'))
 
+            # collate these and record them by regfile because there
+            # are sometimes more write-ports per regfile
             for (regname, fspec) in sort_fuspecs(fuspecs):
-                self.connect_wrport(m, fu_bitdict, fu_selected, wrpickers,
+                wvclren, wvseten = self.connect_wrport(m,
+                                        fu_bitdict, fu_selected,
+                                        wrpickers,
                                         regfile, regname, fspec)
+                wvclrers[regfile.lower()].append(wvclren)
+                wvseters[regfile.lower()].append(wvseten)
+
+        # for write-vectors: reduce the clr-ers and set-ers down to
+        # a single set of bits.  otherwise if there are two write
+        # ports (on some regfiles), the last one doing comb += on
+        # the reg.wv[regfile] instance "wins" (and all others are ignored,
+        # whoops).  if there was only one write-port per wv regfile this would
+        # not be an issue.
+        for regfile in wvclrers.keys():
+            wv = regs.wv[regfile]
+            wvset = wv.s # write-vec bit-level hazard ctrl
+            wvclr = wv.r # write-vec bit-level hazard ctrl
+            wvclren = wvclrers[regfile]
+            wvseten = wvseters[regfile]
+            comb += wvclr.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
+            comb += wvset.eq(ortreereduce_sig(wvseten)) # set (issue time)
 
     def get_byregfiles(self, readmode):
 
