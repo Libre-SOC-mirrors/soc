@@ -985,6 +985,9 @@ class NonProductionCore(ControlBase):
                 wvclrers[regfile.lower()].append(wvclren)
                 wvseters[regfile.lower()].append(wvseten)
 
+        if not self.make_hazard_vecs:
+            return
+
         # for write-vectors: reduce the clr-ers and set-ers down to
         # a single set of bits.  otherwise if there are two write
         # ports (on some regfiles), the last one doing comb += on
@@ -1091,6 +1094,7 @@ if __name__ == '__main__':
     pspec = TestMemPspec(ldst_ifacetype='testpi',
                          imem_ifacetype='',
                          addr_wid=48,
+                         allow_overlap=True,
                          mask_wid=8,
                          reg_wid=64)
     dut = NonProductionCore(pspec)
