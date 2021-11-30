@@ -752,7 +752,7 @@ class NonProductionCore(ControlBase):
             wvset = wv.s # write-vec bit-level hazard ctrl
             wvclr = wv.r # write-vec bit-level hazard ctrl
             wvchk = wv.q # write-after-write hazard check
-            wvchk_qint = wv.q_int # write-after-write hazard check, delayed
+            wvchk_qint = wv.q # write-after-write hazard check, NOT delayed
 
         fspecs = fspec
         if not isinstance(fspecs, list):
