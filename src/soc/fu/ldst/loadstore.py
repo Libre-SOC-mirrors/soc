@@ -86,6 +86,7 @@ class LoadStore1(PortInterfaceBase):
 
         # state info for LD/ST
         self.done          = Signal()
+        self.done_delay    = Signal()
         # latch most of the input request
         self.load          = Signal()
         self.tlbie         = Signal()
@@ -157,13 +158,15 @@ class LoadStore1(PortInterfaceBase):
         return st_ok
 
     def get_rd_data(self, m):
-        ld_ok = self.done     # indicates read data is valid
-        data = self.load_data # actual read data
+        ld_ok = self.done_delay # indicates read data is valid
+        data = self.load_data   # actual read data
         return data, ld_ok
 
     def elaborate(self, platform):
         m = super().elaborate(platform)
         comb, sync = m.d.comb, m.d.sync
+
+        sync += self.done_delay.eq(self.done)
 
         # create dcache module
         m.submodules.dcache = dcache = self.dcache
