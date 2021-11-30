@@ -221,7 +221,7 @@ class TestRunner(FHDLTestCase):
 
         cur_state = CoreState("cur") # current state (MSR/PC/SVSTATE)
         pdecode2 = PowerDecode2(None, state=cur_state,
-                                     opkls=IssuerDecode2ToOperand,
+                                     #opkls=IssuerDecode2ToOperand,
                                      svp64_en=True, # self.svp64_en,
                                      regreduce_en=False, #self.regreduce_en
                                     )
@@ -349,7 +349,7 @@ if __name__ == "__main__":
     #suite.addTest(TestRunner(CRTestCase().test_data))
     #suite.addTest(TestRunner(ShiftRotTestCase().test_data))
     #suite.addTest(TestRunner(LogicalTestCase().test_data))
-    #suite.addTest(TestRunner(ALUTestCase().test_data))
+    suite.addTest(TestRunner(ALUTestCase().test_data))
     #suite.addTest(TestRunner(BranchTestCase().test_data))
 
     runner = unittest.TextTestRunner()
