@@ -101,7 +101,7 @@ def setup_mmu():
     return m, cmpi
 
 test_exceptions = False
-test_dcbz = False
+test_dcbz = True
 test_random = True
 
 def _test_loadstore1_invalid(dut, mem):
