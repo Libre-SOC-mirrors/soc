@@ -323,6 +323,7 @@ class TestRunner(FHDLTestCase):
                         # use issuer.any_busy to not send back "stopped" signal
                         while (yield core.o.any_busy_o):
                             yield
+                        yield Settle()
 
                         # register check
                         yield from check_regs(self, sim, core, test, code)
