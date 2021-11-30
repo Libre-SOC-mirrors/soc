@@ -19,6 +19,8 @@ from openpower.decoder.power_decoder import create_pdecode
 from openpower.decoder.power_decoder2 import PowerDecode2
 from openpower.decoder.selectable_int import SelectableInt
 from openpower.decoder.isa.all import ISA
+from openpower.decoder.decode2execute1 import IssuerDecode2ToOperand
+from openpower.state import CoreState
 
 # note that using SPRreduced has to be done to match the
 # PowerDecoder2 SPR map
@@ -26,6 +28,7 @@ from openpower.decoder.power_enums import SPRreduced as SPR
 from openpower.decoder.power_enums import spr_dict, Function, XER_bits
 from soc.config.test.test_loadstore import TestMemPspec
 from openpower.endian import bigendian
+from soc.regfile.regfiles import StateRegs
 
 from soc.simple.core import NonProductionCore
 from soc.experiment.compalu_multi import find_ok  # hack
@@ -40,6 +43,7 @@ from soc.fu.shift_rot.test.test_pipe_caller import ShiftRotTestCase
 from soc.fu.cr.test.test_pipe_caller import CRTestCase
 from soc.fu.branch.test.test_pipe_caller import BranchTestCase
 from soc.fu.ldst.test.test_pipe_caller import LDSTTestCase
+from openpower.test.general.overlap_hazards import HazardTestCase
 from openpower.util import spr_to_fast_reg
 
 from openpower.consts import StateRegsEnum
@@ -189,8 +193,8 @@ def set_issue(core, dec2, sim):
 
 def wait_for_busy_clear(cu):
     while True:
-        busy_o = yield cu.busy_o
-        terminate_o = yield cu.core_terminate_o
+        busy_o = yield cu.o.busy_o
+        terminate_o = yield cu.o.core_terminate_o
         if not busy_o:
             print("busy/terminate:", busy_o, terminate_o)
             break
@@ -207,32 +211,48 @@ class TestRunner(FHDLTestCase):
         m = Module()
         comb = m.d.comb
         instruction = Signal(32)
-        ivalid_i = Signal()
 
         pspec = TestMemPspec(ldst_ifacetype='testpi',
                              imem_ifacetype='',
                              addr_wid=48,
                              mask_wid=8,
+                             allow_overlap=True,
                              reg_wid=64)
 
+        cur_state = CoreState("cur") # current state (MSR/PC/SVSTATE)
+        pdecode2 = PowerDecode2(None, state=cur_state,
+                                     #opkls=IssuerDecode2ToOperand,
+                                     svp64_en=True, # self.svp64_en,
+                                     regreduce_en=False, #self.regreduce_en
+                                    )
+
         m.submodules.core = core = NonProductionCore(pspec)
-        pdecode2 = core.pdecode2
+        m.submodules.pdecode2 = pdecode2
+        core.pdecode2 = pdecode2
         l0 = core.l0
 
-        comb += core.raw_opcode_i.eq(instruction)
-        comb += core.ivalid_i.eq(ivalid_i)
+        comb += pdecode2.dec.raw_opcode_in.eq(instruction)
+        comb += pdecode2.dec.bigendian.eq(bigendian)  # little / big?
+        comb += core.i.e.eq(pdecode2.e)
+        comb += core.i.state.eq(cur_state)
+        comb += core.i.raw_insn_i.eq(instruction)
+        comb += core.i.bigendian_i.eq(bigendian)
+
+        # set the PC StateRegs read port to always send back the PC
+        stateregs = core.regs.state
+        pc_regnum = StateRegs.PC
+        comb += stateregs.r_ports['cia'].ren.eq(1<<pc_regnum)
 
         # temporary hack: says "go" immediately for both address gen and ST
         ldst = core.fus.fus['ldst0']
-        m.d.comb += ldst.ad.go.eq(ldst.ad.rel)  # link addr-go direct to rel
-        m.d.comb += ldst.st.go.eq(ldst.st.rel)  # link store-go direct to rel
+        m.d.comb += ldst.ad.go_i.eq(ldst.ad.rel_o)  # link addr-go to rel
+        m.d.comb += ldst.st.go_i.eq(ldst.st.rel_o)  # link store-go to rel
 
         # nmigen Simulation
         sim = Simulator(m)
         sim.add_clock(1e-6)
 
         def process():
-            yield core.issue_i.eq(0)
             yield
 
             for test in self.test_data:
@@ -247,7 +267,7 @@ class TestRunner(FHDLTestCase):
                     instructions = list(zip(gen, program.assembly.splitlines()))
 
                     yield from setup_tst_memory(l0, test.mem)
-                    yield from setup_regs(core, test)
+                    yield from setup_regs(pdecode2, core, test)
 
                     index = sim.pc.CIA.value // 4
                     while index < len(instructions):
@@ -257,33 +277,63 @@ class TestRunner(FHDLTestCase):
                         print(code)
 
                         # ask the decoder to decode this binary data (endian'd)
-                        yield core.bigendian_i.eq(bigendian)  # little / big?
                         yield instruction.eq(ins)          # raw binary instr.
-                        yield ivalid_i.eq(1)
                         yield Settle()
-                        # fn_unit = yield pdecode2.e.fn_unit
-                        #fuval = self.funit.value
-                        #self.assertEqual(fn_unit & fuval, fuval)
-
-                        # set operand and get inputs
-                        yield from set_issue(core, pdecode2, sim)
-                        yield Settle()
-
-                        yield from wait_for_busy_clear(core)
-                        yield ivalid_i.eq(0)
-                        yield
 
                         print("sim", code)
                         # call simulated operation
                         opname = code.split(' ')[0]
                         yield from sim.call(opname)
-                        index = sim.pc.CIA.value // 4
+                        pc = sim.pc.CIA.value
+                        nia = sim.pc.NIA.value
+                        index = pc // 4
+
+                        # set the PC to the same simulated value
+                        # (core is not able to do this itself, except
+                        # for branch / TRAP)
+                        print ("after call, pc nia", pc, nia)
+                        yield stateregs.regs[pc_regnum].reg.eq(pc)
+                        yield Settle()
+
+                        yield core.p.i_valid.eq(1)
+                        yield
+                        o_ready = yield core.p.o_ready
+                        while True:
+                            if o_ready:
+                                break
+                            yield
+                            o_ready = yield core.p.o_ready
+                        yield core.p.i_valid.eq(0)
+
+                        # set operand and get inputs
+                        yield from wait_for_busy_clear(core)
+
+                        # synchronised (non-overlap) is fine to check
+                        if not core.allow_overlap:
+                            # register check
+                            yield from check_regs(self, sim, core, test, code)
+
+                            # Memory check
+                            yield from check_mem(self, sim, core, test, code)
+
+                    # non-overlap mode is only fine to check right at the end
+                    if core.allow_overlap:
+                        # wait until all settled
+                        # XXX really this should be in DMI, which should in turn
+                        # use issuer.any_busy to not send back "stopped" signal
+                        while (yield core.o.any_busy_o):
+                            yield
+                        yield Settle()
 
                         # register check
                         yield from check_regs(self, sim, core, test, code)
 
                         # Memory check
                         yield from check_mem(self, sim, core, test, code)
+
+            # give a couple extra clock cycles for gtkwave display to be happy
+            yield
+            yield
 
         sim.add_sync_process(process)
         with sim.write_vcd("core_simulator.vcd", "core_simulator.gtkw",
@@ -294,12 +344,13 @@ class TestRunner(FHDLTestCase):
 if __name__ == "__main__":
     unittest.main(exit=False)
     suite = unittest.TestSuite()
-    suite.addTest(TestRunner(LDSTTestCase().test_data))
-    suite.addTest(TestRunner(CRTestCase().test_data))
-    suite.addTest(TestRunner(ShiftRotTestCase().test_data))
+    suite.addTest(TestRunner(HazardTestCase().test_data))
+    #suite.addTest(TestRunner(LDSTTestCase().test_data))
+    #suite.addTest(TestRunner(CRTestCase().test_data))
+    #suite.addTest(TestRunner(ShiftRotTestCase().test_data))
     suite.addTest(TestRunner(LogicalTestCase().test_data))
     suite.addTest(TestRunner(ALUTestCase().test_data))
-    suite.addTest(TestRunner(BranchTestCase().test_data))
+    #suite.addTest(TestRunner(BranchTestCase().test_data))
 
     runner = unittest.TextTestRunner()
     runner.run(suite)

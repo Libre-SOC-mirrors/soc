@@ -48,6 +48,7 @@ class HDLState(State):
     def get_pc(self):
         self.pcl = []
         self.state = self.core.regs.state
+        # relies on the state.r_port being permanently held as PC
         self.pc = yield self.state.r_ports['cia'].o_data
         self.pcl.append(self.pc)
         log("class hdl pc", hex(self.pc))

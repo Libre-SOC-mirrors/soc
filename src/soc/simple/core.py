@@ -226,7 +226,7 @@ class NonProductionCore(ControlBase):
             # connect each satellite decoder and give it the instruction.
             # as subset decoders this massively reduces wire fanout given
             # the large number of ALUs
-            setattr(m.submodules, "dec_%s" % v.fn_name, v)
+            m.submodules["dec_%s" % v.fn_name] = v
             comb += v.dec.raw_opcode_in.eq(self.ireg.raw_insn_i)
             comb += v.dec.bigendian.eq(self.ireg.bigendian_i)
             # sigh due to SVP64 RA_OR_ZERO detection connect these too
@@ -427,6 +427,18 @@ class NonProductionCore(ControlBase):
             # and resolved
             with m.If(self.issue_conflict):
                 comb += busy_o.eq(1)
+            # make sure that LDST, SPR, MMU, Branch and Trap all say "busy"
+            # and do not allow overlap.  these are all the ones that
+            # are non-forward-progressing: exceptions etc. that otherwise
+            # change CoreState for some reason (MSR, PC, SVSTATE)
+            for funame, fu in fus.items():
+                if (funame.lower().startswith('ldst') or
+                    funame.lower().startswith('branch') or
+                    funame.lower().startswith('mmu') or
+                    funame.lower().startswith('spr') or
+                    funame.lower().startswith('trap')):
+                    with m.If(fu.busy_o):
+                        comb += busy_o.eq(1)
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
@@ -470,10 +482,10 @@ class NonProductionCore(ControlBase):
                 (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
                  fspec.wid, fspec.specs)
             print ("fpsec", i, fspec, len(fuspecs))
+            name = "%s_%s_%d" % (regfile, regname, i)
             ppoffs.append(pplen) # record offset for picker
             pplen += len(fspec.specs)
-            name = "rdflag_%s_%s_%d" % (regfile, regname, i)
-            rdflag = Signal(name=name, reset_less=True)
+            rdflag = Signal(name="rdflag_"+name, reset_less=True)
             comb += rdflag.eq(fspec.rdport)
             rdflags.append(rdflag)
 
@@ -481,7 +493,7 @@ class NonProductionCore(ControlBase):
 
         # create a priority picker to manage this port
         rdpickers[regfile][rpidx] = rdpick = PriorityPicker(pplen)
-        setattr(m.submodules, "rdpick_%s_%s" % (regfile, rpidx), rdpick)
+        m.submodules["rdpick_%s_%s" % (regfile, rpidx)] = rdpick
 
         rens = []
         addrs = []
@@ -501,8 +513,19 @@ class NonProductionCore(ControlBase):
                 fu_issued = fu_bitdict[funame]
 
                 # get (or set up) a latched copy of read register number
+                # and (sigh) also the read-ok flag
                 rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
+                rhname = "%s_%s_%d" % (regfile, regname, i)
                 read = Signal.like(_read, name="read_"+name)
+                rdflag = Signal(name="rdflag_%s_%s" % (funame, rhname),
+                                reset_less=True)
+                if rhname not in fu.rf_latches:
+                    rfl = Signal(name="rdflag_latch_"+rname)
+                    fu.rf_latches[rhname] = rfl
+                    with m.If(fu.issue_i):
+                        sync += rfl.eq(rdflags[i])
+                else:
+                    rfl = fu.rf_latches[rhname]
                 if rname not in fu.rd_latches:
                     rdl = Signal.like(_read, name="rdlatch_"+rname)
                     fu.rd_latches[rname] = rdl
@@ -514,8 +537,10 @@ class NonProductionCore(ControlBase):
                 # after the read cycle, use the latched copy
                 with m.If(fu.issue_i):
                     comb += read.eq(_read)
+                    comb += rdflag.eq(rdflags[i])
                 with m.Else():
                     comb += read.eq(rdl)
+                    comb += rdflag.eq(rfl)
 
                 # connect request-read to picker input, and output to go-rd
                 addr_en = Signal.like(read, name="addr_en_"+name)
@@ -526,7 +551,7 @@ class NonProductionCore(ControlBase):
 
                 # exclude any currently-enabled read-request (mask out active)
                 # entirely block anything hazarded from being picked
-                comb += pick.eq(fu.rd_rel_o[idx] & fu_active & rdflags[i] &
+                comb += pick.eq(fu.rd_rel_o[idx] & fu_active & rdflag &
                                 ~delay_pick & ~rhazard)
                 comb += rdpick.i[pi].eq(pick)
                 comb += fu.go_rd_i[idx].eq(delay_pick) # pass in *delayed* pick
@@ -561,7 +586,7 @@ class NonProductionCore(ControlBase):
                 wvchk_en = Signal(len(wvchk), name="wv_chk_addr_en_"+name)
                 issue_active = Signal(name="rd_iactive_"+name)
                 # XXX combinatorial loop here
-                comb += issue_active.eq(fu_active & rf)
+                comb += issue_active.eq(fu_active & rdflag)
                 with m.If(issue_active):
                     if rfile.unary:
                         comb += wvchk_en.eq(read)
@@ -740,7 +765,7 @@ class NonProductionCore(ControlBase):
             wvset = wv.s # write-vec bit-level hazard ctrl
             wvclr = wv.r # write-vec bit-level hazard ctrl
             wvchk = wv.q # write-after-write hazard check
-            wvchk_qint = wv.q_int # write-after-write hazard check, delayed
+            wvchk_qint = wv.q # write-after-write hazard check, NOT delayed
 
         fspecs = fspec
         if not isinstance(fspecs, list):
@@ -776,7 +801,7 @@ class NonProductionCore(ControlBase):
 
         # create a priority picker to manage this port
         wrpickers[regfile][rpidx] = wrpick = PriorityPicker(pplen)
-        setattr(m.submodules, "wrpick_%s_%s" % (regfile, rpidx), wrpick)
+        m.submodules["wrpick_%s_%s" % (regfile, rpidx)] = wrpick
 
         wsigs = []
         wens = []
@@ -911,11 +936,19 @@ class NonProductionCore(ControlBase):
             comb += wport.wen.eq(ortreereduce_sig(wens))
 
         if not self.make_hazard_vecs:
-            return
+            return [], []
 
-        # for write-vectors
-        comb += wvclr.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
-        comb += wvset.eq(ortreereduce_sig(wvseten)) # set (issue time)
+        # return these here rather than set wvclr/wvset directly,
+        # because there may be more than one write-port to a given
+        # regfile.  example: XER has a write-port for SO, CA, and OV
+        # and the *last one added* of those would overwrite the other
+        # two.  solution: have connect_wrports collate all the
+        # or-tree-reduced bitvector set/clear requests and drop them
+        # in as a single "thing".  this can only be done because the
+        # set/get is an unary bitvector.
+        print ("make write-vecs", regfile, regname, wvset, wvclr)
+        return (ortreereduce_sig(wvclren), # clear (regfile write)
+                ortreereduce_sig(wvseten)) # set (issue time)
 
     def connect_wrports(self, m, fu_bitdict, fu_selected):
         """connect write ports
@@ -937,6 +970,8 @@ class NonProductionCore(ControlBase):
         # same for write ports.
         # BLECH!  complex code-duplication! BLECH!
         wrpickers = {}
+        wvclrers = defaultdict(list)
+        wvseters = defaultdict(list)
         for regfile, spec in byregfiles_wr.items():
             fuspecs = byregfiles_wrspec[regfile]
             wrpickers[regfile] = {}
@@ -953,9 +988,33 @@ class NonProductionCore(ControlBase):
                     if 'fast3' in fuspecs:
                         fuspecs['fast1'].append(fuspecs.pop('fast3'))
 
+            # collate these and record them by regfile because there
+            # are sometimes more write-ports per regfile
             for (regname, fspec) in sort_fuspecs(fuspecs):
-                self.connect_wrport(m, fu_bitdict, fu_selected, wrpickers,
+                wvclren, wvseten = self.connect_wrport(m,
+                                        fu_bitdict, fu_selected,
+                                        wrpickers,
                                         regfile, regname, fspec)
+                wvclrers[regfile.lower()].append(wvclren)
+                wvseters[regfile.lower()].append(wvseten)
+
+        if not self.make_hazard_vecs:
+            return
+
+        # for write-vectors: reduce the clr-ers and set-ers down to
+        # a single set of bits.  otherwise if there are two write
+        # ports (on some regfiles), the last one doing comb += on
+        # the reg.wv[regfile] instance "wins" (and all others are ignored,
+        # whoops).  if there was only one write-port per wv regfile this would
+        # not be an issue.
+        for regfile in wvclrers.keys():
+            wv = regs.wv[regfile]
+            wvset = wv.s # write-vec bit-level hazard ctrl
+            wvclr = wv.r # write-vec bit-level hazard ctrl
+            wvclren = wvclrers[regfile]
+            wvseten = wvseters[regfile]
+            comb += wvclr.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
+            comb += wvset.eq(ortreereduce_sig(wvseten)) # set (issue time)
 
     def get_byregfiles(self, readmode):
 
@@ -976,7 +1035,8 @@ class NonProductionCore(ControlBase):
             # the issue there is that this function is actually better
             # suited at the moment
             if readmode:
-                fu.rd_latches = {}
+                fu.rd_latches = {} # read reg number latches
+                fu.rf_latches = {} # read flag latches
             else:
                 fu.wr_latches = {}
 
@@ -1048,6 +1108,7 @@ if __name__ == '__main__':
     pspec = TestMemPspec(ldst_ifacetype='testpi',
                          imem_ifacetype='',
                          addr_wid=48,
+                         allow_overlap=True,
                          mask_wid=8,
                          reg_wid=64)
     dut = NonProductionCore(pspec)
