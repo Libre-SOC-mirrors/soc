@@ -586,7 +586,7 @@ class NonProductionCore(ControlBase):
                 wvchk_en = Signal(len(wvchk), name="wv_chk_addr_en_"+name)
                 issue_active = Signal(name="rd_iactive_"+name)
                 # XXX combinatorial loop here
-                comb += issue_active.eq(fu_active & rf)
+                comb += issue_active.eq(fu_active & rdflag)
                 with m.If(issue_active):
                     if rfile.unary:
                         comb += wvchk_en.eq(read)
