@@ -179,8 +179,8 @@ class FunctionUnitBaseMulti(ReservationStations2):
 class ALUFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.ALU
 
-    def __init__(self, idx):
-        super().__init__(ALUPipeSpec, ALUBasePipe, 1)
+    def __init__(self, num_rses):
+        super().__init__(ALUPipeSpec, ALUBasePipe, num_rses)
 
 
 #class LogicalFunctionUnit(FunctionUnitBaseSingle):

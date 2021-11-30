@@ -43,7 +43,8 @@ from soc.fu.shift_rot.test.test_pipe_caller import ShiftRotTestCase
 from soc.fu.cr.test.test_pipe_caller import CRTestCase
 from soc.fu.branch.test.test_pipe_caller import BranchTestCase
 from soc.fu.ldst.test.test_pipe_caller import LDSTTestCase
-from openpower.test.general.overlap_hazards import HazardTestCase
+from openpower.test.general.overlap_hazards import (HazardTestCase,
+                                                    RandomHazardTestCase)
 from openpower.util import spr_to_fast_reg
 
 from openpower.consts import StateRegsEnum
@@ -212,10 +213,17 @@ class TestRunner(FHDLTestCase):
         comb = m.d.comb
         instruction = Signal(32)
 
+        units = {'alu': 1, 'cr': 1, 'branch': 1, 'trap': 1,
+                 'spr': 1,
+                 'logical': 1,
+                 'mul': 1,
+                 'div': 1, 'shiftrot': 1}
+
         pspec = TestMemPspec(ldst_ifacetype='testpi',
                              imem_ifacetype='',
                              addr_wid=48,
                              mask_wid=8,
+                             units=units,
                              allow_overlap=True,
                              reg_wid=64)
 
@@ -344,12 +352,13 @@ class TestRunner(FHDLTestCase):
 if __name__ == "__main__":
     unittest.main(exit=False)
     suite = unittest.TestSuite()
-    suite.addTest(TestRunner(HazardTestCase().test_data))
+    #suite.addTest(TestRunner(HazardTestCase().test_data))
+    suite.addTest(TestRunner(RandomHazardTestCase().test_data))
     #suite.addTest(TestRunner(LDSTTestCase().test_data))
     #suite.addTest(TestRunner(CRTestCase().test_data))
     #suite.addTest(TestRunner(ShiftRotTestCase().test_data))
-    suite.addTest(TestRunner(LogicalTestCase().test_data))
-    suite.addTest(TestRunner(ALUTestCase().test_data))
+    #suite.addTest(TestRunner(LogicalTestCase().test_data))
+    #suite.addTest(TestRunner(ALUTestCase().test_data))
     #suite.addTest(TestRunner(BranchTestCase().test_data))
 
     runner = unittest.TextTestRunner()

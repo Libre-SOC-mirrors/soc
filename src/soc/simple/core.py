@@ -137,6 +137,9 @@ class NonProductionCore(ControlBase):
         self.decoders = {}
         self.des = {}
 
+        # eep, these should be *per FU* i.e. for FunctionUnitBaseMulti
+        # they should be shared (put into the ALU *once*).
+
         for funame, fu in self.fus.fus.items():
             f_name = fu.fnunit.name
             fnunit = fu.fnunit.value
@@ -145,6 +148,7 @@ class NonProductionCore(ControlBase):
                 # TRAP decoder is the *main* decoder
                 self.trapunit = funame
                 continue
+            assert funame not in self.decoders
             self.decoders[funame] = PowerDecodeSubset(None, opkls, f_name,
                                                       final=True,
                                                       state=self.ireg.state,
@@ -226,7 +230,7 @@ class NonProductionCore(ControlBase):
             # connect each satellite decoder and give it the instruction.
             # as subset decoders this massively reduces wire fanout given
             # the large number of ALUs
-            m.submodules["dec_%s" % v.fn_name] = v
+            m.submodules["dec_%s" % k] = v
             comb += v.dec.raw_opcode_in.eq(self.ireg.raw_insn_i)
             comb += v.dec.bigendian.eq(self.ireg.bigendian_i)
             # sigh due to SVP64 RA_OR_ZERO detection connect these too
