@@ -278,18 +278,6 @@ class TestRunner(FHDLTestCase):
                         # ask the decoder to decode this binary data (endian'd)
                         yield instruction.eq(ins)          # raw binary instr.
                         yield Settle()
-                        yield core.p.i_valid.eq(1)
-                        yield
-                        o_ready = yield core.p.o_ready
-                        while True:
-                            if o_ready:
-                                break
-                            yield
-                            o_ready = yield core.p.o_ready
-                        yield core.p.i_valid.eq(0)
-
-                        # set operand and get inputs
-                        yield from wait_for_busy_clear(core)
 
                         print("sim", code)
                         # call simulated operation
@@ -305,6 +293,19 @@ class TestRunner(FHDLTestCase):
                         print ("after call, pc nia", pc, nia)
                         yield stateregs.regs[pc_regnum].reg.eq(pc)
                         yield Settle()
+
+                        yield core.p.i_valid.eq(1)
+                        yield
+                        o_ready = yield core.p.o_ready
+                        while True:
+                            if o_ready:
+                                break
+                            yield
+                            o_ready = yield core.p.o_ready
+                        yield core.p.i_valid.eq(0)
+
+                        # set operand and get inputs
+                        yield from wait_for_busy_clear(core)
 
                         # register check
                         yield from check_regs(self, sim, core, test, code)
