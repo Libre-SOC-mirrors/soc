@@ -482,10 +482,10 @@ class NonProductionCore(ControlBase):
                 (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
                  fspec.wid, fspec.specs)
             print ("fpsec", i, fspec, len(fuspecs))
+            name = "%s_%s_%d" % (regfile, regname, i)
             ppoffs.append(pplen) # record offset for picker
             pplen += len(fspec.specs)
-            name = "rdflag_%s_%s_%d" % (regfile, regname, i)
-            rdflag = Signal(name=name, reset_less=True)
+            rdflag = Signal(name="rdflag_"+name, reset_less=True)
             comb += rdflag.eq(fspec.rdport)
             rdflags.append(rdflag)
 
@@ -513,21 +513,29 @@ class NonProductionCore(ControlBase):
                 fu_issued = fu_bitdict[funame]
 
                 # get (or set up) a latched copy of read register number
+                # and (sigh) also the read-ok flag
                 rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
                 read = Signal.like(_read, name="read_"+name)
+                rdflag = Signal(name="rdflag_"+rname, reset_less=True)
                 if rname not in fu.rd_latches:
                     rdl = Signal.like(_read, name="rdlatch_"+rname)
+                    rfl = Signal(name="rdflag_latch_"+rname)
                     fu.rd_latches[rname] = rdl
+                    fu.rf_latches[rname] = rfl
                     with m.If(fu.issue_i):
                         sync += rdl.eq(_read)
+                        sync += rfl.eq(rdflags[i])
                 else:
                     rdl = fu.rd_latches[rname]
+                    rfl = fu.rf_latches[rname]
                 # latch to make the read immediately available on issue cycle
                 # after the read cycle, use the latched copy
                 with m.If(fu.issue_i):
                     comb += read.eq(_read)
+                    comb += rdflag.eq(rdflags[i])
                 with m.Else():
                     comb += read.eq(rdl)
+                    comb += rdflag.eq(rfl)
 
                 # connect request-read to picker input, and output to go-rd
                 addr_en = Signal.like(read, name="addr_en_"+name)
@@ -538,7 +546,7 @@ class NonProductionCore(ControlBase):
 
                 # exclude any currently-enabled read-request (mask out active)
                 # entirely block anything hazarded from being picked
-                comb += pick.eq(fu.rd_rel_o[idx] & fu_active & rdflags[i] &
+                comb += pick.eq(fu.rd_rel_o[idx] & fu_active & rdflag &
                                 ~delay_pick & ~rhazard)
                 comb += rdpick.i[pi].eq(pick)
                 comb += fu.go_rd_i[idx].eq(delay_pick) # pass in *delayed* pick
@@ -1022,7 +1030,8 @@ class NonProductionCore(ControlBase):
             # the issue there is that this function is actually better
             # suited at the moment
             if readmode:
-                fu.rd_latches = {}
+                fu.rd_latches = {} # read reg number latches
+                fu.rf_latches = {} # read flag latches
             else:
                 fu.wr_latches = {}
 
