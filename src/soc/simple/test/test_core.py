@@ -216,6 +216,7 @@ class TestRunner(FHDLTestCase):
                              imem_ifacetype='',
                              addr_wid=48,
                              mask_wid=8,
+                             allow_overlap=True,
                              reg_wid=64)
 
         cur_state = CoreState("cur") # current state (MSR/PC/SVSTATE)
@@ -307,11 +308,31 @@ class TestRunner(FHDLTestCase):
                         # set operand and get inputs
                         yield from wait_for_busy_clear(core)
 
+                        # synchronised (non-overlap) is fine to check
+                        if not core.allow_overlap:
+                            # register check
+                            yield from check_regs(self, sim, core, test, code)
+
+                            # Memory check
+                            yield from check_mem(self, sim, core, test, code)
+
+                    # non-overlap mode is only fine to check right at the end
+                    if core.allow_overlap:
+                        # wait until all settled
+                        # XXX really this should be in DMI, which should in turn
+                        # use issuer.any_busy to not send back "stopped" signal
+                        while (yield core.o.any_busy_o):
+                            yield
+
                         # register check
                         yield from check_regs(self, sim, core, test, code)
 
                         # Memory check
                         yield from check_mem(self, sim, core, test, code)
+
+            # give a couple extra clock cycles for gtkwave display to be happy
+            yield
+            yield
 
         sim.add_sync_process(process)
         with sim.write_vcd("core_simulator.vcd", "core_simulator.gtkw",
