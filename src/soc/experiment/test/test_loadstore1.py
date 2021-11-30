@@ -102,6 +102,7 @@ def setup_mmu():
 
 test_exceptions = False
 test_dcbz = False
+test_random = True
 
 def _test_loadstore1_invalid(dut, mem):
     mmu = dut.submodules.mmu
@@ -135,28 +136,27 @@ def _test_loadstore1(dut, mem):
     addr = 0x100e0
     data = 0xf553b658ba7e1f51
 
-    """
-    yield from pi_st(pi, addr, data, 8, msr_pr=1)
-    yield
+    if test_dcbz:
+        yield from pi_st(pi, addr, data, 8, msr_pr=1)
+        yield
 
-    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-    assert ld_data == 0xf553b658ba7e1f51
-    assert exc is None
-    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-    assert ld_data == 0xf553b658ba7e1f51
-    assert exc is None
+        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        assert ld_data == 0xf553b658ba7e1f51
+        assert exc is None
+        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        assert ld_data == 0xf553b658ba7e1f51
+        assert exc is None
 
-    print("do_dcbz ===============")
-    yield from pi_st(pi, addr, data, 8, msr_pr=1, is_dcbz=1)
-    print("done_dcbz ===============")
-    yield
+        print("do_dcbz ===============")
+        yield from pi_st(pi, addr, data, 8, msr_pr=1, is_dcbz=1)
+        print("done_dcbz ===============")
+        yield
 
-    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-    print("ld_data after dcbz")
-    print(ld_data)
-    assert ld_data == 0
-    assert exc is None
-    """
+        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        print("ld_data after dcbz")
+        print(ld_data)
+        assert ld_data == 0
+        assert exc is None
 
     if test_exceptions:
         print("=== alignment error (ld) ===")
@@ -193,24 +193,22 @@ def _test_loadstore1(dut, mem):
         ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
         print("ld_data",ld_data,exc)
         print("=== no error done ===")
-        
-    addrs = [0x456920,0xa7a180,0x299420,0x1d9d60] # known to cause an error
-    count = 0
 
-    for addr in addrs:
-        print("== RANDOM addr ==")
-        print("ld[RANDOM]",addr)
-        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-        print("ld_data[RANDOM]",ld_data,exc,addr)
-        if exc=="wait_ldok_infinite_loop": # break cond for debugging
-            print("wait_ldok_infinite_loop:break",count)
-            break
-        assert(exc==None)
-        count = count + 1
-        #if count == 3:
-        #    yield
-            
-       
+    if test_random:
+        addrs = [0x456920,0xa7a180,0x299420,0x1d9d60] # known to cause an error
+        count = 0
+
+        for addr in addrs:
+            print("== RANDOM addr ==",hex(addr))
+            ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+            print("ld_data[RANDOM]",ld_data,exc,addr)
+            #if exc=="wait_ldok_infinite_loop": # break cond for debugging
+            #    print("wait_ldok_infinite_loop:break",count)
+            #    break
+            assert(exc==None)
+            count = count + 1
+
+        print("== RANDOM addr done ==")
 
     stop = True
 
@@ -246,4 +244,4 @@ def test_loadstore1_invalid():
 
 if __name__ == '__main__':
     test_loadstore1()
-    #FIX THIS LATER test_loadstore1_invalid()
+    test_loadstore1_invalid()
