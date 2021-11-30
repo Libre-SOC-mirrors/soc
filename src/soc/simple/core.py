@@ -515,19 +515,24 @@ class NonProductionCore(ControlBase):
                 # get (or set up) a latched copy of read register number
                 # and (sigh) also the read-ok flag
                 rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
+                rhname = "%s_%s_%d" % (regfile, regname, i)
                 read = Signal.like(_read, name="read_"+name)
-                rdflag = Signal(name="rdflag_"+rname, reset_less=True)
-                if rname not in fu.rd_latches:
-                    rdl = Signal.like(_read, name="rdlatch_"+rname)
+                rdflag = Signal(name="rdflag_%s_%s" % (funame, rhname),
+                                reset_less=True)
+                if rhname not in fu.rf_latches:
                     rfl = Signal(name="rdflag_latch_"+rname)
-                    fu.rd_latches[rname] = rdl
-                    fu.rf_latches[rname] = rfl
+                    fu.rf_latches[rhname] = rfl
                     with m.If(fu.issue_i):
-                        sync += rdl.eq(_read)
                         sync += rfl.eq(rdflags[i])
                 else:
+                    rfl = fu.rf_latches[rhname]
+                if rname not in fu.rd_latches:
+                    rdl = Signal.like(_read, name="rdlatch_"+rname)
+                    fu.rd_latches[rname] = rdl
+                    with m.If(fu.issue_i):
+                        sync += rdl.eq(_read)
+                else:
                     rdl = fu.rd_latches[rname]
-                    rfl = fu.rf_latches[rname]
                 # latch to make the read immediately available on issue cycle
                 # after the read cycle, use the latched copy
                 with m.If(fu.issue_i):
