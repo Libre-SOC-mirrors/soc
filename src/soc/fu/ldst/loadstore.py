@@ -94,6 +94,7 @@ class LoadStore1(PortInterfaceBase):
         self.addr          = Signal(64)
         self.store_data    = Signal(64)
         self.load_data     = Signal(64)
+        self.load_data_delay = Signal(64)
         self.byte_sel      = Signal(8)
         #self.xerc         : xer_common_t;
         #self.reserve       = Signal()
@@ -159,14 +160,16 @@ class LoadStore1(PortInterfaceBase):
 
     def get_rd_data(self, m):
         ld_ok = self.done_delay # indicates read data is valid
-        data = self.load_data   # actual read data
+        data = self.load_data_delay   # actual read data
         return data, ld_ok
 
     def elaborate(self, platform):
         m = super().elaborate(platform)
         comb, sync = m.d.comb, m.d.sync
 
+        # microwatt takes one more cycle before next operation can be issued
         sync += self.done_delay.eq(self.done)
+        sync += self.load_data_delay.eq(self.load_data)
 
         # create dcache module
         m.submodules.dcache = dcache = self.dcache
