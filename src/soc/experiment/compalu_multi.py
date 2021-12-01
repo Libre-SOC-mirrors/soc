@@ -255,13 +255,15 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         m.d.sync += opc_l.s.eq(self.issue_i)       # set on issue
         m.d.sync += opc_l.r.eq(req_done)  # reset on ALU
 
-        # src operand latch (not using go_wr_i)
-        m.d.sync += src_l.s.eq(Repl(self.issue_i, self.n_src) & ~self.rdmaskn)
+        # src operand latch (not using go_wr_i) ANDed with rdmask
+        rdmaskn = Signal(self.n_src)
+        latchregister(m, self.rdmaskn, rdmaskn, self.issue_i, name="rdmask_l")
+        m.d.comb += src_l.s.eq(Repl(self.issue_i, self.n_src) & ~rdmaskn)
         m.d.sync += src_l.r.eq(reset_r)
 
         # dest operand latch (not using issue_i)
         rw_domain += req_l.s.eq(alu_pulsem & self.wrmask)
-        m.d.sync += req_l.r.eq(reset_w | prev_wr_go)
+        m.d.comb += req_l.r.eq(reset_w | prev_wr_go)
 
         # pass operation to the ALU (sync: plenty time to wait for src reads)
         op = self.get_op()
@@ -277,10 +279,10 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
             ok = Const(1, 1)
             data_r_ok = Const(1, 1)
             if isinstance(lro, Record):
+                print("wr fields", i, lro, lro.fields)
                 data_r = Record.like(lro, name=name)
-                print("wr fields", i, lro, data_r.fields)
                 # bye-bye abstract interface design..
-                fname = find_ok(data_r.fields)
+                fname = find_ok(lro.fields)
                 if fname:
                     ok = getattr(lro, fname)
                     data_r_ok = getattr(data_r, fname)
@@ -289,13 +291,13 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
                 # XXX fails - wrok.append((ok|data_r_ok) & self.busy_o)
                 wrok.append(ok & self.busy_o)
             else:
+                data_r = Signal.like(lro, name=name)
                 # really should retire this but it's part of unit tests
-                data_r = Signal.like(lro, name=name, reset_less=True)
                 wrok.append(ok & self.busy_o)
-            with m.If(alu_pulse):
-                rw_domain += data_r.eq(lro)
+            #latchregister(m, lro, data_r, ok & self.busy_o, name=name)
+            latchregister(m, lro, data_r, alu_pulse, name=name)
             with m.If(self.issue_i):
-                rw_domain += data_r.eq(0)
+                m.d.comb += data_r.eq(0)
             drl.append(data_r)
 
         # ok, above we collated anything with an "ok" on the output side
@@ -364,12 +366,15 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         m.d.comb += self.busy_o.eq(opc_l.q)  # busy out
 
         # read-release gated by busy (and read-mask)
-        bro = Repl(self.busy_o, self.n_src)
+        if True: #self.sync_rw: - experiment (doesn't work)
+            bro = Repl(self.busy_o, self.n_src)
+        else:
+            bro = Repl(self.busy_o|self.issue_i, self.n_src)
         m.d.comb += self.rd.rel_o.eq(src_l.q & bro & slg)
 
         # write-release gated by busy and by shadow (and write-mask)
         brd = Repl(self.busy_o & self.shadown_i, self.n_dst)
-        m.d.comb += self.wr.rel_o.eq(req_l.q & brd)
+        m.d.comb += self.wr.rel_o.eq(req_l.q_int & brd)
 
         # output the data from the latch on go_write
         for i in range(self.n_dst):

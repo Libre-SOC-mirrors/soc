@@ -168,7 +168,7 @@ class FunctionUnitBaseMulti(ReservationStations2):
             alu_name = "alu_%s%d" % (alu_name, idx)
             palu = self.pseudoalus[idx]
             cu = MultiCompUnit(regspec, palu, opsubset, name=alu_name,
-                               sync_rw=True)
+                               sync_rw=False)
             cu.fnunit = self.fnunit
             cu.fu_muxidx = idx
             self.cu.append(cu)
