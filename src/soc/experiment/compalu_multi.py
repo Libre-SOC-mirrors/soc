@@ -110,7 +110,8 @@ class CompUnitRecord(RegSpec, RecordObject):
 
 
 class MultiCompUnit(RegSpecALUAPI, Elaboratable):
-    def __init__(self, rwid, alu, opsubsetkls, n_src=2, n_dst=1, name=None):
+    def __init__(self, rwid, alu, opsubsetkls, n_src=2, n_dst=1, name=None,
+                       sync_rw=True):
         """MultiCompUnit
 
         * :rwid:        width of register latches (TODO: allocate per regspec)
@@ -120,6 +121,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         * :n_dst:       number of destination operands
         """
         RegSpecALUAPI.__init__(self, rwid, alu)
+        self.sync_rw = sync_rw
         self.alu_name = name or "alu"
         self.opsubsetkls = opsubsetkls
         self.cu = cu = CompUnitRecord(opsubsetkls, rwid, n_src, n_dst,
@@ -176,6 +178,10 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
+        if self.sync_rw:
+            rw_domain = m.d.sync
+        else:
+            rw_domain = m.d.comb
         # add the ALU to the MultiCompUnit only if it is a "real" ALU
         # see AllFunctionUnits as to why: a FunctionUnitBaseMulti
         # only has one "real" ALU but multiple pseudo front-ends,
@@ -238,12 +244,12 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         m.d.comb += reset_r.eq(self.rd.go_i | Repl(self.go_die_i, self.n_src))
 
         # read-done,wr-proceed latch
-        m.d.sync += rok_l.s.eq(self.issue_i)  # set up when issue starts
-        m.d.sync += rok_l.r.eq(self.alu.n.o_valid & self.busy_o)  # ALU done
+        rw_domain += rok_l.s.eq(self.issue_i)  # set up when issue starts
+        rw_domain += rok_l.r.eq(self.alu.n.o_valid & self.busy_o)  # ALU done
 
         # wr-done, back-to-start latch
-        m.d.sync += rst_l.s.eq(all_rd)     # set when read-phase is fully done
-        m.d.sync += rst_l.r.eq(rst_r)        # *off* on issue
+        rw_domain += rst_l.s.eq(all_rd)     # set when read-phase is fully done
+        rw_domain += rst_l.r.eq(rst_r)        # *off* on issue
 
         # opcode latch (not using go_rd_i) - inverted so that busy resets to 0
         m.d.sync += opc_l.s.eq(self.issue_i)       # set on issue
