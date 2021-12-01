@@ -519,7 +519,7 @@ class NonProductionCore(ControlBase):
                 rdflag = Signal(name="rdflag_%s_%s" % (funame, rhname),
                                 reset_less=True)
                 if rhname not in fu.rf_latches:
-                    rfl = Signal(name="rdflag_latch_"+rhname)
+                    rfl = Signal(name="rdflag_latch_%s_%s" % (funame, rhname))
                     fu.rf_latches[rhname] = rfl
                     with m.If(fu.issue_i):
                         sync += rfl.eq(rdflags[i])
