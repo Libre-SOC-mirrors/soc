@@ -643,13 +643,12 @@ class NonProductionCore(ControlBase):
         rd_hazard = []
 
         # dictionary of lists of regfile read ports
-        byregfiles_rd, byregfiles_rdspec = self.get_byregfiles(True)
+        byregfiles_rdspec = self.get_byregfiles(True)
 
         # okaay, now we need a PriorityPicker per regfile per regfile port
         # loootta pickers... peter piper picked a pack of pickled peppers...
         rdpickers = {}
-        for regfile, spec in byregfiles_rd.items():
-            fuspecs = byregfiles_rdspec[regfile]
+        for regfile, fuspecs in byregfiles_rdspec.items():
             rdpickers[regfile] = {}
 
             # argh.  an experiment to merge RA and RB in the INT regfile
@@ -961,15 +960,14 @@ class NonProductionCore(ControlBase):
         fus = self.fus.fus
         regs = self.regs
         # dictionary of lists of regfile write ports
-        byregfiles_wr, byregfiles_wrspec = self.get_byregfiles(False)
+        byregfiles_wrspec = self.get_byregfiles(False)
 
         # same for write ports.
         # BLECH!  complex code-duplication! BLECH!
         wrpickers = {}
         wvclrers = defaultdict(list)
         wvseters = defaultdict(list)
-        for regfile, spec in byregfiles_wr.items():
-            fuspecs = byregfiles_wrspec[regfile]
+        for regfile, fuspecs in byregfiles_wrspec.items():
             wrpickers[regfile] = {}
 
             if self.regreduce_en:
@@ -1021,7 +1019,6 @@ class NonProductionCore(ControlBase):
 
         # dictionary of dictionaries of lists/tuples of regfile ports.
         # first key: regfile.  second key: regfile port name
-        byregfiles = defaultdict(lambda: defaultdict(list))
         byregfiles_spec = defaultdict(dict)
 
         for (funame, fu) in fus.items():
@@ -1052,13 +1049,11 @@ class NonProductionCore(ControlBase):
                         ByRegSpec(okflag, regport, wid, [])
                 # here we start to create "lanes"
                 fuspec = FUSpec(funame, fu, idx)
-                byregfiles[regfile][idx].append(fuspec)
                 byregfiles_spec[regfile][regname].specs.append(fuspec)
 
         # ok just print that all out, for convenience
-        for regfile, spec in byregfiles.items():
+        for regfile, fuspecs in byregfiles_spec.items():
             print("regfile %s ports:" % mode, regfile)
-            fuspecs = byregfiles_spec[regfile]
             for regname, fspec in fuspecs.items():
                 [okflag, regport, wid, fuspecs] = fspec
                 print("  rf %s port %s lane: %s" % (mode, regfile, regname))
@@ -1068,7 +1063,7 @@ class NonProductionCore(ControlBase):
                     print("    ", funame, fu.__class__.__name__, idx, fusig)
                     print()
 
-        return byregfiles, byregfiles_spec
+        return byregfiles_spec
 
     def __iter__(self):
         yield from self.fus.ports()
