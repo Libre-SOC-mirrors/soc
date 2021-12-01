@@ -26,8 +26,7 @@ from nmigen import (Elaboratable, Module, Signal, ResetSignal, Cat, Mux,
 from nmigen.cli import rtlil
 
 from openpower.decoder.power_decoder2 import PowerDecodeSubset
-from openpower.decoder.power_regspec_map import regspec_decode_read
-from openpower.decoder.power_regspec_map import regspec_decode_write
+from openpower.decoder.power_regspec_map import regspec_decode
 from openpower.sv.svp64 import SVP64Rec
 
 from nmutil.picker import PriorityPicker
@@ -1038,18 +1037,12 @@ class NonProductionCore(ControlBase):
             print("%s ports for %s" % (mode, funame))
             for idx in range(fu.n_src if readmode else fu.n_dst):
                 # construct regfile specs: read uses inspec, write outspec
-                if readmode:
-                    (regfile, regname, wid) = fu.get_in_spec(idx)
-                else:
-                    (regfile, regname, wid) = fu.get_out_spec(idx)
+                (regfile, regname, wid) = fu.get_io_spec(readmode, idx)
                 print("    %d %s %s %s" % (idx, regfile, regname, str(wid)))
 
                 # the PowerDecoder2 (main one, not the satellites) contains
                 # the decoded regfile numbers. obtain these now
-                if readmode:
-                    okflag, regport = regspec_decode_read(e, regfile, regname)
-                else:
-                    okflag, regport = regspec_decode_write(e, regfile, regname)
+                okflag, regport = regspec_decode(readmode, e, regfile, regname)
 
                 # construct the dictionary of regspec information by regfile
                 if regname not in byregfiles_spec[regfile]:
