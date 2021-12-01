@@ -991,8 +991,8 @@ class NonProductionCore(ControlBase):
                                         fu_bitdict, fu_selected,
                                         wrpickers,
                                         regfile, regname, fspec)
-                wvclrers[regfile.lower()].append(wvclren)
-                wvseters[regfile.lower()].append(wvseten)
+                wvclrers[regfile.lower()] += wvclren
+                wvseters[regfile.lower()] += wvseten
 
         if not self.make_hazard_vecs:
             return
