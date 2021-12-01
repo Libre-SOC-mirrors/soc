@@ -65,6 +65,11 @@ class RegSpecAPI:
         """
         self.rwid = rwid
 
+    def get_io_spec(self, direction, i):
+        if direction: # input (read specs)
+            return self.get_in_spec(i)
+        return self.get_out_spec(i)
+
     def get_in_spec(self, i):
         return self.rwid[0][i]
 
