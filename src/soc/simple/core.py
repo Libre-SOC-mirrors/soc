@@ -1023,19 +1023,17 @@ class NonProductionCore(ControlBase):
 
         for (funame, fu) in fus.items():
             # create in each FU a receptacle for the read/write register
-            # hazard numbers.  to be latched in connect_rd/write_ports
-            # XXX better that this is moved into the actual FUs, but
-            # the issue there is that this function is actually better
-            # suited at the moment
+            # hazard numbers (and okflags for read).  to be latched in
+            # connect_rd/write_ports
             if readmode:
                 fu.rd_latches = {} # read reg number latches
                 fu.rf_latches = {} # read flag latches
             else:
                 fu.wr_latches = {}
 
+            # construct regfile specs: read uses inspec, write outspec
             print("%s ports for %s" % (mode, funame))
             for idx in range(fu.n_src if readmode else fu.n_dst):
-                # construct regfile specs: read uses inspec, write outspec
                 (regfile, regname, wid) = fu.get_io_spec(readmode, idx)
                 print("    %d %s %s %s" % (idx, regfile, regname, str(wid)))
 
@@ -1047,7 +1045,11 @@ class NonProductionCore(ControlBase):
                 if regname not in byregfiles_spec[regfile]:
                     byregfiles_spec[regfile][regname] = \
                         ByRegSpec(okflag, regport, wid, [])
-                # here we start to create "lanes"
+
+                # here we start to create "lanes" where each Function Unit
+                # requiring access to a given [single-contended resource]
+                # regfile port is appended to a list, so that PriorityPickers
+                # can be created to give uncontested access to it
                 fuspec = FUSpec(funame, fu, idx)
                 byregfiles_spec[regfile][regname].specs.append(fuspec)
 
