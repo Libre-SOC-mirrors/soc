@@ -260,7 +260,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         m.d.sync += src_l.r.eq(reset_r)
 
         # dest operand latch (not using issue_i)
-        m.d.sync += req_l.s.eq(alu_pulsem & self.wrmask)
+        rw_domain += req_l.s.eq(alu_pulsem & self.wrmask)
         m.d.sync += req_l.r.eq(reset_w | prev_wr_go)
 
         # pass operation to the ALU (sync: plenty time to wait for src reads)
@@ -293,9 +293,9 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
                 data_r = Signal.like(lro, name=name, reset_less=True)
                 wrok.append(ok & self.busy_o)
             with m.If(alu_pulse):
-                m.d.sync += data_r.eq(lro)
+                rw_domain += data_r.eq(lro)
             with m.If(self.issue_i):
-                m.d.sync += data_r.eq(0)
+                rw_domain += data_r.eq(0)
             drl.append(data_r)
 
         # ok, above we collated anything with an "ok" on the output side

@@ -167,7 +167,8 @@ class FunctionUnitBaseMulti(ReservationStations2):
         for idx in range(num_rows):
             alu_name = "alu_%s%d" % (alu_name, idx)
             palu = self.pseudoalus[idx]
-            cu = MultiCompUnit(regspec, palu, opsubset, name=alu_name)
+            cu = MultiCompUnit(regspec, palu, opsubset, name=alu_name,
+                               sync_rw=True)
             cu.fnunit = self.fnunit
             cu.fu_muxidx = idx
             self.cu.append(cu)
