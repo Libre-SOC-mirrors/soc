@@ -233,18 +233,20 @@ class NonProductionCore(ControlBase):
             comb += v.dec.bigendian.eq(self.ireg.bigendian_i)
             # sigh due to SVP64 RA_OR_ZERO detection connect these too
             comb += v.sv_a_nz.eq(self.ireg.sv_a_nz)
-            if self.svp64_en:
-                comb += v.pred_sm.eq(self.ireg.sv_pred_sm)
-                comb += v.pred_dm.eq(self.ireg.sv_pred_dm)
-                if k != self.trapunit:
-                    comb += v.sv_rm.eq(self.ireg.sv_rm) # pass through SVP64 RM
-                    comb += v.is_svp64_mode.eq(self.ireg.is_svp64_mode)
-                    # only the LDST PowerDecodeSubset *actually* needs to
-                    # know to use the alternative decoder.  this is all
-                    # a terrible hack
-                    if k.lower().startswith("ldst"):
-                        comb += v.use_svp64_ldst_dec.eq(
-                                        self.ireg.use_svp64_ldst_dec)
+            if not self.svp64_en:
+                continue
+            comb += v.pred_sm.eq(self.ireg.sv_pred_sm)
+            comb += v.pred_dm.eq(self.ireg.sv_pred_dm)
+            if k == self.trapunit:
+                continue
+            comb += v.sv_rm.eq(self.ireg.sv_rm) # pass through SVP64 RM
+            comb += v.is_svp64_mode.eq(self.ireg.is_svp64_mode)
+            # only the LDST PowerDecodeSubset *actually* needs to
+            # know to use the alternative decoder.  this is all
+            # a terrible hack
+            if not k.lower().startswith("ldst"):
+                continue
+            comb += v.use_svp64_ldst_dec.eq( self.ireg.use_svp64_ldst_dec)
 
     def connect_instruction(self, m):
         """connect_instruction
@@ -941,8 +943,8 @@ class NonProductionCore(ControlBase):
         # in as a single "thing".  this can only be done because the
         # set/get is an unary bitvector.
         print ("make write-vecs", regfile, regname, wvset, wvclr)
-        return (ortreereduce_sig(wvclren), # clear (regfile write)
-                ortreereduce_sig(wvseten)) # set (issue time)
+        return (wvclren, # clear (regfile write)
+                wvseten) # set (issue time)
 
     def connect_wrports(self, m, fu_bitdict, fu_selected):
         """connect write ports
