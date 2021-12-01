@@ -169,8 +169,17 @@ class FunctionUnitBaseMulti(ReservationStations2):
             palu = self.pseudoalus[idx]
             cu = MultiCompUnit(regspec, palu, opsubset, name=alu_name)
             cu.fnunit = self.fnunit
+            cu.fu_muxidx = idx
             self.cu.append(cu)
 
+    def elaborate(self, platform):
+        m = super().elaborate(platform)
+        # set the muxids so that ReservationStations2 can direct data
+        # without this the incoming data gets routed to the wrong place!
+        # NOTE: for Mask Cancellation this has to be done slightly differently
+        for i, p in enumerate(self.p):
+            m.d.comb += p.i_data.muxid.eq(i)
+        return m
 
 ######################################################################
 ###### actual Function Units: these are "single" stage pipelines #####
