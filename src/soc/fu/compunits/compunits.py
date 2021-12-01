@@ -361,10 +361,10 @@ class AllFunctionUnits(Elaboratable):
         m = Module()
         # add MultiCompUnit modules (Single CompUnits add their own ALU)
         for (name, fu) in self.fus.items():
-            setattr(m.submodules, name, fu)
+            m.submodules[name] = fu
         # if any ReservationStations, there is only one ALU per RS so add that
         for (name, alu) in self.actual_alus.items():
-            setattr(m.submodules, name, alu)
+            m.submodules[name] = alu
         return m
 
     def __iter__(self):
