@@ -48,8 +48,7 @@ import operator
 from nmutil.util import rising_edge
 
 FUSpec = namedtuple("FUSpec", ["funame", "fu", "idx"])
-ByRegSpec = namedtuple("ByRegSpec", ["rdport", "wrport", "read",
-                                     "write", "wid", "specs"])
+ByRegSpec = namedtuple("ByRegSpec", ["okflag", "regport", "wid", "specs"])
 
 # helper function for reducing a list of signals down to a parallel
 # ORed single signal.
@@ -482,15 +481,12 @@ class NonProductionCore(ControlBase):
         ppoffs = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
-            (rf, wf, _read, _write, wid, fuspecs) = \
-                (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
-                 fspec.wid, fspec.specs)
-            print ("fpsec", i, fspec, len(fuspecs))
+            print ("fpsec", i, fspec, len(fspec.specs))
             name = "%s_%s_%d" % (regfile, regname, i)
             ppoffs.append(pplen) # record offset for picker
             pplen += len(fspec.specs)
             rdflag = Signal(name="rdflag_"+name, reset_less=True)
-            comb += rdflag.eq(fspec.rdport)
+            comb += rdflag.eq(fspec.okflag)
             rdflags.append(rdflag)
 
         print ("pplen", pplen)
@@ -504,9 +500,8 @@ class NonProductionCore(ControlBase):
         wvens = []
 
         for i, fspec in enumerate(fspecs):
-            (rf, wf, _read, _write, wid, fuspecs) = \
-                (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
-                 fspec.wid, fspec.specs)
+            (rf, _read, wid, fuspecs) = \
+                (fspec.okflag, fspec.regport, fspec.wid, fspec.specs)
             # connect up the FU req/go signals, and the reg-read to the FU
             # and create a Read Broadcast Bus
             for pi, fuspec in enumerate(fspec.specs):
@@ -518,18 +513,21 @@ class NonProductionCore(ControlBase):
 
                 # get (or set up) a latched copy of read register number
                 # and (sigh) also the read-ok flag
-                rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
+                # TODO: use nmutil latchregister
                 rhname = "%s_%s_%d" % (regfile, regname, i)
-                read = Signal.like(_read, name="read_"+name)
                 rdflag = Signal(name="rdflag_%s_%s" % (funame, rhname),
                                 reset_less=True)
                 if rhname not in fu.rf_latches:
-                    rfl = Signal(name="rdflag_latch_"+rname)
+                    rfl = Signal(name="rdflag_latch_"+rhname)
                     fu.rf_latches[rhname] = rfl
                     with m.If(fu.issue_i):
                         sync += rfl.eq(rdflags[i])
                 else:
                     rfl = fu.rf_latches[rhname]
+
+                # now the register port
+                rname = "%s_%s_%s_%d" % (funame, regfile, regname, pi)
+                read = Signal.like(_read, name="read_"+rname)
                 if rname not in fu.rd_latches:
                     rdl = Signal.like(_read, name="rdlatch_"+rname)
                     fu.rd_latches[rname] = rdl
@@ -537,8 +535,10 @@ class NonProductionCore(ControlBase):
                         sync += rdl.eq(_read)
                 else:
                     rdl = fu.rd_latches[rname]
-                # latch to make the read immediately available on issue cycle
-                # after the read cycle, use the latched copy
+
+                # make the read immediately available on issue cycle
+                # after the read cycle, otherwies use the latched copy.
+                # this captures the regport and okflag on issue
                 with m.If(fu.issue_i):
                     comb += read.eq(_read)
                     comb += rdflag.eq(rdflags[i])
@@ -778,29 +778,21 @@ class NonProductionCore(ControlBase):
         pplen = 0
         writes = []
         ppoffs = []
-        rdflags = []
         wrflags = []
         for i, fspec in enumerate(fspecs):
             # get the regfile specs for this regfile port
-            (rf, wf, _read, _write, wid, fuspecs) = \
-                (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
-                 fspec.wid, fspec.specs)
+            (wf, _write, wid, fuspecs) = \
+                (fspec.okflag, fspec.regport, fspec.wid, fspec.specs)
             print ("fpsec", i, "wrflag", wf, fspec, len(fuspecs))
             ppoffs.append(pplen) # record offset for picker
             pplen += len(fuspecs)
 
             name = "%s_%s_%d" % (regfile, regname, i)
-            rdflag = Signal(name="rd_flag_"+name)
             wrflag = Signal(name="wr_flag_"+name)
-            if rf is not None:
-                comb += rdflag.eq(rf)
-            else:
-                comb += rdflag.eq(0)
             if wf is not None:
                 comb += wrflag.eq(wf)
             else:
                 comb += wrflag.eq(0)
-            rdflags.append(rdflag)
             wrflags.append(wrflag)
 
         # create a priority picker to manage this port
@@ -817,9 +809,8 @@ class NonProductionCore(ControlBase):
         for i, fspec in enumerate(fspecs):
             # connect up the FU req/go signals and the reg-read to the FU
             # these are arbitrated by Data.ok signals
-            (rf, wf, _read, _write, wid, fuspecs) = \
-                (fspec.rdport, fspec.wrport, fspec.read, fspec.write,
-                 fspec.wid, fspec.specs)
+            (wf, _write, wid, fuspecs) = \
+                (fspec.okflag, fspec.regport, fspec.wid, fspec.specs)
             for pi, fuspec in enumerate(fspec.specs):
                 (funame, fu, idx) = (fuspec.funame, fuspec.fu, fuspec.idx)
                 fu_requested = fu_bitdict[funame]
@@ -1056,41 +1047,27 @@ class NonProductionCore(ControlBase):
                 # the PowerDecoder2 (main one, not the satellites) contains
                 # the decoded regfile numbers. obtain these now
                 if readmode:
-                    rdport, read = regspec_decode_read(e, regfile, regname)
-                    wrport, write = None, None
+                    okflag, regport = regspec_decode_read(e, regfile, regname)
                 else:
-                    rdport, read = None, None
-                    wrport, write = regspec_decode_write(e, regfile, regname)
+                    okflag, regport = regspec_decode_write(e, regfile, regname)
 
                 # construct the dictionary of regspec information by regfile
                 if regname not in byregfiles_spec[regfile]:
                     byregfiles_spec[regfile][regname] = \
-                        ByRegSpec(rdport, wrport, read, write, wid, [])
+                        ByRegSpec(okflag, regport, wid, [])
                 # here we start to create "lanes"
                 fuspec = FUSpec(funame, fu, idx)
                 byregfiles[regfile][idx].append(fuspec)
                 byregfiles_spec[regfile][regname].specs.append(fuspec)
-
-                continue
-                # append a latch Signal to the FU's list of latches
-                rname = "%s_%s" % (regfile, regname)
-                if readmode:
-                    if rname not in fu.rd_latches:
-                        rdl = Signal.like(read, name="rdlatch_"+rname)
-                        fu.rd_latches[rname] = rdl
-                else:
-                    if rname not in fu.wr_latches:
-                        wrl = Signal.like(write, name="wrlatch_"+rname)
-                        fu.wr_latches[rname] = wrl
 
         # ok just print that all out, for convenience
         for regfile, spec in byregfiles.items():
             print("regfile %s ports:" % mode, regfile)
             fuspecs = byregfiles_spec[regfile]
             for regname, fspec in fuspecs.items():
-                [rdport, wrport, read, write, wid, fuspecs] = fspec
+                [okflag, regport, wid, fuspecs] = fspec
                 print("  rf %s port %s lane: %s" % (mode, regfile, regname))
-                print("  %s" % regname, wid, read, write, rdport, wrport)
+                print("  %s" % regname, wid, okflag, regport)
                 for (funame, fu, idx) in fuspecs:
                     fusig = fu.src_i[idx] if readmode else fu.dest[idx]
                     print("    ", funame, fu.__class__.__name__, idx, fusig)
