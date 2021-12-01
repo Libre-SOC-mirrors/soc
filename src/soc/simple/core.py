@@ -769,7 +769,6 @@ class NonProductionCore(ControlBase):
             wvset = wv.s # write-vec bit-level hazard ctrl
             wvclr = wv.r # write-vec bit-level hazard ctrl
             wvchk = wv.q # write-after-write hazard check
-            wvchk_qint = wv.q # write-after-write hazard check, NOT delayed
 
         fspecs = fspec
         if not isinstance(fspecs, list):
@@ -914,7 +913,7 @@ class NonProductionCore(ControlBase):
                 # write-hazard is ANDed with (filtered by) what is actually
                 # being requested.  the wvchk data is on a one-clock delay,
                 # and wvchk_en comes directly from the main decoder
-                comb += whazard.eq((wvchk_qint & wvchk_en).bool())
+                comb += whazard.eq((wvchk & wvchk_en).bool())
                 with m.If(whazard):
                     comb += fu._waw_hazard.eq(1)
 
