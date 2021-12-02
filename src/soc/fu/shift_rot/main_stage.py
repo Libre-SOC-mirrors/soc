@@ -9,7 +9,7 @@
 from nmigen import (Module, Signal, Cat, Repl, Mux, Const)
 from nmutil.pipemodbase import PipeModBase
 from soc.fu.shift_rot.pipe_data import (ShiftRotOutputData,
-                                       ShiftRotInputData)
+                                        ShiftRotInputData)
 from ieee754.part.partsig import SimdSignal
 from openpower.decoder.power_enums import MicrOp
 from soc.fu.shift_rot.rotator import Rotator
@@ -58,24 +58,30 @@ class ShiftRotMainStage(PipeModBase):
             rotator.mb_extra.eq(mb_extra),
             rotator.rs.eq(self.i.rs),
             rotator.ra.eq(self.i.a),
-            rotator.shift.eq(self.i.rb), # can also be sh (in immediate mode)
+            rotator.shift.eq(self.i.rb),  # can also be sh (in immediate mode)
             rotator.is_32bit.eq(op.is_32bit),
             rotator.arith.eq(op.is_signed),
         ]
 
-        comb += o.ok.eq(1) # defaults to enabled
+        comb += o.ok.eq(1)  # defaults to enabled
 
         # instruction rotate type
         mode = Signal(4, reset_less=True)
         with m.Switch(op.insn_type):
-            with m.Case(MicrOp.OP_SHL):  comb += mode.eq(0b0000) # L-shift
-            with m.Case(MicrOp.OP_SHR):  comb += mode.eq(0b0001) # R-shift
-            with m.Case(MicrOp.OP_RLC):  comb += mode.eq(0b0110) # clear LR
-            with m.Case(MicrOp.OP_RLCL): comb += mode.eq(0b0010) # clear L
-            with m.Case(MicrOp.OP_RLCR): comb += mode.eq(0b0100) # clear R
-            with m.Case(MicrOp.OP_EXTSWSLI): comb += mode.eq(0b1000) # L-ext
+            with m.Case(MicrOp.OP_SHL):
+                comb += mode.eq(0b0000)  # L-shift
+            with m.Case(MicrOp.OP_SHR):
+                comb += mode.eq(0b0001)  # R-shift
+            with m.Case(MicrOp.OP_RLC):
+                comb += mode.eq(0b0110)  # clear LR
+            with m.Case(MicrOp.OP_RLCL):
+                comb += mode.eq(0b0010)  # clear L
+            with m.Case(MicrOp.OP_RLCR):
+                comb += mode.eq(0b0100)  # clear R
+            with m.Case(MicrOp.OP_EXTSWSLI):
+                comb += mode.eq(0b1000)  # L-ext
             with m.Default():
-                comb += o.ok.eq(0) # otherwise disable
+                comb += o.ok.eq(0)  # otherwise disable
 
         comb += Cat(rotator.right_shift,
                     rotator.clear_left,
