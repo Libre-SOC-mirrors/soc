@@ -1038,8 +1038,8 @@ class NonProductionCore(ControlBase):
 
                 # the PowerDecoder2 (main one, not the satellites) contains
                 # the decoded regfile numbers. obtain these now
-                okflag, regport = regspec_decode(m, readmode, e,
-                                                 regfile, regname)
+                decinfo = regspec_decode(m, readmode, e, regfile, regname)
+                okflag, regport = decinfo.okflag, decinfo.regport
 
                 # construct the dictionary of regspec information by regfile
                 if regname not in byregfiles_spec[regfile]:
