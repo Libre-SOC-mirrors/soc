@@ -79,7 +79,8 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.is_st_i.eq(0)  # end
     yield port1.addr.ok.eq(0)  # set !ok
     yield port1.is_dcbz_i.eq(0)  # reset dcbz too
-    
+    yield  # needed if mmu/dache is used
+
     return None
 
 

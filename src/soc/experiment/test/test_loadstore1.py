@@ -100,7 +100,7 @@ def setup_mmu():
 
     return m, cmpi
 
-test_exceptions = True
+test_exceptions = False
 test_dcbz = True
 test_random = True
 
@@ -173,8 +173,6 @@ def _test_loadstore1(dut, mem):
         # wait is only needed in case of in exception here
         print("=== alignment error test passed (ld) ===")
 
-        """
-        FIXME
         print("=== alignment error (st) ===")
         addr = 0xFF100e0FF
         exc = yield from pi_st(pi, addr,0, 8, msr_pr=1)
@@ -188,8 +186,7 @@ def _test_loadstore1(dut, mem):
         #???? yield from wait_busy(pi, debug="pi_st_E_alignment_error")
         # wait is only needed in case of in exception here
         print("=== alignment error test passed (st) ===")
-        #yield # IMPORTANT: wait one clock cycle after failed st
-        """
+        yield #FIXME hangs
 
         print("=== no error ===")
         addr = 0x100e0
@@ -199,38 +196,25 @@ def _test_loadstore1(dut, mem):
 
     if test_random:
         addrs = [0x456920,0xa7a180,0x299420,0x1d9d60]
-        count = 0
 
         for addr in addrs:
             print("== RANDOM addr ==",hex(addr))
             ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
             print("ld_data[RANDOM]",ld_data,exc,addr)
-            #if exc=="wait_ldok_infinite_loop": # break cond for debugging
-            #    print("wait_ldok_infinite_loop:break",count)
-            #    break
             assert(exc==None)
-            count = count + 1
 
-        count = 0
         for addr in addrs:
             print("== RANDOM addr ==",hex(addr))
             exc = yield from pi_st(pi, addr,0xFF*addr, 8, msr_pr=1)
-            #print("ld_data[RANDOM]",ld_data,exc,addr)
             assert(exc==None)
-            yield #FIXME: takes one more cycle to complete
 
-        count = 0
         # readback written data and compare
         for addr in addrs:
             print("== RANDOM addr ==",hex(addr))
             ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
             print("ld_data[RANDOM_READBACK]",ld_data,exc,addr)
-            #if exc=="wait_ldok_infinite_loop": # break cond for debugging
-            #    print("wait_ldok_infinite_loop:break",count)
-            #    break
             assert(exc==None)
             assert(ld_data == 0xFF*addr)
-            count = count + 1
 
         print("== RANDOM addr done ==")
 
