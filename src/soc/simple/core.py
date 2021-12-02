@@ -333,7 +333,7 @@ class NonProductionCore(ControlBase):
 
         # rdmask, which is for registers needs to come from the *main* decoder
         for funame, fu in fus.items():
-            rdmask = get_rdflags(self.ireg.e, fu)
+            rdmask = get_rdflags(m, self.ireg.e, fu)
             comb += fu.rdmaskn.eq(~rdmask)
 
         # sigh - need a NOP counter
@@ -643,7 +643,7 @@ class NonProductionCore(ControlBase):
         rd_hazard = []
 
         # dictionary of lists of regfile read ports
-        byregfiles_rdspec = self.get_byregfiles(True)
+        byregfiles_rdspec = self.get_byregfiles(m, True)
 
         # okaay, now we need a PriorityPicker per regfile per regfile port
         # loootta pickers... peter piper picked a pack of pickled peppers...
@@ -959,7 +959,7 @@ class NonProductionCore(ControlBase):
         fus = self.fus.fus
         regs = self.regs
         # dictionary of lists of regfile write ports
-        byregfiles_wrspec = self.get_byregfiles(False)
+        byregfiles_wrspec = self.get_byregfiles(m, False)
 
         # same for write ports.
         # BLECH!  complex code-duplication! BLECH!
@@ -1009,7 +1009,7 @@ class NonProductionCore(ControlBase):
             comb += wvclr.eq(ortreereduce_sig(wvclren)) # clear (regfile write)
             comb += wvset.eq(ortreereduce_sig(wvseten)) # set (issue time)
 
-    def get_byregfiles(self, readmode):
+    def get_byregfiles(self, m, readmode):
 
         mode = "read" if readmode else "write"
         regs = self.regs
@@ -1038,7 +1038,8 @@ class NonProductionCore(ControlBase):
 
                 # the PowerDecoder2 (main one, not the satellites) contains
                 # the decoded regfile numbers. obtain these now
-                okflag, regport = regspec_decode(readmode, e, regfile, regname)
+                okflag, regport = regspec_decode(m, readmode, e,
+                                                 regfile, regname)
 
                 # construct the dictionary of regspec information by regfile
                 if regname not in byregfiles_spec[regfile]:
