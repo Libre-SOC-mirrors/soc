@@ -1,6 +1,6 @@
 # test case for LOAD / STORE Computation Unit using MMU
 
-from nmigen.back.pysim import Simulator, Delay, Settle, Tick
+from nmigen.sim import Simulator, Delay, Settle, Tick
 from nmigen.cli import verilog, rtlil
 from nmigen import Module, Signal, Mux, Cat, Elaboratable, Array, Repl
 from nmigen.hdl.rec import Record, Layout
@@ -112,7 +112,7 @@ def store_debug(dut, src1, src2, src3, imm, imm_ok=True, update=False,
     yield dut.go_st_i.eq(1)
     yield
     yield dut.go_st_i.eq(0)
-    yield from wait_for_debug(dut.busy_o,"not_busy" ,False) #BUG: port interface stays busy until xxx
+    yield from wait_for_debug(dut.busy_o,"not_busy" ,False)
     ###wait_for(dut.stwd_mem_o)
     yield
     return addr
@@ -146,25 +146,37 @@ def ldst_sim(dut):
     dut.stop = True # stop simulation
 
 ########################################
-
-
 class TestLDSTCompUnitMMU(LDSTCompUnit):
 
     def __init__(self, rwid, pspec):
-        from soc.experiment.l0_cache import TstL0CacheBuffer
-        self.l0 = l0 = TstL0CacheBuffer(pspec)
-        pi = l0.l0.dports[0]
-        LDSTCompUnit.__init__(self, pi, rwid, 4)
+        # use a LoadStore1 here
+        cmpi = ConfigMemoryPortInterface(pspec)
+        self.cmpi = cmpi
+        ldst = cmpi.pi
+        self.l0 = ldst
+
+        self.mmu = MMU()
+        LDSTCompUnit.__init__(self, ldst.pi, rwid, 4)
 
     def elaborate(self, platform):
         m = LDSTCompUnit.elaborate(self, platform)
         m.submodules.l0 = self.l0
+        m.submodules.mmu = self.mmu
         # link addr-go direct to rel
         m.d.comb += self.ad.go_i.eq(self.ad.rel_o)
+
+        # link mmu and dcache together
+        dcache = self.l0.dcache
+        mmu = self.mmu
+        m.d.comb += dcache.m_in.eq(mmu.d_out) # MMUToDCacheType
+        m.d.comb += mmu.d_in.eq(dcache.m_out) # DCacheToMMUType
+
         return m
 
 
 def test_scoreboard_mmu():
+
+    m = Module()
 
     units = {}
     pspec = TestMemPspec(ldst_ifacetype='mmu_cache_wb',
@@ -175,22 +187,28 @@ def test_scoreboard_mmu():
                          units=units)
 
     dut = TestLDSTCompUnitMMU(16,pspec)
-    vl = rtlil.convert(dut, ports=dut.ports())
-    with open("test_ldst_comp_mmu1.il", "w") as f:
-        f.write(vl)
 
-    run_simulation(dut, ldst_sim(dut), vcd_name='test_ldst_comp.vcd')
+    m.submodules.dut = dut
+
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    dut.mem = pagetables.test1
+    dut.stop = False
+
+    sim.add_sync_process(wrap(ldst_sim(dut)))
+    sim.add_sync_process(wrap(wb_get(dut)))
+    with sim.write_vcd('test_scoreboard_mmu.vcd'):
+        sim.run()
 
 ########################################
 class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
 
     def __init__(self, pspec):
-        from soc.experiment.l0_cache import TstL0CacheBuffer
         from soc.fu.ldst.pipe_data import LDSTPipeSpec
         regspec = LDSTPipeSpec.regspec
 
         # use a LoadStore1 here
-
         cmpi = ConfigMemoryPortInterface(pspec)
         self.cmpi = cmpi
         ldst = cmpi.pi
@@ -213,9 +231,6 @@ class TestLDSTCompUnitRegSpecMMU(LDSTCompUnit):
         m.d.comb += mmu.d_in.eq(dcache.m_out) # DCacheToMMUType
 
         return m
-
-
-
 
 def test_scoreboard_regspec_mmu():
 
@@ -244,7 +259,6 @@ def test_scoreboard_regspec_mmu():
     with sim.write_vcd('test_scoreboard_regspec_mmu.vcd'):
         sim.run()
 
-
 if __name__ == '__main__':
     test_scoreboard_regspec_mmu()
-    #only one test for now -- test_scoreboard_mmu()
+    test_scoreboard_mmu()
