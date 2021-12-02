@@ -71,6 +71,47 @@ def sort_fuspecs(fuspecs):
     return res  # enumerate(res)
 
 
+# a hazard bitvector "remap" function which returns an AST expression
+# that remaps read/write hazard regfile port numbers to either a full
+# bitvector or a reduced subset one.  SPR for example is reduced to a
+# single bit.
+# CRITICALLY-IMPORTANT NOTE: these bitvectors *have* to match up per
+# regfile!  therefore the remapping is per regfile, *NOT* per regfile
+# port and certainly not based on whether it is a read port or write port.
+# note that any reductions here will result in degraded performance due
+# to conflicts, but at least it keeps the hazard matrix sizes down to "sane"
+def bitvector_remap(regfile, rfile, port):
+    # 8-bits (at the moment, no SVP64), CR is unary: no remap
+    if regfile == 'CR':
+        return port
+    # 3 bits, unary alrady: return the port
+    if regfile == 'XER':
+        return port
+    # 3 bits, unary: return the port
+    if regfile == 'XER':
+        return port
+    # 3 bits, unary: return the port
+    if regfile == 'SVSTATE':
+        return port
+    # 9 bits (9 entries), might be unary already
+    if regfile == 'FAST':
+        if rfile.unary: # FAST might be unary already
+            return port
+        else:
+            return 1 << port
+    # 10 bits (!!) - reduce to one
+    if regfile == 'SPR':
+        if rfile.unary: # FAST might be unary already
+            return port
+        else:
+            return 1 << port
+    if regfile == 'INT':
+        if rfile.unary: # INT, check if unary/binary
+            return port
+        else:
+            return 1 << port
+
+
 # derive from ControlBase rather than have a separate Stage instance,
 # this is simpler to do
 class NonProductionCore(ControlBase):
