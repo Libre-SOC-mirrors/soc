@@ -115,6 +115,22 @@ class MMUTestCase(TestAccumulatorBase):
         self.add_case(Program(lst, bigendian), initial_regs,
                              initial_mem=initial_mem,initial_msr=initial_msr)
 
+    # deliberately misalign 
+    def case_6_ldst_misalign(self):
+        lst = ["std 10,0(2)"]
+        initial_regs = [0] * 32
+        initial_regs[1] = 0x1234
+        initial_regs[2] = 0x3456
+        initial_regs[3] = 0x4321
+        initial_regs[4] = 0x6543
+        initial_regs[10] = 0x0123456789abcdef
+        initial_mem = {}
+        #enable virtmode
+        initial_msr = 1 << MSR.PR # must set "problem" state for virtual memory
+        print("MMUTEST: initial_msr=",initial_msr)
+        self.add_case(Program(lst, bigendian), initial_regs,
+                             initial_mem=initial_mem,initial_msr=initial_msr)
+
 if __name__ == "__main__":
     svp64 = True
     if len(sys.argv) == 2:
