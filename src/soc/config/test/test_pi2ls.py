@@ -118,7 +118,7 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     if exc_happened:
         return None, "slow"
 
-    yield from wait_busy(port1,debug="pi_ld_E") # wait while busy
+    yield from wait_busy(port1, debug="pi_ld_E") # wait while busy
 
     exc_happened = yield port1.exc_o.happened
     if exc_happened:
