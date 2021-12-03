@@ -93,7 +93,8 @@ class FSMMMUStage(ControlBase):
         spr1_i = i_data.spr1
 
         # these are set / got here *ON BEHALF* of LoadStore1
-        dsisr, dar = ldst.dsisr, ldst.dar
+        # XXX have to deal with this another way
+        # dsisr, dar = ldst.dsisr, ldst.dar
 
         # busy/done signals
         busy = Signal()
