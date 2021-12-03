@@ -278,6 +278,11 @@ class LoadStore1(PortInterfaceBase):
             sync += Display("alignment error: store addr in DAR %x", self.addr)
             comb += self.pi.dar_o.eq(self.addr)
 
+        # when done or exception, return to idle state
+        with m.If(self.done | exception):
+            sync += self.state.eq(State.IDLE)
+            comb += self.busy.eq(0)
+
         # happened, alignment, instr_fault, invalid.
         # note that all of these flow through - eventually to the TRAP
         # pipeline, via PowerDecoder2.
