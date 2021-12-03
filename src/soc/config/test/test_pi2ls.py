@@ -6,6 +6,7 @@ from nmigen.cli import rtlil
 import unittest
 from soc.config.test.test_loadstore import TestMemPspec
 from soc.config.loadstore import ConfigMemoryPortInterface
+from openpower.exceptions import LDSTExceptionTuple
 
 
 def wait_busy(port, no=False, debug=None):
@@ -57,7 +58,6 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.addr.ok.eq(1)  # set ok
     yield Settle()
     yield from wait_addr(port1)             # wait until addr ok
-    yield from wait_addr(port1)             # wait until addr ok
 
     # yield # not needed, just for checking
     # yield # not needed, just for checking
@@ -66,14 +66,28 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.st.ok.eq(1)
     yield
     yield port1.st.ok.eq(0)
-    exc_happened = yield port1.exc_o.happened
+    exc_info = yield from get_exception_info(port1.exc_o)
+    dar_o = yield port1.dar_o
+    exc_happened = exc_info.happened
     if exc_happened:
-        print("print fast exception happened")
+        print("print fast ST exception happened")
+        yield # MUST wait for one clock cycle before de-asserting these
         yield port1.is_st_i.eq(0)  # end
         yield port1.addr.ok.eq(0)  # set !ok
         yield port1.is_dcbz_i.eq(0)  # reset dcbz too
-        return "fast"
+        return "fast", exc_info, dar_o
+
     yield from wait_busy(port1,debug="pi_st_E") # wait while busy
+    exc_info = yield from get_exception_info(port1.exc_o)
+    dar_o = yield port1.dar_o
+    exc_happened = exc_info.happened
+    if exc_happened:
+        yield  # needed if mmu/dache is used
+        yield port1.is_st_i.eq(0)  # end
+        yield port1.addr.ok.eq(0)  # set !ok
+        yield port1.is_dcbz_i.eq(0)  # reset dcbz too
+        yield  # needed if mmu/dache is used
+        return "slow", exc_info, dar_o
 
     # can go straight to reset.
     yield port1.is_st_i.eq(0)  # end
@@ -81,7 +95,15 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.is_dcbz_i.eq(0)  # reset dcbz too
     yield  # needed if mmu/dache is used
 
-    return None
+    return None, None, None
+
+def get_exception_info(exc_o):
+    attrs = []
+    for fname in LDSTExceptionTuple._fields:
+        attr = getattr(exc_o, fname)
+        val = yield attr
+        attrs.append(val)
+    return LDSTExceptionTuple(*attrs)
 
 
 # copy of pi_st removed
@@ -100,31 +122,39 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     yield port1.addr.ok.eq(1)  # set ok
     yield Settle()
     yield from wait_addr(port1)             # wait until addr ok
-    exc_happened = yield port1.exc_o.happened
+    exc_info = yield from get_exception_info(port1.exc_o)
+    dar_o = yield port1.dar_o
+    exc_happened = exc_info.happened
     if exc_happened:
-        print("print fast exception happened")
+        print("print fast LD exception happened")
+        yield # MUST wait for one clock cycle before de-asserting these
         yield port1.is_ld_i.eq(0)  # end
         yield port1.addr.ok.eq(0)  # set !ok
-        return None, "fast"
+        return None, "fast", exc_info, dar_o
 
     yield
     yield from wait_ldok(port1)             # wait until ld ok
     data = yield port1.ld.data
+    exc_info = yield from get_exception_info(port1.exc_o)
+    dar_o = yield port1.dar_o
     exc_happened = yield port1.exc_o.happened
+    exc_happened = exc_info.happened
 
     # cleanup
     yield port1.is_ld_i.eq(0)  # end
     yield port1.addr.ok.eq(0)  # set !ok
     if exc_happened:
-        return None, "slow"
+        return None, "slow", exc_info, dar_o
 
     yield from wait_busy(port1, debug="pi_ld_E") # wait while busy
 
-    exc_happened = yield port1.exc_o.happened
+    exc_info = yield from get_exception_info(port1.exc_o)
+    dar_o = yield port1.dar_o
+    exc_happened = exc_info.happened
     if exc_happened:
-        return None, "slow"
+        return None, "slow", exc_info, dar_o
 
-    return data, None
+    return data, None, None, None
 
 
 def pi_ldst(arg, dut, msr_pr=0):
