@@ -286,6 +286,7 @@ class LoadStore1(PortInterfaceBase):
         # happened, alignment, instr_fault, invalid.
         # note that all of these flow through - eventually to the TRAP
         # pipeline, via PowerDecoder2.
+        comb += self.align_intr.eq(self.req.align_intr)
         comb += exc.invalid.eq(m_in.invalid)
         comb += exc.alignment.eq(self.align_intr)
         comb += exc.instr_fault.eq(self.instr_fault)
@@ -329,7 +330,6 @@ class LoadStore1(PortInterfaceBase):
             # XXX driver conflict.  ehn??
             # XXX m.d.comb += d_out.priv_mode.eq(self.req.priv_mode)
             # XXX m.d.comb += d_out.virt_mode.eq(self.req.virt_mode)
-            m.d.comb += self.align_intr.eq(self.req.align_intr)
             #m.d.comb += Display("validblip dcbz=%i addr=%x",
             #self.req.dcbz,self.req.addr)
             m.d.comb += d_out.dcbz.eq(self.req.dcbz)
@@ -341,7 +341,6 @@ class LoadStore1(PortInterfaceBase):
             # XXX driver conflict.  ehn??
             # XXX m.d.comb += d_out.priv_mode.eq(ldst_r.priv_mode)
             # XXX m.d.comb += d_out.virt_mode.eq(ldst_r.virt_mode)
-            m.d.comb += self.align_intr.eq(ldst_r.align_intr)
             #m.d.comb += Display("no_validblip dcbz=%i addr=%x",
             #ldst_r.dcbz,ldst_r.addr)
             m.d.comb += d_out.dcbz.eq(ldst_r.dcbz)
