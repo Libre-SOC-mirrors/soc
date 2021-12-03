@@ -235,11 +235,9 @@ class PortInterfaceBase(Elaboratable):
 
         # LD/ST requested activates "busy" (only if not already busy)
         with m.If(self.pi.is_ld_i | self.pi.is_st_i):
+            comb += busy_l.s.eq(~busy_delay)
             with m.If(self.pi.exc_o.happened):
-                comb += busy_l.s.eq(0)
                 sync += Display("fast exception")
-            with m.Else():
-                comb += busy_l.s.eq(~busy_delay)
 
         # if now in "LD" mode: wait for addr_ok, then send the address out
         # to memory, acknowledge address, and send out LD data
@@ -283,6 +281,7 @@ class PortInterfaceBase(Elaboratable):
             comb += reset_l.s.eq(ldok)     # reset mode after 1 cycle
 
         # for ST mode, when addr has been "ok'd", wait for incoming "ST ok"
+        sync += st_done.s.eq(0)     # store done trigger
         with m.If(st_active.q & pi.st.ok):
             # shift data up before storing.  lenexp *bit* version of mask is
             # passed straight through as byte-level "write-enable" lines.
@@ -291,7 +290,7 @@ class PortInterfaceBase(Elaboratable):
             # TODO: replace with link to LoadStoreUnitInterface.x_store_data
             # and also handle the ready/stall/busy protocol
             stok = self.set_wr_data(m, stdata, lenexp.lexp_o)
-            sync += st_done.s.eq(1)     # store done trigger
+            sync += st_done.s.eq(~self.pi.exc_o.happened) # store done trigger
         with m.If(st_done.q):
             comb += reset_l.s.eq(stok)   # reset mode after 1 cycle
 
