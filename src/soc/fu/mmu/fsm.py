@@ -108,8 +108,10 @@ class FSMMMUStage(ControlBase):
         comb += spr.eq(decode_spr_num(x_fields.SPR))
 
         # based on MSR bits, set priv and virt mode.  TODO: 32-bit mode
-        comb += d_in.priv_mode.eq(~msr_i[MSR.PR])
-        comb += d_in.virt_mode.eq(msr_i[MSR.DR])
+        # XXX WARK-WARK, this should be done in loadstore.py
+        # (through the PortInterface)
+        #comb += d_in.priv_mode.eq(~msr_i[MSR.PR])
+        #comb += d_in.virt_mode.eq(msr_i[MSR.DR])
         #comb += d_in.mode_32bit.eq(msr_i[MSR.SF]) # ?? err
 
         # ok so we have to "pulse" the MMU (or dcache) rather than

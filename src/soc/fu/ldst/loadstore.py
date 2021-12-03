@@ -327,9 +327,8 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += d_out.byte_sel.eq(self.req.byte_sel)
             m.d.comb += self.addr.eq(self.req.addr)
             m.d.comb += d_out.nc.eq(self.req.nc)
-            # XXX driver conflict.  ehn??
-            # XXX m.d.comb += d_out.priv_mode.eq(self.req.priv_mode)
-            # XXX m.d.comb += d_out.virt_mode.eq(self.req.virt_mode)
+            m.d.comb += d_out.priv_mode.eq(self.req.priv_mode)
+            m.d.comb += d_out.virt_mode.eq(self.req.virt_mode)
             #m.d.comb += Display("validblip dcbz=%i addr=%x",
             #self.req.dcbz,self.req.addr)
             m.d.comb += d_out.dcbz.eq(self.req.dcbz)
@@ -338,9 +337,8 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += d_out.byte_sel.eq(ldst_r.byte_sel)
             m.d.comb += self.addr.eq(ldst_r.addr)
             m.d.comb += d_out.nc.eq(ldst_r.nc)
-            # XXX driver conflict.  ehn??
-            # XXX m.d.comb += d_out.priv_mode.eq(ldst_r.priv_mode)
-            # XXX m.d.comb += d_out.virt_mode.eq(ldst_r.virt_mode)
+            m.d.comb += d_out.priv_mode.eq(ldst_r.priv_mode)
+            m.d.comb += d_out.virt_mode.eq(ldst_r.virt_mode)
             #m.d.comb += Display("no_validblip dcbz=%i addr=%x",
             #ldst_r.dcbz,ldst_r.addr)
             m.d.comb += d_out.dcbz.eq(ldst_r.dcbz)
