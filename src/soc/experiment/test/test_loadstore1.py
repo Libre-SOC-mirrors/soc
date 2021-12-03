@@ -26,7 +26,7 @@ def wb_get(wb, mem):
     """
 
     global stop
-    assert(stop==False)
+    assert (stop==False)
 
     while not stop:
         while True: # wait for dc_valid
@@ -100,7 +100,7 @@ def setup_mmu():
 
     return m, cmpi
 
-test_exceptions = False
+test_exceptions = True
 test_dcbz = True
 test_random = True
 
@@ -113,11 +113,11 @@ def _test_loadstore1_invalid(dut, mem):
     print("=== test invalid ===")
 
     addr = 0
-    ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-    print("ld_data",ld_data,exc)
-    assert(exc=="slow")
-    invalid = yield pi.exc_o.invalid
-    assert(invalid==1)
+    ld_data, exctype, exc, dar_o = yield from pi_ld(pi, addr, 8, msr_pr=1)
+    print("ld_data", ld_data, exctype, exc)
+    assert (exctype == "slow")
+    invalid = exc.invalid
+    assert (invalid == 1)
 
     print("=== test invalid done ===")
 
@@ -140,81 +140,106 @@ def _test_loadstore1(dut, mem):
         yield from pi_st(pi, addr, data, 8, msr_pr=1)
         yield
 
-        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, exctype, exc, dar_o = yield from pi_ld(pi, addr, 8, msr_pr=1)
         assert ld_data == 0xf553b658ba7e1f51
-        assert exc is None
-        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        assert exctype is None
+
+        ld_data, exctype, exc, dar_o  = yield from pi_ld(pi, addr, 8, msr_pr=1)
         assert ld_data == 0xf553b658ba7e1f51
-        assert exc is None
+        assert exctype is None
 
         print("do_dcbz ===============")
         yield from pi_st(pi, addr, data, 8, msr_pr=1, is_dcbz=1)
         print("done_dcbz ===============")
         yield
 
-        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, exctype, exc, dar_o  = yield from pi_ld(pi, addr, 8, msr_pr=1)
         print("ld_data after dcbz")
         print(ld_data)
         assert ld_data == 0
-        assert exc is None
+        assert exctype is None
 
     if test_exceptions:
         print("=== alignment error (ld) ===")
         addr = 0xFF100e0FF
-        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-        alignment = yield pi.exc_o.alignment
-        happened = yield pi.exc_o.happened
-        dar = yield pi.dar_o
-        assert(happened==1)
-        assert(alignment==1)
-        assert(dar==addr)
-        assert(exc=="fast")
+        ld_data, exctype, exc, dar = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        if exc:
+            alignment = exc.alignment
+            happened = exc.happened
+        else:
+            alignment = 0
+            happened = 0
+        assert (happened == 1)
+        assert (alignment == 1)
+        assert (dar == addr)
+        assert (exctype == "fast")
         yield from wait_busy(pi, debug="pi_ld_E_alignment_error")
         # wait is only needed in case of in exception here
         print("=== alignment error test passed (ld) ===")
 
+        # take some cycles in between so that gtkwave separates out
+        # signals
+        yield
+        yield
+        yield
+        yield
+
         print("=== alignment error (st) ===")
         addr = 0xFF100e0FF
-        exc = yield from pi_st(pi, addr,0, 8, msr_pr=1)
-        alignment = yield pi.exc_o.alignment
-        happened = yield pi.exc_o.happened
-        dar = yield pi.dar_o
-        assert(happened==1)
-        assert(alignment==1)
-        assert(dar==addr)
-        assert(exc=="fast")
+        exctype, exc, dar_o = yield from pi_st(pi, addr,0, 8, msr_pr=1)
+        if exc:
+            alignment = exc.alignment
+            happened = exc.happened
+        else:
+            alignment = 0
+            happened = 0
+        assert (happened == 1)
+        assert (alignment==1)
+        assert (dar==addr)
+        assert (exctype == "fast")
         #???? yield from wait_busy(pi, debug="pi_st_E_alignment_error")
         # wait is only needed in case of in exception here
         print("=== alignment error test passed (st) ===")
         yield #FIXME hangs
 
-        print("=== no error ===")
+    if True:
+        print("=== no alignment error (ld) ===")
         addr = 0x100e0
-        ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
-        print("ld_data",ld_data,exc)
-        print("=== no error done ===")
+        ld_data, exctype, exc, dar_o = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        print("ld_data", ld_data, exctype, exc)
+        if exc:
+            alignment = exc.alignment
+            happened = exc.happened
+        else:
+            alignment = 0
+            happened = 0
+        assert (happened == 0)
+        assert (alignment == 0)
+        print("=== no alignment error done (ld) ===")
 
     if test_random:
         addrs = [0x456920,0xa7a180,0x299420,0x1d9d60]
 
         for addr in addrs:
             print("== RANDOM addr ==",hex(addr))
-            ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+            ld_data, exctype, exc, dar_o  = \
+                                yield from pi_ld(pi, addr, 8, msr_pr=1)
             print("ld_data[RANDOM]",ld_data,exc,addr)
-            assert(exc==None)
+            assert (exctype == None)
 
         for addr in addrs:
             print("== RANDOM addr ==",hex(addr))
             exc = yield from pi_st(pi, addr,0xFF*addr, 8, msr_pr=1)
-            assert(exc==None)
+            assert (exctype == None)
 
         # readback written data and compare
         for addr in addrs:
             print("== RANDOM addr ==",hex(addr))
-            ld_data, exc = yield from pi_ld(pi, addr, 8, msr_pr=1)
+            ld_data, exctype, exc, dar_o = \
+                                yield from pi_ld(pi, addr, 8, msr_pr=1)
             print("ld_data[RANDOM_READBACK]",ld_data,exc,addr)
-            assert(exc==None)
-            assert(ld_data == 0xFF*addr)
+            assert (exctype == None)
+            assert (ld_data == 0xFF*addr)
 
         print("== RANDOM addr done ==")
 
