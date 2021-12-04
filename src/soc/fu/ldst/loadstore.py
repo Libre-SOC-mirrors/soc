@@ -286,6 +286,9 @@ class LoadStore1(PortInterfaceBase):
             with m.If(self.mmu_set_dar):
                 sync += dar.eq(self.sprval_in)
 
+        # hmmm, alignment occurs in set_rd_addr/set_wr_addr, note exception
+        with m.If(self.align_intr):
+            comb += exc.happened.eq(1)
         # check for updating DAR
         with m.If(exception):
             sync += Display("exception %x", self.addr)
