@@ -113,7 +113,7 @@ def _test_loadstore1_invalid(dut, mem):
     print("=== test invalid ===")
 
     addr = 0
-    ld_data, exctype, exc, dar_o = yield from pi_ld(pi, addr, 8, msr_pr=1)
+    ld_data, exctype, exc, _ = yield from pi_ld(pi, addr, 8, msr_pr=1)
     print("ld_data", ld_data, exctype, exc)
     assert (exctype == "slow")
     invalid = exc.invalid
@@ -127,6 +127,7 @@ def _test_loadstore1_invalid(dut, mem):
 def _test_loadstore1(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
+    ldst = dut.submodules.ldst # to get at DAR (NOT part of PortInterface)
     global stop
     stop = False
 
@@ -140,11 +141,11 @@ def _test_loadstore1(dut, mem):
         yield from pi_st(pi, addr, data, 8, msr_pr=1)
         yield
 
-        ld_data, exctype, exc, dar_o = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, exctype, exc, _ = yield from pi_ld(pi, addr, 8, msr_pr=1)
         assert ld_data == 0xf553b658ba7e1f51
         assert exctype is None
 
-        ld_data, exctype, exc, dar_o  = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, exctype, exc, _  = yield from pi_ld(pi, addr, 8, msr_pr=1)
         assert ld_data == 0xf553b658ba7e1f51
         assert exctype is None
 
@@ -153,7 +154,7 @@ def _test_loadstore1(dut, mem):
         print("done_dcbz ===============")
         yield
 
-        ld_data, exctype, exc, dar_o  = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, exctype, exc, _  = yield from pi_ld(pi, addr, 8, msr_pr=1)
         print("ld_data after dcbz")
         print(ld_data)
         assert ld_data == 0
@@ -162,13 +163,16 @@ def _test_loadstore1(dut, mem):
     if test_exceptions:
         print("=== alignment error (ld) ===")
         addr = 0xFF100e0FF
-        ld_data, exctype, exc, dar = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, exctype, exc, _ = yield from pi_ld(pi, addr, 8, msr_pr=1)
         if exc:
             alignment = exc.alignment
             happened = exc.happened
+            yield # wait for dsr to update
+            dar = yield ldst.dar
         else:
             alignment = 0
             happened = 0
+            dar = 0
         assert (happened == 1)
         assert (alignment == 1)
         assert (dar == addr)
@@ -186,7 +190,7 @@ def _test_loadstore1(dut, mem):
 
         print("=== alignment error (st) ===")
         addr = 0xFF100e0FF
-        exctype, exc, dar_o = yield from pi_st(pi, addr,0, 8, msr_pr=1)
+        exctype, exc, _ = yield from pi_st(pi, addr,0, 8, msr_pr=1)
         if exc:
             alignment = exc.alignment
             happened = exc.happened
@@ -205,7 +209,7 @@ def _test_loadstore1(dut, mem):
     if True:
         print("=== no alignment error (ld) ===")
         addr = 0x100e0
-        ld_data, exctype, exc, dar_o = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, exctype, exc, _ = yield from pi_ld(pi, addr, 8, msr_pr=1)
         print("ld_data", ld_data, exctype, exc)
         if exc:
             alignment = exc.alignment
@@ -222,7 +226,7 @@ def _test_loadstore1(dut, mem):
 
         for addr in addrs:
             print("== RANDOM addr ==",hex(addr))
-            ld_data, exctype, exc, dar_o  = \
+            ld_data, exctype, exc, _  = \
                                 yield from pi_ld(pi, addr, 8, msr_pr=1)
             print("ld_data[RANDOM]",ld_data,exc,addr)
             assert (exctype == None)
@@ -235,7 +239,7 @@ def _test_loadstore1(dut, mem):
         # readback written data and compare
         for addr in addrs:
             print("== RANDOM addr ==",hex(addr))
-            ld_data, exctype, exc, dar_o = \
+            ld_data, exctype, exc, _ = \
                                 yield from pi_ld(pi, addr, 8, msr_pr=1)
             print("ld_data[RANDOM_READBACK]",ld_data,exc,addr)
             assert (exctype == None)
