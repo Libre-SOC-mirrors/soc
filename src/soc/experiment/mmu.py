@@ -306,19 +306,19 @@ class MMU(Elaboratable):
         with m.Else():
             comb += v.state.eq(State.RADIX_LOOKUP)
 
-    def mmu_0(self, m, r, rin, l_in, l_out, d_out, addrsh, mask):
+    def mmu_0(self, m, r, v, l_in, l_out, d_out, addrsh, mask):
         comb = m.d.comb
         sync = m.d.sync
 
         # Multiplex internal SPR values back to loadstore1,
         # selected by l_in.sprn.
         with m.If(l_in.sprn[9]):
-            comb += l_out.sprval.eq(r.prtbl)
+            comb += l_out.sprval.eq(v.prtbl)
         with m.Else():
-            comb += l_out.sprval.eq(r.pid)
+            comb += l_out.sprval.eq(v.pid)
 
-        with m.If(rin.valid):
-            sync += Display("MMU got tlb miss for %x", rin.addr)
+        with m.If(v.valid):
+            sync += Display("MMU got tlb miss for %x", v.addr)
 
         with m.If(l_out.done):
             sync += Display("MMU completing op without error")
@@ -327,14 +327,13 @@ class MMU(Elaboratable):
             sync += Display("MMU completing op with err invalid="
                             "%d badtree=%d", l_out.invalid, l_out.badtree)
 
-        with m.If(rin.state == State.RADIX_LOOKUP):
+        with m.If(v.state == State.RADIX_LOOKUP):
             sync += Display ("radix lookup shift=%d msize=%d",
-                            rin.shift, rin.mask_size)
+                            v.shift, v.mask_size)
 
         with m.If(r.state == State.RADIX_LOOKUP):
             sync += Display(f"send load addr=%x addrsh=%d mask=%x",
                             d_out.addr, addrsh, mask)
-        sync += r.eq(rin)
 
     def elaborate(self, platform):
         m = Module()
@@ -346,8 +345,8 @@ class MMU(Elaboratable):
         mask = Signal(16)
         finalmask = Signal(44)
 
-        self.rin = rin = RegStage("r_in")
         r = RegStage("r")
+        self.v = v = RegStage()
 
         l_in  = self.l_in
         l_out = self.l_out
@@ -355,9 +354,8 @@ class MMU(Elaboratable):
         d_in  = self.d_in
         i_out = self.i_out
 
-        self.mmu_0(m, r, rin, l_in, l_out, d_out, addrsh, mask)
+        self.mmu_0(m, r, v, l_in, l_out, d_out, addrsh, mask)
 
-        v = RegStage()
         dcreq = Signal()
         tlb_load = Signal()
         itlb_load = Signal()
@@ -482,7 +480,7 @@ class MMU(Elaboratable):
         comb += pte.eq(Cat(r.pde[0:12], pd44))
 
         # update registers
-        comb += rin.eq(v)
+        sync += r.eq(v)
 
         # drive outputs
         with m.If(tlbie_req):
@@ -604,7 +602,7 @@ def mmu_sim(dut):
     yield dut.l_in.rs.eq(0)
     yield
 
-    prtbl = yield (dut.rin.prtbl)
+    prtbl = yield (dut.v.prtbl)
     print ("prtbl after MTSPR %x" % prtbl)
     assert prtbl == 0x1000000
 
