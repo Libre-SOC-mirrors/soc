@@ -123,7 +123,7 @@ class TestMicrowattMemoryPortInterface(PortInterfaceBase):
 stop = False
 
 
-def wb_get(dc):
+def todo_replace_wb_get(dc):
     """simulator process for getting memory load requests
     """
 
@@ -242,7 +242,7 @@ def test_mmu():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(mmu_sim(dut)))
-    sim.add_sync_process(wrap(wb_get(dcache)))
+    sim.add_sync_process(wrap(todo_replace_wb_get(dcache)))
     with sim.write_vcd('test_mmu_pi.vcd'):
         sim.run()
 
