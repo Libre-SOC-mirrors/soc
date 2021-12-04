@@ -89,12 +89,7 @@ class FSMMMUStage(ControlBase):
         i_data, o_data = self.p.i_data, self.n.o_data
         a_i, b_i, o, spr1_o = i_data.ra, i_data.rb, o_data.o, o_data.spr1
         op = i_data.ctx.op
-        msr_i = op.msr
         spr1_i = i_data.spr1
-
-        # these are set / got here *ON BEHALF* of LoadStore1
-        # XXX have to deal with this another way
-        # dsisr, dar = ldst.dsisr, ldst.dar
 
         # busy/done signals
         busy = Signal()
@@ -106,13 +101,6 @@ class FSMMMUStage(ControlBase):
         x_fields = self.fields.FormXFX
         spr = Signal(len(x_fields.SPR))
         comb += spr.eq(decode_spr_num(x_fields.SPR))
-
-        # based on MSR bits, set priv and virt mode.  TODO: 32-bit mode
-        # XXX WARK-WARK, this should be done in loadstore.py
-        # (through the PortInterface)
-        #comb += d_in.priv_mode.eq(~msr_i[MSR.PR])
-        #comb += d_in.virt_mode.eq(msr_i[MSR.DR])
-        #comb += d_in.mode_32bit.eq(msr_i[MSR.SF]) # ?? err
 
         # ok so we have to "pulse" the MMU (or dcache) rather than
         # hold the valid hi permanently.  guess what this does...
@@ -153,9 +141,9 @@ class FSMMMUStage(ControlBase):
                         comb += ldst.sprval_in.eq(a_i)
                         comb += ldst.mmu_set_spr.eq(1)
                         with m.If(spr[0]):
-                            comb += ldst.mmu_set_dsisr.eq(1)
-                        with m.Else():
                             comb += ldst.mmu_set_dar.eq(1)
+                        with m.Else():
+                            comb += ldst.mmu_set_dsisr.eq(1)
                         comb += done.eq(1)
                     # pass it over to the MMU instead
                     with m.Else():
@@ -172,7 +160,21 @@ class FSMMMUStage(ControlBase):
                 with m.Case(MicrOp.OP_MFSPR):
                     comb += Display("MMUTEST: OP_MFSPR: spr=%i returns=%i",
                                     spr, spr1_i)
-                    comb += o.data.eq(spr1_i)
+                    # partial SPR number decoding perfectly fine
+                    with m.If(spr[9] | spr[5]):
+                        # identified as an MMU OP_MFSPR, contact the MMU.
+                        # interestingly, the read is combinatorial: no need
+                        # to set "valid", just set the SPR number
+                        comb += l_in.sprn.eq(spr)  # which SPR
+                        comb += o.data.eq(l_out.sprval)
+                    with m.Else():
+                        # identified as DSISR or DAR.  again: read the SPR
+                        # directly, combinatorial access
+                        with m.If(spr[0]):
+                            comb += o.data.eq(ldst.dar)
+                        with m.Else():
+                            comb += o.data.eq(ldst.dsisr)
+
                     comb += o.ok.eq(1)
                     comb += done.eq(1)
 
