@@ -57,7 +57,33 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.addr.data.eq(addr)  # set address
     yield port1.addr.ok.eq(1)  # set ok
     yield Settle()
+
+    # must check exception even before waiting for address.
+    # XXX TODO: wait_addr should check for exception
+    exc_info = yield from get_exception_info(port1.exc_o)
+    exc_happened = exc_info.happened
+    dar_o = yield port1.dar_o
+    if exc_happened:
+        print("print fast ST exception happened")
+        yield # MUST wait for one clock cycle before de-asserting these
+        yield port1.is_st_i.eq(0)  # end
+        yield port1.addr.ok.eq(0)  # set !ok
+        yield port1.is_dcbz_i.eq(0)  # reset dcbz too
+        return "fast", exc_info, dar_o
+
     yield from wait_addr(port1)             # wait until addr ok
+
+    exc_info = yield from get_exception_info(port1.exc_o)
+    exc_happened = exc_info.happened
+    dar_o = yield port1.dar_o
+    if exc_happened:
+        print("print fast ST exception happened")
+        yield # MUST wait for one clock cycle before de-asserting these
+        yield port1.is_st_i.eq(0)  # end
+        yield port1.addr.ok.eq(0)  # set !ok
+        yield port1.is_dcbz_i.eq(0)  # reset dcbz too
+        return "fast", exc_info, dar_o
+
 
     # yield # not needed, just for checking
     # yield # not needed, just for checking
