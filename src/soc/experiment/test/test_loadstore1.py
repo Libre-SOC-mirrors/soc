@@ -18,59 +18,13 @@ from soc.experiment.test import pagetables
 
 from nmigen.compat.sim import run_simulation
 from random import random
+from openpower.test.wb_get import wb_get
+from openpower.test import wb_get as wbget
 
-stop = False
-
-def wb_get(wb, mem):
-    """simulator process for getting memory load requests
-    """
-
-    global stop
-    assert (stop==False)
-
-    while not stop:
-        while True: # wait for dc_valid
-            if stop:
-                return
-            cyc = yield (wb.cyc)
-            stb = yield (wb.stb)
-            if cyc and stb:
-                break
-            yield
-        addr = (yield wb.adr) << 3
-        if addr not in mem:
-            print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
-
-        # read or write?
-        we = (yield wb.we)
-        if we:
-            store = (yield wb.dat_w)
-            sel = (yield wb.sel)
-            data = mem.get(addr, 0)
-            # note we assume 8-bit sel, here
-            res = 0
-            for i in range(8):
-                mask = 0xff << (i*8)
-                if sel & (1<<i):
-                    res |= store & mask
-                else:
-                    res |= data & mask
-            mem[addr] = res
-            print ("    DCACHE set %x mask %x data %x" % (addr, sel, res))
-        else:
-            data = mem.get(addr, 0)
-            yield wb.dat_r.eq(data)
-            print ("    DCACHE get %x data %x" % (addr, data))
-
-        yield wb.ack.eq(1)
-        yield
-        yield wb.ack.eq(0)
-        yield
 
 def setup_mmu():
 
-    global stop
-    stop = False
+    wbget.stop = False
 
     pspec = TestMemPspec(ldst_ifacetype='mmu_cache_wb',
                          imem_ifacetype='',
@@ -100,15 +54,16 @@ def setup_mmu():
 
     return m, cmpi
 
+
 test_exceptions = True
 test_dcbz = True
 test_random = True
 
+
 def _test_loadstore1_invalid(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
-    global stop
-    stop = False
+    wbget.stop = False
 
     print("=== test invalid ===")
 
@@ -121,15 +76,14 @@ def _test_loadstore1_invalid(dut, mem):
 
     print("=== test invalid done ===")
 
-    stop = True
+    wbget.stop = True
 
 
 def _test_loadstore1(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
     ldst = dut.submodules.ldst # to get at DAR (NOT part of PortInterface)
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
@@ -245,7 +199,8 @@ def _test_loadstore1(dut, mem):
 
         print("== RANDOM addr done ==")
 
-    stop = True
+    wbget.stop = True
+
 
 def test_loadstore1():
 
@@ -262,6 +217,7 @@ def test_loadstore1():
     with sim.write_vcd('test_loadstore1.vcd'):
         sim.run()
 
+
 def test_loadstore1_invalid():
 
     m, cmpi = setup_mmu()
@@ -276,6 +232,7 @@ def test_loadstore1_invalid():
     sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
     with sim.write_vcd('test_loadstore1_invalid.vcd'):
         sim.run()
+
 
 if __name__ == '__main__':
     test_loadstore1()
