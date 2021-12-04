@@ -10,6 +10,8 @@ from nmigen.cli import rtlil
 from nmutil.mask import Mask, masked
 from nmutil.util import Display
 from random import randint, seed
+from openpower.test.wb_get import wb_get
+from openpower.test import wb_get as wbget
 
 if True:
     from nmigen.back.pysim import Simulator, Delay, Settle
@@ -27,7 +29,7 @@ from soc.experiment.mmu import MMU
 from nmigen.compat.sim import run_simulation
 
 
-stop = False
+wbget.stop = False
 
 def b(x): # byte-reverse function
     return int.from_bytes(x.to_bytes(8, byteorder='little'),
@@ -38,63 +40,16 @@ def b(x): # byte-reverse function
 #    for cell in mem:
 #        f.write(str(hex(cell))+"="+str(hex(mem[cell]))+"\n")
 
-def wb_get(wb, mem):
-    """simulator process for getting memory load requests
-    """
-
-    global stop
-    assert(stop==False)
-
-    while not stop:
-        while True: # wait for dc_valid
-            if stop:
-                return
-            cyc = yield (wb.cyc)
-            stb = yield (wb.stb)
-            if cyc and stb:
-                break
-            yield
-        addr = (yield wb.adr) << 3
-        if addr not in mem:
-            print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
-
-        # read or write?
-        we = (yield wb.we)
-        if we:
-            store = (yield wb.dat_w)
-            sel = (yield wb.sel)
-            data = mem.get(addr, 0)
-            # note we assume 8-bit sel, here
-            res = 0
-            for i in range(8):
-                mask = 0xff << (i*8)
-                if sel & (1<<i):
-                    res |= store & mask
-                else:
-                    res |= data & mask
-            mem[addr] = res
-            print ("    DCACHE set %x mask %x data %x" % (addr, sel, res))
-        else:
-            data = mem.get(addr, 0)
-            yield wb.dat_r.eq(data)
-            print ("    DCACHE get %x data %x" % (addr, data))
-
-        yield wb.ack.eq(1)
-        yield
-        yield wb.ack.eq(0)
-        yield
-
 
 def mmu_lookup(dut, addr):
     mmu = dut.submodules.mmu
-    global stop
 
     print("pi_ld", hex(addr))
     data, _, _ = yield from pi_ld(dut.submodules.ldst.pi, addr, 4, msr_pr=1)
     print("pi_ld done, data", hex(data))
     """
     # original test code kept for reference
-    while not stop: # wait for dc_valid / err
+    while not wbget.stop: # wait for dc_valid / err
         print("waiting for mmu")
         l_done = yield (mmu.l_out.done)
         l_err = yield (mmu.l_out.err)
@@ -123,7 +78,6 @@ def mmu_lookup(dut, addr):
 
 def ldst_sim(dut):
     mmu = dut.submodules.mmu
-    global stop
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
 
@@ -157,12 +111,11 @@ def ldst_sim(dut):
     yield
     yield
 
-    stop = True
+    wbget.stop = True
 
 def setup_mmu():
 
-    global stop
-    stop = False
+    wbget.stop = False
 
     pspec = TestMemPspec(ldst_ifacetype='mmu_cache_wb',
                          imem_ifacetype='',
@@ -234,8 +187,7 @@ def test_mmu():
 
 def ldst_sim_misalign(dut):
     mmu = dut.submodules.mmu
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
@@ -244,7 +196,7 @@ def ldst_sim_misalign(dut):
     print ("misalign ld data", data)
 
     yield
-    stop = True
+    wbget.stop = True
 
 
 def test_misalign_mmu():
@@ -288,8 +240,7 @@ def test_misalign_mmu():
 
 def ldst_sim_radixmiss(dut):
     mmu = dut.submodules.mmu
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(1<<40) # set process table
     yield
@@ -299,12 +250,11 @@ def ldst_sim_radixmiss(dut):
     print ("radixmiss ld data", data)
 
     yield
-    stop = True
+    wbget.stop = True
 
 def ldst_sim_dcache_regression(dut):
     mmu = dut.submodules.mmu
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
@@ -315,13 +265,12 @@ def ldst_sim_dcache_regression(dut):
     assert(data == 0xdeadbeef01234567)
 
     yield
-    stop = True
+    wbget.stop = True
 
 def ldst_sim_dcache_random(dut):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
@@ -344,13 +293,12 @@ def ldst_sim_dcache_random(dut):
         assert(data==ld_data)   ## investigate why this fails -- really seldom
 
     yield
-    stop = True
+    wbget.stop = True
 
 def ldst_sim_dcache_first(dut): # this test is likely to fail
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
@@ -371,7 +319,7 @@ def ldst_sim_dcache_first(dut): # this test is likely to fail
     assert(data==ld_data)
 
     yield
-    stop = True
+    wbget.stop = True
 
 def test_radixmiss_mmu():
 
@@ -484,8 +432,7 @@ def test_dcache_random():
 def ldst_sim_dcache_random2(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
@@ -537,7 +484,7 @@ def ldst_sim_dcache_random2(dut, mem):
         assert(data==ld_data)   ## investigate why this fails -- really seldom
 
     yield
-    stop = True
+    wbget.stop = True
 
 def test_dcache_random2():
 
