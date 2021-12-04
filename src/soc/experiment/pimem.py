@@ -110,7 +110,6 @@ class PortInterface(RecordObject):
         # addr is valid (TLB, L1 etc.)
         self.addr_ok_o = Signal(reset_less=True)
         self.exc_o = LDSTException("exc")
-        self.dar_o = Signal(64, reset_less=True)
 
         # LD/ST
         self.ld = Data(regwid, "ld_data_o")  # ok to be set by L0 Cache/Buf
@@ -145,7 +144,6 @@ class PortInterface(RecordObject):
                 inport.busy_o.eq(self.busy_o),
                 inport.addr_ok_o.eq(self.addr_ok_o),
                 inport.exc_o.eq(self.exc_o),
-                inport.dar_o.eq(self.dar_o),
                 inport.mmu_done.eq(self.mmu_done),
                 inport.ldst_error.eq(self.ldst_error),
                 inport.cache_paradox.eq(self.cache_paradox)

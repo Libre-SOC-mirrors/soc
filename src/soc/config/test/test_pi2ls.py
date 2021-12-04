@@ -62,27 +62,25 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     # XXX TODO: wait_addr should check for exception
     exc_info = yield from get_exception_info(port1.exc_o)
     exc_happened = exc_info.happened
-    dar_o = yield port1.dar_o
     if exc_happened:
         print("print fast ST exception happened")
         yield # MUST wait for one clock cycle before de-asserting these
         yield port1.is_st_i.eq(0)  # end
         yield port1.addr.ok.eq(0)  # set !ok
         yield port1.is_dcbz_i.eq(0)  # reset dcbz too
-        return "fast", exc_info, dar_o
+        return "fast", exc_info
 
     yield from wait_addr(port1)             # wait until addr ok
 
     exc_info = yield from get_exception_info(port1.exc_o)
     exc_happened = exc_info.happened
-    dar_o = yield port1.dar_o
     if exc_happened:
         print("print fast ST exception happened")
         yield # MUST wait for one clock cycle before de-asserting these
         yield port1.is_st_i.eq(0)  # end
         yield port1.addr.ok.eq(0)  # set !ok
         yield port1.is_dcbz_i.eq(0)  # reset dcbz too
-        return "fast", exc_info, dar_o
+        return "fast", exc_info
 
 
     # yield # not needed, just for checking
@@ -93,7 +91,6 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield
     yield port1.st.ok.eq(0)
     exc_info = yield from get_exception_info(port1.exc_o)
-    dar_o = yield port1.dar_o
     exc_happened = exc_info.happened
     if exc_happened:
         print("print fast ST exception happened")
@@ -101,11 +98,10 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
         yield port1.is_st_i.eq(0)  # end
         yield port1.addr.ok.eq(0)  # set !ok
         yield port1.is_dcbz_i.eq(0)  # reset dcbz too
-        return "fast", exc_info, dar_o
+        return "fast", exc_info
 
     yield from wait_busy(port1,debug="pi_st_E") # wait while busy
     exc_info = yield from get_exception_info(port1.exc_o)
-    dar_o = yield port1.dar_o
     exc_happened = exc_info.happened
     if exc_happened:
         yield  # needed if mmu/dache is used
@@ -113,7 +109,7 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
         yield port1.addr.ok.eq(0)  # set !ok
         yield port1.is_dcbz_i.eq(0)  # reset dcbz too
         yield  # needed if mmu/dache is used
-        return "slow", exc_info, dar_o
+        return "slow", exc_info
 
     # can go straight to reset.
     yield port1.is_st_i.eq(0)  # end
@@ -121,7 +117,7 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.is_dcbz_i.eq(0)  # reset dcbz too
     yield  # needed if mmu/dache is used
 
-    return None, None, None
+    return None, None
 
 def get_exception_info(exc_o):
     attrs = []
@@ -149,20 +145,18 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     yield Settle()
     yield from wait_addr(port1)             # wait until addr ok
     exc_info = yield from get_exception_info(port1.exc_o)
-    dar_o = yield port1.dar_o
     exc_happened = exc_info.happened
     if exc_happened:
         print("print fast LD exception happened")
         yield # MUST wait for one clock cycle before de-asserting these
         yield port1.is_ld_i.eq(0)  # end
         yield port1.addr.ok.eq(0)  # set !ok
-        return None, "fast", exc_info, dar_o
+        return None, "fast", exc_info
 
     yield
     yield from wait_ldok(port1)             # wait until ld ok
     data = yield port1.ld.data
     exc_info = yield from get_exception_info(port1.exc_o)
-    dar_o = yield port1.dar_o
     exc_happened = yield port1.exc_o.happened
     exc_happened = exc_info.happened
 
@@ -170,17 +164,16 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     yield port1.is_ld_i.eq(0)  # end
     yield port1.addr.ok.eq(0)  # set !ok
     if exc_happened:
-        return None, "slow", exc_info, dar_o
+        return None, "slow", exc_info
 
     yield from wait_busy(port1, debug="pi_ld_E") # wait while busy
 
     exc_info = yield from get_exception_info(port1.exc_o)
-    dar_o = yield port1.dar_o
     exc_happened = exc_info.happened
     if exc_happened:
-        return None, "slow", exc_info, dar_o
+        return None, "slow", exc_info
 
-    return data, None, None, None
+    return data, None, None
 
 
 def pi_ldst(arg, dut, msr_pr=0):
