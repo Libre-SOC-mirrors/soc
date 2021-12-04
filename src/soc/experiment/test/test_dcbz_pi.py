@@ -20,61 +20,17 @@ from soc.experiment.mmu import MMU
 from soc.experiment.test import pagetables
 
 from nmigen.compat.sim import run_simulation
+from openpower.test.wb_get import wb_get
+from openpower.test import wb_get as wbget
 
 
 
-stop = False
+wbget.stop = False
 
-def wb_get(wb, mem):
-    """simulator process for getting memory load requests
-    """
-
-    global stop
-    assert(stop==False)
-
-    while not stop:
-        while True: # wait for dc_valid
-            if stop:
-                return
-            cyc = yield (wb.cyc)
-            stb = yield (wb.stb)
-            if cyc and stb:
-                break
-            yield
-        addr = (yield wb.adr) << 3
-        if addr not in mem:
-            print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
-
-        # read or write?
-        we = (yield wb.we)
-        if we:
-            store = (yield wb.dat_w)
-            sel = (yield wb.sel)
-            data = mem.get(addr, 0)
-            # note we assume 8-bit sel, here
-            res = 0
-            for i in range(8):
-                mask = 0xff << (i*8)
-                if sel & (1<<i):
-                    res |= store & mask
-                else:
-                    res |= data & mask
-            mem[addr] = res
-            print ("    DCACHE set %x mask %x data %x" % (addr, sel, res))
-        else:
-            data = mem.get(addr, 0)
-            yield wb.dat_r.eq(data)
-            print ("    DCACHE get %x data %x" % (addr, data))
-
-        yield wb.ack.eq(1)
-        yield
-        yield wb.ack.eq(0)
-        yield
 
 def setup_mmu():
 
-    global stop
-    stop = False
+    wbget.stop = False
 
     pspec = TestMemPspec(ldst_ifacetype='mmu_cache_wb',
                          imem_ifacetype='',
@@ -109,8 +65,7 @@ def setup_mmu():
 def _test_dcbz_addr_100e0(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
@@ -121,9 +76,9 @@ def _test_dcbz_addr_100e0(dut, mem):
     yield from pi_st(pi, addr, data, 8, msr_pr=0)
     yield
 
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
+    ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr_pr=0)
     assert ld_data == 0xf553b658ba7e1f51
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
+    ld_data, _, _  = yield from pi_ld(pi, addr, 8, msr_pr=0)
     assert ld_data == 0xf553b658ba7e1f51
 
     print("do_dcbz ===============")
@@ -131,13 +86,13 @@ def _test_dcbz_addr_100e0(dut, mem):
     print("done_dcbz ===============")
     yield
 
-    ld_data = yield from pi_ld(pi, addr, 8, msr_pr=0)
+    ld_data, _, _  = yield from pi_ld(pi, addr, 8, msr_pr=0)
     print("ld_data after dcbz")
     print(ld_data)
     assert ld_data == 0
 
     yield
-    stop = True
+    wbget.stop = True
 
 def test_dcbz_addr_100e0():
 
