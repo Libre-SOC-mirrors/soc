@@ -114,6 +114,11 @@ class LoadStore1(PortInterfaceBase):
         #self.intr_vec     : integer range 0 to 16#fff#;
         #self.nia           = Signal(64)
         #self.srr1          = Signal(16)
+        # use these to set the dsisr or dar respectively
+        self.mmu_set_spr    = Signal()
+        self.mmu_set_dsisr  = Signal()
+        self.mmu_set_dar    = Signal()
+        self.sprval_in      = Signal(64)
 
     def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz):
         m.d.comb += self.req.load.eq(0) # store operation
@@ -185,6 +190,10 @@ class LoadStore1(PortInterfaceBase):
         maddr = Signal(64)
         m.d.comb += maddr.eq(self.addr)
 
+        # DO NOT access these directly, they are internal
+        dsisr          = Signal(32)
+        dar            = Signal(64)
+
         # create a blip (single pulse) on valid read/write request
         # this can be over-ridden in the FSM to get dcache to re-run
         # a request when MMU_LOOKUP completes.
@@ -217,10 +226,10 @@ class LoadStore1(PortInterfaceBase):
                         sync += self.state.eq(State.IDLE)
                         sync += ldst_r.eq(0)
                         sync += Display("cache error -> update dsisr")
-                        #sync += self.dsisr[63 - 38].eq(~self.load)
+                        sync += dsisr[63 - 38].eq(~self.load)
                         # XXX there is no architected bit for this
                         # (probably should be a machine check in fact)
-                        #sync += self.dsisr[63 - 35].eq(d_in.cache_paradox)
+                        sync += dsisr[63 - 35].eq(d_in.cache_paradox)
 
                     with m.Else():
                         # Look up the translation for TLB miss
@@ -259,18 +268,29 @@ class LoadStore1(PortInterfaceBase):
                         sync += self.state.eq(State.IDLE)
 
                 with m.If(m_in.err):
-                    # MMU RADIX exception thrown
+                    # MMU RADIX exception thrown. XXX
+                    # TODO: critical that the write here has to
+                    # notify the MMU FSM of the change to dsisr
                     comb += exception.eq(1)
                     sync += Display("MMU RADIX exception thrown")
-                    #sync += self.dsisr[63 - 33].eq(m_in.invalid)
-                    #sync += self.dsisr[63 - 36].eq(m_in.perm_error)
-                    #sync += self.dsisr[63 - 38].eq(self.load)
-                    #sync += self.dsisr[63 - 44].eq(m_in.badtree)
-                    #sync += self.dsisr[63 - 45].eq(m_in.rc_error)
+                    sync += Display("TODO: notify MMU of change to dsisr")
+                    sync += dsisr[63 - 33].eq(m_in.invalid)
+                    sync += dsisr[63 - 36].eq(m_in.perm_error)
+                    sync += dsisr[63 - 38].eq(self.load)
+                    sync += dsisr[63 - 44].eq(m_in.badtree)
+                    sync += dsisr[63 - 45].eq(m_in.rc_error)
                     sync += self.state.eq(State.IDLE)
 
             with m.Case(State.TLBIE_WAIT):
                 pass
+
+        # MMU FSM communicating a request to update dsisr or dar
+        # (from OP_MTSPR)
+        with m.If(self.mmu_set_spr):
+            with m.If(self.mmu_set_dsisr):
+                sync += dsisr.eq(self.sprval_in)
+            with m.If(self.mmu_set_dar):
+                sync += dar.eq(self.sprval_in)
 
         # alignment error: store address in DAR
         with m.If(self.align_intr):
