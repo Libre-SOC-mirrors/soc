@@ -264,7 +264,7 @@ class LoadStore1(PortInterfaceBase):
                         # instruction lookup fault: store address in DAR
                         comb += exc.happened.eq(1) # reason = MMU_LOOKUP
                         # mark dar as updated ?
-                        comb += self.pi.dar_o.eq(self.addr)
+                        sync += dar.eq(self.addr)
                         sync += self.state.eq(State.IDLE)
 
                 with m.If(m_in.err):
@@ -275,7 +275,7 @@ class LoadStore1(PortInterfaceBase):
                     sync += Display("MMU RADIX exception thrown")
                     sync += Display("TODO: notify MMU of change to dsisr")
                     sync += dsisr[63 - 33].eq(m_in.invalid)
-                    sync += dsisr[63 - 36].eq(m_in.perm_error)
+                    sync += dsisr[63 - 36].eq(m_in.perm_error) # noexec fault
                     sync += dsisr[63 - 38].eq(self.load)
                     sync += dsisr[63 - 44].eq(m_in.badtree)
                     sync += dsisr[63 - 45].eq(m_in.rc_error)
@@ -295,8 +295,8 @@ class LoadStore1(PortInterfaceBase):
         # alignment error: store address in DAR
         with m.If(self.align_intr):
             comb += exc.happened.eq(1) # reason = alignment
-            sync += Display("alignment error: store addr in DAR %x", self.addr)
-            comb += self.pi.dar_o.eq(self.addr)
+            sync += Display("alignment error: addr in DAR %x", self.addr)
+            sync += dar.eq(self.addr)
 
         # when done or exception, return to idle state
         with m.If(self.done | exception):
