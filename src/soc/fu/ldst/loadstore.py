@@ -260,11 +260,6 @@ class LoadStore1(PortInterfaceBase):
                         sync += self.state.eq(State.ACK_WAIT)
                         sync += ldst_r.eq(0)
                     with m.Else():
-                        sync += Display("MMU_LOOKUP, exception %x", self.addr)
-                        # instruction lookup fault: store address in DAR
-                        comb += exc.happened.eq(1) # reason = MMU_LOOKUP
-                        # mark dar as updated ?
-                        sync += dar.eq(self.addr)
                         sync += self.state.eq(State.IDLE)
 
                 with m.If(m_in.err):
@@ -284,19 +279,23 @@ class LoadStore1(PortInterfaceBase):
             with m.Case(State.TLBIE_WAIT):
                 pass
 
-        # MMU FSM communicating a request to update dsisr or dar
-        # (from OP_MTSPR)
+        # MMU FSM communicating a request to update DSISR or DAR (OP_MTSPR)
         with m.If(self.mmu_set_spr):
             with m.If(self.mmu_set_dsisr):
                 sync += dsisr.eq(self.sprval_in)
             with m.If(self.mmu_set_dar):
                 sync += dar.eq(self.sprval_in)
 
-        # alignment error: store address in DAR
-        with m.If(self.align_intr):
-            comb += exc.happened.eq(1) # reason = alignment
-            sync += Display("alignment error: addr in DAR %x", self.addr)
-            sync += dar.eq(self.addr)
+        # check for updating DAR
+        with m.If(exception):
+            sync += Display("exception %x", self.addr)
+            # alignment error: store address in DAR
+            with m.If(self.align_intr):
+                sync += Display("alignment error: addr in DAR %x", self.addr)
+                sync += dar.eq(self.addr)
+            with m.Elif(~self.instr_fault):
+                sync += Display("not instr fault, addr in DAR %x", self.addr)
+                sync += dar.eq(self.addr)
 
         # when done or exception, return to idle state
         with m.If(self.done | exception):
