@@ -27,7 +27,9 @@ from nmutil.util import Display
 
 from soc.config.loadstore import ConfigMemoryPortInterface
 from soc.experiment.test import pagetables
-from soc.experiment.test.test_wishbone import wb_get
+from openpower.test.wb_get import wb_get
+from openpower.test import wb_get as wbget
+
 
 ########################################
 
@@ -143,7 +145,7 @@ def ldst_sim(dut):
     assert(ld_data==data)
     print("dzbz test passed")
 
-    dut.stop = True # stop simulation
+    wbget.stop = True # stop simulation
 
 ########################################
 class TestLDSTCompUnitMMU(LDSTCompUnit):
@@ -194,10 +196,10 @@ def test_scoreboard_mmu():
     sim.add_clock(1e-6)
 
     dut.mem = pagetables.test1
-    dut.stop = False
+    wbget.stop = False
 
     sim.add_sync_process(wrap(ldst_sim(dut)))
-    sim.add_sync_process(wrap(wb_get(dut)))
+    sim.add_sync_process(wrap(wb_get(dut.cmpi.wb_bus(), dut.mem)))
     with sim.write_vcd('test_scoreboard_mmu.vcd'):
         sim.run()
 
@@ -252,10 +254,10 @@ def test_scoreboard_regspec_mmu():
     sim.add_clock(1e-6)
 
     dut.mem = pagetables.test1
-    dut.stop = False
+    wbget.stop = False
 
     sim.add_sync_process(wrap(ldst_sim(dut)))
-    sim.add_sync_process(wrap(wb_get(dut)))
+    sim.add_sync_process(wrap(wb_get(dut.cmpi.wb_bus(), dut.mem)))
     with sim.write_vcd('test_scoreboard_regspec_mmu.vcd'):
         sim.run()
 
