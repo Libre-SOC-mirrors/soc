@@ -37,7 +37,7 @@ from openpower.consts import MSR
 class MMUTestCase(TestAccumulatorBase):
 
     # now working correctly
-    def case_1_dcbz(self):
+    def cse_1_dcbz(self):
         lst = ["dcbz 1, 2",  # MMUTEST.DCBZ: EA from adder 12
                "dcbz 1, 3"]  # MMUTEST.DCBZ: EA from adder 11
         initial_regs = [0] * 32
@@ -49,7 +49,7 @@ class MMUTestCase(TestAccumulatorBase):
                              initial_mem=initial_mem)
 
     # MMUTEST: OP_TLBIE: insn_bits=39
-    def case_2_tlbie(self):
+    def cse_2_tlbie(self):
         lst = ["tlbie 1,1,1,1,1"] # tlbie   RB,RS,RIC,PRS,R
         initial_regs = [0] * 32
         initial_mem = {}
@@ -57,7 +57,7 @@ class MMUTestCase(TestAccumulatorBase):
                              initial_mem=initial_mem)
 
     # OP_MTSPR: spr=720
-    def case_3_mtspr(self):
+    def cse_3_mtspr(self):
         lst = ["mtspr 720,1"] # mtspr PRTBL,r1
         initial_regs = [0] * 32
         initial_regs[1] = 0x1234
@@ -66,7 +66,7 @@ class MMUTestCase(TestAccumulatorBase):
                              initial_mem=initial_mem)
 
     # OP_MFSPR: spr=18/19
-    def case_4_mfspr(self):
+    def cse_4_mfspr(self):
         lst = ["mfspr 1,18", # mtspr r1,DSISR
                "mfspr 2,19"] # mtspr r2,DAR
         initial_regs = [0] * 32
@@ -77,7 +77,7 @@ class MMUTestCase(TestAccumulatorBase):
                              initial_mem=initial_mem)
 
     # new testcase for all sprs
-    def case_5_allsprs(self):
+    def cse_5_allsprs(self):
         lst =  ["mtspr 720,1",   #MMUTEST: OP_MTSPR: spr=720
                 "mtspr 48,2",    #MMUTEST: OP_MTSPR: spr=48
                 "mtspr 18,3",    #MMUTEST: OP_MTSPR: spr=18
@@ -116,7 +116,7 @@ class MMUTestCase(TestAccumulatorBase):
                              initial_mem=initial_mem,initial_msr=initial_msr)
 
     # deliberately misalign 
-    def case_6_ldst_misalign(self):
+    def cse_6_ldst_misalign(self):
         lst = ["std 10,0(2)"]
         initial_regs = [0] * 32
         initial_regs[1] = 0x1234

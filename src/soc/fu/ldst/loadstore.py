@@ -276,7 +276,7 @@ class LoadStore1(PortInterfaceBase):
                     sync += Display("TODO: notify MMU of change to dsisr")
                     sync += dsisr[63 - 33].eq(m_in.invalid)
                     sync += dsisr[63 - 36].eq(m_in.perm_error) # noexec fault
-                    sync += dsisr[63 - 38].eq(self.load)
+                    sync += dsisr[63 - 38].eq(~self.load)
                     sync += dsisr[63 - 44].eq(m_in.badtree)
                     sync += dsisr[63 - 45].eq(m_in.rc_error)
                     sync += self.state.eq(State.IDLE)
