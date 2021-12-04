@@ -24,58 +24,15 @@ from soc.fu.ldst.loadstore import LoadStore1
 from soc.experiment.mmu import MMU
 
 from nmigen.compat.sim import run_simulation
+from openpower.test.wb_get import wb_get
+from openpower.test import wb_get as wbget
 
 
-stop = False
+wbget.stop = False
 
 def b(x): # byte-reverse function
     return int.from_bytes(x.to_bytes(8, byteorder='little'),
                           byteorder='big', signed=False)
-
-def wb_get(wb, mem):
-    """simulator process for getting memory load requests
-    """
-
-    global stop
-
-    while not stop:
-        while True: # wait for dc_valid
-            if stop:
-                return
-            cyc = yield (wb.cyc)
-            stb = yield (wb.stb)
-            if cyc and stb:
-                break
-            yield
-        addr = (yield wb.adr) << 3
-        if addr not in mem:
-            print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
-
-        # read or write?
-        we = (yield wb.we)
-        if we:
-            store = (yield wb.dat_w)
-            sel = (yield wb.sel)
-            data = mem.get(addr, 0)
-            # note we assume 8-bit sel, here
-            res = 0
-            for i in range(8):
-                mask = 0xff << (i*8)
-                if sel & (1<<i):
-                    res |= store & mask
-                else:
-                    res |= data & mask
-            mem[addr] = res
-            print ("    DCACHE set %x mask %x data %x" % (addr, sel, res))
-        else:
-            data = mem.get(addr, 0)
-            yield wb.dat_r.eq(data)
-            print ("    DCACHE get %x data %x" % (addr, data))
-
-        yield wb.ack.eq(1)
-        yield
-        yield wb.ack.eq(0)
-        yield
 
 
 def setup_mmu():
@@ -112,13 +69,45 @@ def setup_mmu():
 
 def ldst_sim_misalign(dut):
     mmu = dut.submodules.mmu
-    global stop
-    stop = False
+    wbget.stop = False
 
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
 
-    data = yield from pi_ld(dut.submodules.ldst.pi, 0x1000, 4, msr_pr=1)
+    # load 8 bytes at aligned address
+    align_addr = 0x1000
+    data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
+                                          align_addr, 8, msr_pr=1)
+    print ("ldst_sim_misalign (aligned)", hex(data), exctype, exc)
+    assert data == 0xdeadbeef01234567
+
+    # load 4 bytes at aligned address
+    align_addr = 0x1004
+    data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
+                                          align_addr, 4, msr_pr=1)
+    print ("ldst_sim_misalign (aligned)", hex(data), exctype, exc)
+    assert data == 0xdeadbeef
+
+    # load 8 bytes at *mis*-aligned address
+    misalign_addr = 0x1004
+    data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
+                                          misalign_addr, 8, msr_pr=1)
+    print ("ldst_sim_misalign", data, exctype, exc)
+    yield
+    dar = yield dut.submodules.ldst.dar
+    print ("DAR", hex(dar))
+    assert dar == misalign_addr
+    # check exception bits
+    assert exc.happened
+    assert exc.alignment
+    assert not exc.segment_fault
+    assert not exc.instr_fault
+    assert not exc.invalid
+    assert not exc.perm_error
+    assert not exc.rc_error
+    assert not exc.badtree
+
+    wbget.stop = True
 
 
 def test_misalign_mmu():
