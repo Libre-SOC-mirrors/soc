@@ -55,8 +55,10 @@ default_mem = { 0x10000:    # PARTITION_TABLE_2
             }
 
 
-def wb_get(c, mem, name):
-    """simulator process for getting memory load requests
+def todo_replace_wb_get(c, mem, name):
+    """simulator process for getting memory load requests.
+    XXX TODO: use openpower.test.wb_get but needs different
+    names for wishbone bus data structures, in/out
     """
 
     logfile = open("/tmp/wb_get.log","w")
@@ -78,12 +80,10 @@ def wb_get(c, mem, name):
             yield
         addr = (yield c.wb_out.adr) << 3
         if addr not in mem:
-            log("%s LOOKUP FAIL %x" % (name, addr))
-            stop = True
-            return
+            log("%s LOOKUP FAIL %x (return zero)" % (name, addr))
 
         yield
-        data = mem[addr]
+        data = mem.get(addr, 0)
         yield c.wb_in.dat.eq(data)
         log("%s get %x data %x" % (name, addr, data))
         yield c.wb_in.ack.eq(1)
@@ -155,7 +155,7 @@ def test_icache():
 
     # read from "memory" process and corresponding wishbone "read" process
     sim.add_sync_process(wrap(icache_sim(icache, mem)))
-    sim.add_sync_process(wrap(wb_get(icache, mem, "ICACHE")))
+    sim.add_sync_process(wrap(todo_replace_wb_get(icache, mem, "ICACHE")))
     with sim.write_vcd('test_icache.vcd'):
         sim.run()
 
@@ -167,7 +167,10 @@ def mmu_lookup(mmu, addr):
     yield mmu.l_in.priv.eq(1)
     yield mmu.l_in.addr.eq(addr)
     yield mmu.l_in.valid.eq(1)
+
+    print ("mmu lookup %x stopped" % addr, stop)
     while not stop: # wait for dc_valid / err
+        print ("stopped", stop)
         l_done = yield (mmu.l_out.done)
         l_err = yield (mmu.l_out.err)
         l_badtree = yield (mmu.l_out.badtree)
@@ -199,6 +202,7 @@ def mmu_sim(mmu):
 
     phys_addr = yield from mmu_lookup(mmu, 0x10000)
     assert phys_addr == 0x40000
+    yield
 
     stop = True
 
@@ -219,7 +223,7 @@ def test_mmu():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(mmu_sim(mmu)))
-    sim.add_sync_process(wrap(wb_get(dcache, default_mem, "DCACHE")))
+    sim.add_sync_process(wrap(todo_replace_wb_get(dcache, default_mem, "DCACHE")))
     with sim.write_vcd('test_mmu.vcd'):
         sim.run()
 
