@@ -249,7 +249,7 @@ class LoadStore1(PortInterfaceBase):
             # waiting here for the MMU TLB lookup to complete.
             # either re-try the dcache lookup or throw MMU exception
             with m.Case(State.MMU_LOOKUP):
-                comb += self.busy.eq(1)
+                comb += self.busy.eq(~exception)
                 with m.If(m_in.done):
                     with m.If(~self.instr_fault):
                         sync += Display("MMU_LOOKUP, done %x -> %x",
