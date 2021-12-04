@@ -311,7 +311,7 @@ class MMU(Elaboratable):
         sync = m.d.sync
 
         # Multiplex internal SPR values back to loadstore1,
-        # selected by l_in.sprn.
+        # selected by l_in.sprn. only partial SPR identification needed
         with m.If(l_in.sprn[9]):
             comb += l_out.sprval.eq(v.prtbl)
         with m.Else():
@@ -345,6 +345,7 @@ class MMU(Elaboratable):
         mask = Signal(16)
         finalmask = Signal(44)
 
+        # register and internal input. self.v only accessible for test purposes
         r = RegStage("r")
         self.v = v = RegStage()
 
@@ -401,6 +402,10 @@ class MMU(Elaboratable):
 
         with m.If(r.state != State.IDLE):
             sync += Display("MMU state %d %016x", r.state, data)
+
+        ##########
+        # Main FSM
+        ##########
 
         with m.Switch(r.state):
             with m.Case(State.IDLE):
@@ -467,14 +472,17 @@ class MMU(Elaboratable):
         with m.If(~r.addr[63]):
             comb += effpid.eq(r.pid)
 
+        # calculate Process Table Address
         pr24 = Signal(24, reset_less=True)
         comb += pr24.eq(masked(r.prtbl[12:36], effpid[8:32], finalmask))
         comb += prtb_adr.eq(Cat(C(0, 4), effpid[0:8], pr24, r.prtbl[36:56]))
 
+        # calculate Page Table Address
         pg16 = Signal(16, reset_less=True)
         comb += pg16.eq(masked(r.pgbase[3:19], addrsh, mask))
         comb += pgtb_adr.eq(Cat(C(0, 3), pg16, r.pgbase[19:56]))
 
+        # calculate Page Table Entry
         pd44 = Signal(44, reset_less=True)
         comb += pd44.eq(masked(r.pde[12:56], r.addr[12:56], finalmask))
         comb += pte.eq(Cat(r.pde[0:12], pd44))
@@ -493,6 +501,7 @@ class MMU(Elaboratable):
         with m.Else():
             comb += addr.eq(pgtb_adr)
 
+        # connect to other interfaces: LDST, D-Cache, I-Cache
         comb += l_out.done.eq(r.done)
         comb += l_out.err.eq(r.err)
         comb += l_out.invalid.eq(r.invalid)
