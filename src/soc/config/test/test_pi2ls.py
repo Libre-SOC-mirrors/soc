@@ -24,8 +24,9 @@ def wait_addr(port,debug=None):
     cnt = 0
     while True:
         addr_ok = yield port.addr_ok_o
-        print("addrok", addr_ok,cnt,debug)
-        if addr_ok:
+        exc_happened = yield port.exc_o.happened
+        print("addrok", addr_ok,cnt,debug,exc_happened)
+        if addr_ok or exc_happened:
             break
         yield
         cnt += 1
