@@ -191,21 +191,17 @@ assert 64 == WB_DATA_BITS, "Can't yet handle wb width that isn't 64-bits"
 assert SET_SIZE_BITS <= TLB_LG_PGSZ, "Set indexed by virtual address"
 
 
-def TLBValidBitsArray():
-    return Array(Signal(TLB_NUM_WAYS, name="tlbvalid%d" % x) \
-                for x in range(TLB_SET_SIZE))
-
 def TLBTagEAArray():
     return Array(Signal(TLB_EA_TAG_BITS, name="tlbtagea%d" % x) \
                 for x in range (TLB_NUM_WAYS))
 
-def TLBTagsArray():
-    return Array(Signal(TLB_TAG_WAY_BITS, name="tlbtags%d" % x) \
-                for x in range (TLB_SET_SIZE))
-
-def TLBPtesArray():
-    return Array(Signal(TLB_PTE_WAY_BITS, name="tlbptes%d" % x) \
-                for x in range(TLB_SET_SIZE))
+def TLBArray():
+    tlb_layout = [('valid', 1),
+                  ('tag', TLB_TAG_WAY_BITS),
+                  ('pte', TLB_PTE_WAY_BITS)
+                 ]
+    return Array(Record(tlb_layout, name="tlb%d" % x) \
+                        for x in range(TLB_SET_SIZE))
 
 def HitWaySet():
     return Array(Signal(WAY_BITS, name="hitway_%d" % x) \
@@ -667,8 +663,7 @@ class DCache(Elaboratable):
                                  r.req.data, r.req.load)
 
     def tlb_read(self, m, r0_stall, tlb_valid_way,
-                 tlb_tag_way, tlb_pte_way, dtlb_valid_bits,
-                 dtlb_tags, dtlb_ptes):
+                 tlb_tag_way, tlb_pte_way, dtlb):
         """TLB
         Operates in the second cycle on the request latched in r0.req.
         TLB updates write the entry at the end of the second cycle.
@@ -692,9 +687,9 @@ class DCache(Elaboratable):
         # If we have any op and the previous op isn't finished,
         # then keep the same output for next cycle.
         with m.If(~r0_stall):
-            sync += tlb_valid_way.eq(dtlb_valid_bits[index])
-            sync += tlb_tag_way.eq(dtlb_tags[index])
-            sync += tlb_pte_way.eq(dtlb_ptes[index])
+            sync += tlb_valid_way.eq(dtlb[index].valid)
+            sync += tlb_tag_way.eq(dtlb[index].tag)
+            sync += tlb_pte_way.eq(dtlb[index].pte)
 
     def maybe_tlb_plrus(self, m, r1, tlb_plru_victim):
         """Generate TLB PLRUs
@@ -775,11 +770,9 @@ class DCache(Elaboratable):
             m.d.sync += Display("       perm rdp=%d", perm_attr.rd_perm)
             m.d.sync += Display("       perm wrp=%d", perm_attr.wr_perm)
 
-    def tlb_update(self, m, r0_valid, r0, dtlb_valid_bits, tlb_req_index,
+    def tlb_update(self, m, r0_valid, r0, dtlb, tlb_req_index,
                     tlb_hit_way, tlb_hit, tlb_plru_victim, tlb_tag_way,
-                    dtlb_tags, tlb_pte_way, dtlb_ptes):
-
-        dtlb_valids = TLBValidBitsArray()
+                    tlb_pte_way):
 
         comb = m.d.comb
         sync = m.d.sync
@@ -794,14 +787,14 @@ class DCache(Elaboratable):
         with m.If(tlbie & r0.doall):
             # clear all valid bits at once
             for i in range(TLB_SET_SIZE):
-                sync += dtlb_valid_bits[i].eq(0)
+                sync += dtlb[i].valid.eq(0)
         with m.If(d.updated):
-            sync += dtlb_tags[tlb_req_index].eq(d.tb_out)
-            sync += dtlb_ptes[tlb_req_index].eq(d.pb_out)
+            sync += dtlb[tlb_req_index].tag.eq(d.tb_out)
+            sync += dtlb[tlb_req_index].pte.eq(d.pb_out)
         with m.If(d.v_updated):
-            sync += dtlb_valid_bits[tlb_req_index].eq(d.db_out)
+            sync += dtlb[tlb_req_index].valid.eq(d.db_out)
 
-        comb += d.dv.eq(dtlb_valid_bits[tlb_req_index])
+        comb += d.dv.eq(dtlb[tlb_req_index].valid)
 
         comb += d.tlbie.eq(tlbie)
         comb += d.tlbwe.eq(tlbwe)
@@ -1618,9 +1611,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         """note: these are passed to nmigen.hdl.Memory as "attributes".
            don't know how, just that they are.
         """
-        dtlb_valid_bits = TLBValidBitsArray()
-        dtlb_tags       = TLBTagsArray()
-        dtlb_ptes       = TLBPtesArray()
+        dtlb            = TLBArray()
         # TODO attribute ram_style of
         #  dtlb_tags : signal is "distributed";
         # TODO attribute ram_style of
@@ -1707,14 +1698,13 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         # signals established above
         self.stage_0(m, r0, r1, r0_full)
         self.tlb_read(m, r0_stall, tlb_valid_way,
-                      tlb_tag_way, tlb_pte_way, dtlb_valid_bits,
-                      dtlb_tags, dtlb_ptes)
+                      tlb_tag_way, tlb_pte_way, dtlb)
         self.tlb_search(m, tlb_req_index, r0, r0_valid,
                         tlb_valid_way, tlb_tag_way, tlb_hit_way,
                         tlb_pte_way, pte, tlb_hit, valid_ra, perm_attr, ra)
-        self.tlb_update(m, r0_valid, r0, dtlb_valid_bits, tlb_req_index,
+        self.tlb_update(m, r0_valid, r0, dtlb, tlb_req_index,
                         tlb_hit_way, tlb_hit, tlb_plru_victim, tlb_tag_way,
-                        dtlb_tags, tlb_pte_way, dtlb_ptes)
+                        tlb_pte_way)
         self.maybe_plrus(m, r1, plru_victim)
         self.maybe_tlb_plrus(m, r1, tlb_plru_victim)
         self.cache_tag_read(m, r0_stall, req_index, cache_tag_set, cache_tags)
