@@ -834,6 +834,10 @@ class ICache(Elaboratable):
         plru_victim      = PLRUOut()
         replace_way      = Signal(WAY_BITS)
 
+        # fake-up the wishbone stall signal to comply with pipeline mode
+        # same thing is done in dcache.py
+        comb += self.wb_in.stall.eq(self.wb_out.cyc & ~self.wb_in.ack)
+
         # call sub-functions putting everything together,
         # using shared signals established above
         self.rams(m, r, cache_out_row, use_previous, replace_way, req_row)
