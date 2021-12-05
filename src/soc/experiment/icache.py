@@ -284,7 +284,7 @@ class RegInternal(RecordObject):
     def __init__(self):
         super().__init__()
         # Cache hit state (Latches for 1 cycle BRAM access)
-        self.hit_way      = Signal(NUM_WAYS)
+        self.hit_way      = Signal(WAY_BITS)
         self.hit_nia      = Signal(64)
         self.hit_smark    = Signal()
         self.hit_valid    = Signal()
@@ -293,9 +293,9 @@ class RegInternal(RecordObject):
         self.state        = Signal(State, reset=State.IDLE)
         self.wb           = WBMasterOut("wb")
         self.req_adr      = Signal(64)
-        self.store_way    = Signal(NUM_WAYS)
-        self.store_index  = Signal(NUM_LINES)
-        self.store_row    = Signal(BRAM_ROWS)
+        self.store_way    = Signal(WAY_BITS)
+        self.store_index  = Signal(INDEX_BITS)
+        self.store_row    = Signal(ROW_BITS)
         self.store_tag    = Signal(TAG_BITS)
         self.store_valid  = Signal()
         self.end_row_ix   = Signal(ROW_LINE_BITS)
@@ -472,7 +472,7 @@ class ICache(Elaboratable):
         flush_in, stall_out = self.flush_in, self.stall_out
 
         is_hit  = Signal()
-        hit_way = Signal(NUM_WAYS)
+        hit_way = Signal(WAY_BITS)
 
         # i_in.sequential means that i_in.nia this cycle is 4 more than
         # last cycle.  If we read more than 32 bits at a time, had a
@@ -782,7 +782,7 @@ class ICache(Elaboratable):
         # Output data to logger
         for i in range(LOG_LENGTH):
             log_data = Signal(54)
-            lway     = Signal(NUM_WAYS)
+            lway     = Signal(WAY_BITS)
             wstate   = Signal()
 
             sync += lway.eq(req_hit_way)
@@ -821,9 +821,9 @@ class ICache(Elaboratable):
         r                = RegInternal()
 
         # Async signal on incoming request
-        req_index        = Signal(NUM_LINES)
-        req_row          = Signal(BRAM_ROWS)
-        req_hit_way      = Signal(NUM_WAYS)
+        req_index        = Signal(INDEX_BITS)
+        req_row          = Signal(ROW_BITS)
+        req_hit_way      = Signal(WAY_BITS)
         req_tag          = Signal(TAG_BITS)
         req_is_hit       = Signal()
         req_is_miss      = Signal()
@@ -839,7 +839,7 @@ class ICache(Elaboratable):
         cache_out_row    = Signal(ROW_SIZE_BITS)
 
         plru_victim      = PLRUOut()
-        replace_way      = Signal(NUM_WAYS)
+        replace_way      = Signal(WAY_BITS)
 
         # call sub-functions putting everything together,
         # using shared signals established above
