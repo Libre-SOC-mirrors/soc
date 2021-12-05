@@ -318,9 +318,6 @@ class ICache(Elaboratable):
         self.flush_in       = Signal()
         self.inval_in       = Signal()
 
-        self.wb_out         = WBMasterOut(name="wb_out")
-        self.wb_in          = WBSlaveOut(name="wb_in")
-
         # standard naming (wired to non-standard for compatibility)
         self.bus = Interface(addr_width=32,
                             data_width=64,
@@ -339,7 +336,7 @@ class ICache(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
 
-        wb_in, stall_in = self.wb_in, self.stall_in
+        bus, stall_in = self.bus, self.stall_in
 
         for i in range(NUM_WAYS):
             do_read  = Signal(name="do_rd_%d" % i)
@@ -357,10 +354,10 @@ class ICache(Elaboratable):
             comb += d_out.eq(way.rd_data_o)
             comb += way.wr_sel.eq(wr_sel)
             comb += way.wr_addr.eq(wr_addr)
-            comb += way.wr_data.eq(wb_in.dat)
+            comb += way.wr_data.eq(bus.dat_r)
 
             comb += do_read.eq(~(stall_in | use_previous))
-            comb += do_write.eq(wb_in.ack & (replace_way == i))
+            comb += do_write.eq(bus.ack & (replace_way == i))
 
             with m.If(do_write):
                 sync += Display("cache write adr: %x data: %lx",
@@ -468,7 +465,7 @@ class ICache(Elaboratable):
 
         comb = m.d.comb
 
-        i_in, i_out, wb_out = self.i_in, self.i_out, self.wb_out
+        i_in, i_out, bus = self.i_in, self.i_out, self.bus
         flush_in, stall_out = self.flush_in, self.stall_out
 
         is_hit  = Signal()
@@ -547,7 +544,12 @@ class ICache(Elaboratable):
         comb += stall_out.eq(~(is_hit & access_ok))
 
         # Wishbone requests output (from the cache miss reload machine)
-        comb += wb_out.eq(r.wb)
+        comb += bus.we.eq(r.wb.we)
+        comb += bus.adr.eq(r.wb.adr)
+        comb += bus.sel.eq(r.wb.sel)
+        comb += bus.stb.eq(r.wb.stb)
+        comb += bus.dat_w.eq(r.wb.dat)
+        comb += bus.cyc.eq(r.wb.cyc)
 
     # Cache hit synchronous machine
     def icache_hit(self, m, use_previous, r, req_is_hit, req_hit_way,
@@ -652,7 +654,7 @@ class ICache(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
 
-        wb_in = self.wb_in
+        bus = self.bus
 
         # Requests are all sent if stb is 0
         stbs_zero = Signal()
@@ -660,7 +662,7 @@ class ICache(Elaboratable):
         comb += stbs_done.eq(stbs_zero)
 
         # If we are still sending requests, was one accepted?
-        with m.If(~wb_in.stall & ~stbs_zero):
+        with m.If(~bus.stall & ~stbs_zero):
             # That was the last word? We are done sending.
             # Clear stb and set stbs_done so we can handle
             # an eventual last ack on the same cycle.
@@ -683,10 +685,10 @@ class ICache(Elaboratable):
                             r.req_adr, rarange, stbs_zero, stbs_done)
 
         # Incoming acks processing
-        with m.If(wb_in.ack):
+        with m.If(bus.ack):
             sync += Display("WB_IN_ACK data:%x stbs_zero:%x "
                             "stbs_done:%x",
-                            wb_in.dat, stbs_zero, stbs_done)
+                            bus.dat_r, stbs_zero, stbs_done)
 
             sync += r.rows_valid[r.store_row % ROW_PER_LINE].eq(1)
 
@@ -718,7 +720,7 @@ class ICache(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
 
-        i_in, wb_in, m_in  = self.i_in, self.wb_in, self.m_in
+        i_in, bus, m_in  = self.i_in, self.bus, self.m_in
         stall_in, flush_in = self.stall_in, self.flush_in
         inval_in           = self.inval_in
 
@@ -769,7 +771,7 @@ class ICache(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
 
-        wb_in, i_out       = self.wb_in, self.i_out
+        bus, i_out       = self.bus, self.i_out
         log_out, stall_out = self.log_out, self.stall_out
 
         # Output data to logger
@@ -787,8 +789,8 @@ class ICache(Elaboratable):
             sync += log_data.eq(Cat(
                      ra_valid, access_ok, req_is_miss, req_is_hit,
                      lway, wstate, r.hit_nia[2:6], r.fetch_failed,
-                     stall_out, wb_in.stall, r.wb.cyc, r.wb.stb,
-                     r.real_addr[3:6], wb_in.ack, i_out.insn, i_out.valid
+                     stall_out, bus.stall, r.wb.cyc, r.wb.stb,
+                     r.real_addr[3:6], bus.ack, i_out.insn, i_out.valid
                     ))
             comb += log_out.eq(log_data)
 
@@ -836,7 +838,7 @@ class ICache(Elaboratable):
 
         # fake-up the wishbone stall signal to comply with pipeline mode
         # same thing is done in dcache.py
-        comb += self.wb_in.stall.eq(self.wb_out.cyc & ~self.wb_in.ack)
+        comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
 
         # call sub-functions putting everything together,
         # using shared signals established above
@@ -915,17 +917,20 @@ def icache_sim(dut):
     # another miss
     yield i_in.req.eq(1)
     yield i_in.nia.eq(Const(0x0000000000000040, 64))
-    for i in range(30):
-        yield
     yield
     valid = yield i_out.valid
+    while not valid:
+        yield
+        valid = yield i_out.valid
+    yield i_in.req.eq(0)
+
     nia   = yield i_in.nia
     insn  = yield i_out.insn
-    assert valid
     assert insn == 0x00000010, \
         "insn @%x=%x expected 00000010" % (nia, insn)
 
-    # test something that aliases
+    # test something that aliases (this only works because
+    # the unit test SRAM is a depth of 512)
     yield i_in.req.eq(1)
     yield i_in.nia.eq(Const(0x0000000000000100, 64))
     yield
@@ -956,15 +961,15 @@ def test_icache(mem):
      m.submodules.icache = dut
      m.submodules.sram   = sram
 
-     m.d.comb += sram.bus.cyc.eq(dut.wb_out.cyc)
-     m.d.comb += sram.bus.stb.eq(dut.wb_out.stb)
-     m.d.comb += sram.bus.we.eq(dut.wb_out.we)
-     m.d.comb += sram.bus.sel.eq(dut.wb_out.sel)
-     m.d.comb += sram.bus.adr.eq(dut.wb_out.adr)
-     m.d.comb += sram.bus.dat_w.eq(dut.wb_out.dat)
+     m.d.comb += sram.bus.cyc.eq(dut.bus.cyc)
+     m.d.comb += sram.bus.stb.eq(dut.bus.stb)
+     m.d.comb += sram.bus.we.eq(dut.bus.we)
+     m.d.comb += sram.bus.sel.eq(dut.bus.sel)
+     m.d.comb += sram.bus.adr.eq(dut.bus.adr)
+     m.d.comb += sram.bus.dat_w.eq(dut.bus.dat_w)
 
-     m.d.comb += dut.wb_in.ack.eq(sram.bus.ack)
-     m.d.comb += dut.wb_in.dat.eq(sram.bus.dat_r)
+     m.d.comb += dut.bus.ack.eq(sram.bus.ack)
+     m.d.comb += dut.bus.dat_r.eq(sram.bus.dat_r)
 
      # nmigen Simulation
      sim = Simulator(m)
