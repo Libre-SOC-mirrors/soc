@@ -21,15 +21,12 @@ from soc.experiment.mem_types import (LoadStore1ToMMUType,
 from soc.experiment.mmu import MMU
 from soc.experiment.dcache import DCache
 from soc.experiment.icache import ICache
+from openpower.test.wb_get import wb_get
+from openpower.test import wb_get as wbget
 
 import random
 
-stop = False
-
-def set_stop(newval):
-    global stop
-    stop = newval
-
+wbget.stop = False
 
 def b(x):
     return int.from_bytes(x.to_bytes(8, byteorder='little'),
@@ -53,43 +50,6 @@ default_mem = { 0x10000:    # PARTITION_TABLE_2
                        # RTS1 = 0x2 RPDB = 0x300 RTS2 = 0x5 RPDS = 13
                 b(0x40000000000300ad),
             }
-
-
-def todo_replace_wb_get(c, mem, name):
-    """simulator process for getting memory load requests.
-    XXX TODO: use openpower.test.wb_get but needs different
-    names for wishbone bus data structures, in/out
-    """
-
-    logfile = open("/tmp/wb_get.log","w")
-
-    def log(msg):
-        logfile.write(msg+"\n")
-        print(msg)
-
-    global stop
-    while not stop:
-        while True: # wait for dc_valid
-            if stop:
-                log("stop")
-                return
-            cyc = yield (c.bus.cyc)
-            stb = yield (c.bus.stb)
-            if cyc and stb:
-                break
-            yield
-        addr = (yield c.bus.adr) << 3
-        if addr not in mem:
-            log("%s LOOKUP FAIL %x (return zero)" % (name, addr))
-
-        yield
-        data = mem.get(addr, 0)
-        yield c.bus.dat_r.eq(data)
-        log("%s get %x data %x" % (name, addr, data))
-        yield c.bus.ack.eq(1)
-        yield
-        yield c.bus.ack.eq(0)
-        yield
 
 
 def icache_sim(dut, mem):
@@ -223,7 +183,8 @@ def test_mmu():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(mmu_sim(mmu)))
-    sim.add_sync_process(wrap(todo_replace_wb_get(dcache, default_mem, "DCACHE")))
+    sim.add_sync_process(wrap(wb_get(dcache,
+                              default_mem, "DCACHE")))
     with sim.write_vcd('test_mmu.vcd'):
         sim.run()
 
