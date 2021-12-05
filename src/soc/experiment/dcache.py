@@ -190,6 +190,9 @@ assert REAL_ADDR_BITS == (TAG_BITS + ROW_BITS + ROW_OFF_BITS), \
 assert 64 == WB_DATA_BITS, "Can't yet handle wb width that isn't 64-bits"
 assert SET_SIZE_BITS <= TLB_LG_PGSZ, "Set indexed by virtual address"
 
+def TLBHit(name):
+    return Record([('valid', 1),
+                   ('way', TLB_WAY_BITS)], name=name)
 
 def TLBTagEAArray():
     return Array(Signal(TLB_EA_TAG_BITS, name="tlbtagea%d" % x) \
@@ -377,8 +380,8 @@ class RegStage1(RecordObject):
 
         # TLB hit state
         self.tlb_hit          = Signal()
-        self.tlb_hit_way      = Signal(TLB_NUM_WAYS)
-        self.tlb_hit_index    = Signal(TLB_WAY_BITS)
+        self.tlb_hit_way      = Signal(TLB_WAY_BITS)
+        self.tlb_hit_index    = Signal(TLB_SET_BITS)
 
         # 2-stage data buffer for data forwarded from writes to reads
         self.forward_data1    = Signal(64)
@@ -708,7 +711,7 @@ class DCache(Elaboratable):
             comb += tlb_plru_victim[i].eq(tlb_plru.lru_o)
 
     def tlb_search(self, m, tlb_req_index, r0, r0_valid,
-                   tlb_way, tlb_hit_way,
+                   tlb_way,
                    pte, tlb_hit, valid_ra, perm_attr, ra):
 
         comb = m.d.comb
@@ -730,12 +733,12 @@ class DCache(Elaboratable):
                 comb += hitway.eq(i)
                 comb += hit.eq(1)
 
-        comb += tlb_hit.eq(hit & r0_valid)
-        comb += tlb_hit_way.eq(hitway)
+        comb += tlb_hit.valid.eq(hit & r0_valid)
+        comb += tlb_hit.way.eq(hitway)
 
-        with m.If(tlb_hit):
+        with m.If(tlb_hit.valid):
             comb += pte.eq(read_tlb_pte(hitway, tlb_way.pte))
-        comb += valid_ra.eq(tlb_hit | ~r0.req.virt_mode)
+        comb += valid_ra.eq(tlb_hit.valid | ~r0.req.virt_mode)
 
         with m.If(r0.req.virt_mode):
             comb += ra.eq(Cat(Const(0, ROW_OFF_BITS),
@@ -759,7 +762,7 @@ class DCache(Elaboratable):
 
         with m.If(valid_ra):
             m.d.sync += Display("DCACHE virt mode %d hit %d ra %x pte %x",
-                                r0.req.virt_mode, tlb_hit, ra, pte)
+                                r0.req.virt_mode, tlb_hit.valid, ra, pte)
             m.d.sync += Display("       perm ref=%d", perm_attr.reference)
             m.d.sync += Display("       perm chg=%d", perm_attr.changed)
             m.d.sync += Display("       perm noc=%d", perm_attr.nocache)
@@ -768,7 +771,7 @@ class DCache(Elaboratable):
             m.d.sync += Display("       perm wrp=%d", perm_attr.wr_perm)
 
     def tlb_update(self, m, r0_valid, r0, dtlb, tlb_req_index,
-                    tlb_hit_way, tlb_hit, tlb_plru_victim, tlb_way):
+                    tlb_hit, tlb_plru_victim, tlb_way):
 
         comb = m.d.comb
         sync = m.d.sync
@@ -795,14 +798,14 @@ class DCache(Elaboratable):
         comb += d.tlbie.eq(tlbie)
         comb += d.tlbwe.eq(tlbwe)
         comb += d.doall.eq(r0.doall)
-        comb += d.tlb_hit.eq(tlb_hit)
-        comb += d.tlb_hit_way.eq(tlb_hit_way)
+        comb += d.tlb_hit.eq(tlb_hit.valid)
+        comb += d.tlb_hit_way.eq(tlb_hit.way)
         comb += d.tlb_tag_way.eq(tlb_way.tag)
         comb += d.tlb_pte_way.eq(tlb_way.pte)
         comb += d.tlb_req_index.eq(tlb_req_index)
 
-        with m.If(tlb_hit):
-            comb += d.repl_way.eq(tlb_hit_way)
+        with m.If(tlb_hit.valid):
+            comb += d.repl_way.eq(tlb_hit.way)
         with m.Else():
             comb += d.repl_way.eq(tlb_plru_victim[tlb_req_index])
         comb += d.eatag.eq(r0.req.addr[TLB_LG_PGSZ + TLB_SET_BITS:64])
@@ -850,7 +853,7 @@ class DCache(Elaboratable):
                        use_forward1_next, use_forward2_next,
                        req_hit_way, plru_victim, rc_ok, perm_attr,
                        valid_ra, perm_ok, access_ok, req_op, req_go,
-                       tlb_hit, tlb_hit_way, tlb_way, cache_tag_set,
+                       tlb_hit, tlb_way, cache_tag_set,
                        cancel_store, req_same_tag, r0_stall, early_req_row):
         """Cache request parsing and hit detection
         """
@@ -881,12 +884,12 @@ class DCache(Elaboratable):
         comb += cache_i_validdx.eq(cache_tags[req_index].valid)
 
         m.submodules.dcache_pend = dc = DCachePendingHit(
-                                tlb_way, tlb_hit_way,
+                                tlb_way, tlb_hit.way,
                                 cache_i_validdx, cache_tag_set,
                                 r0.req.addr,
                                 hit_set)
 
-        comb += dc.tlb_hit.eq(tlb_hit)
+        comb += dc.tlb_hit.eq(tlb_hit.valid)
         comb += dc.reload_tag.eq(r1.reload_tag)
         comb += dc.virt_mode.eq(r0.req.virt_mode)
         comb += dc.go.eq(go)
@@ -1176,7 +1179,7 @@ class DCache(Elaboratable):
     # It also handles error cases (TLB miss, cache paradox)
     def dcache_fast_hit(self, m, req_op, r0_valid, r0, r1,
                         req_hit_way, req_index, req_tag, access_ok,
-                        tlb_hit, tlb_hit_way, tlb_req_index):
+                        tlb_hit, tlb_req_index):
 
         comb = m.d.comb
         sync = m.d.sync
@@ -1223,8 +1226,8 @@ class DCache(Elaboratable):
             sync += r1.stcx_fail.eq(0)
 
         # Record TLB hit information for updating TLB PLRU
-        sync += r1.tlb_hit.eq(tlb_hit)
-        sync += r1.tlb_hit_way.eq(tlb_hit_way)
+        sync += r1.tlb_hit.eq(tlb_hit.valid)
+        sync += r1.tlb_hit_way.eq(tlb_hit.way)
         sync += r1.tlb_hit_index.eq(tlb_req_index)
 
     # Memory accesses are handled by this state machine:
@@ -1580,12 +1583,12 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                     sync += r1.wb.cyc.eq(0)
                     sync += r1.wb.stb.eq(0)
 
-    def dcache_log(self, m, r1, valid_ra, tlb_hit_way, stall_out):
+    def dcache_log(self, m, r1, valid_ra, tlb_hit, stall_out):
 
         sync = m.d.sync
         d_out, bus, log_out = self.d_out, self.bus, self.log_out
 
-        sync += log_out.eq(Cat(r1.state[:3], valid_ra, tlb_hit_way[:3],
+        sync += log_out.eq(Cat(r1.state[:3], valid_ra, tlb_hit.way[:3],
                                stall_out, req_op[:3], d_out.valid, d_out.error,
                                r1.wb.cyc, r1.wb.stb, bus.ack, bus.stall,
                                r1.real_adr[3:6]))
@@ -1652,8 +1655,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         # TLB signals
         tlb_way       = TLBRecord("tlb_way")
         tlb_req_index = Signal(TLB_SET_BITS)
-        tlb_hit       = Signal()
-        tlb_hit_way   = Signal(TLB_WAY_BITS)
+        tlb_hit       = TLBHit("tlb_hit")
         pte           = Signal(TLB_PTE_BITS)
         ra            = Signal(REAL_ADDR_BITS)
         valid_ra      = Signal()
@@ -1691,10 +1693,10 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         self.stage_0(m, r0, r1, r0_full)
         self.tlb_read(m, r0_stall, tlb_way, dtlb)
         self.tlb_search(m, tlb_req_index, r0, r0_valid,
-                        tlb_way, tlb_hit_way,
+                        tlb_way,
                         pte, tlb_hit, valid_ra, perm_attr, ra)
         self.tlb_update(m, r0_valid, r0, dtlb, tlb_req_index,
-                        tlb_hit_way, tlb_hit, tlb_plru_victim,
+                        tlb_hit, tlb_plru_victim,
                         tlb_way)
         self.maybe_plrus(m, r1, plru_victim)
         self.maybe_tlb_plrus(m, r1, tlb_plru_victim)
@@ -1704,7 +1706,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                            use_forward1_next, use_forward2_next,
                            req_hit_way, plru_victim, rc_ok, perm_attr,
                            valid_ra, perm_ok, access_ok, req_op, req_go,
-                           tlb_hit, tlb_hit_way, tlb_way, cache_tag_set,
+                           tlb_hit, tlb_way, cache_tag_set,
                            cancel_store, req_same_tag, r0_stall, early_req_row)
         self.reservation_comb(m, cancel_store, set_rsrv, clear_rsrv,
                            r0_valid, r0, reservation)
@@ -1714,12 +1716,12 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         self.rams(m, r1, early_req_row, cache_out_row, replace_way)
         self.dcache_fast_hit(m, req_op, r0_valid, r0, r1,
                         req_hit_way, req_index, req_tag, access_ok,
-                        tlb_hit, tlb_hit_way, tlb_req_index)
+                        tlb_hit, tlb_req_index)
         self.dcache_slow(m, r1, use_forward1_next, use_forward2_next,
                     r0, replace_way,
                     req_hit_way, req_same_tag,
                          r0_valid, req_op, cache_tags, req_go, ra)
-        #self.dcache_log(m, r1, valid_ra, tlb_hit_way, stall_out)
+        #self.dcache_log(m, r1, valid_ra, tlb_hit, stall_out)
 
         return m
 
