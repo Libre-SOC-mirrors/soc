@@ -120,6 +120,11 @@ class FSMMMUStage(ControlBase):
             # WIP: properly implement MicrOp.OP_MTSPR and MicrOp.OP_MFSPR
 
             with m.Switch(op.insn_type):
+
+                ##########
+                # OP_MTSPR
+                ##########
+
                 with m.Case(MicrOp.OP_MTSPR):
                     comb += Display("MMUTEST: OP_MTSPR: spr=%i", spr)
                     # despite redirection this FU **MUST** behave exactly
@@ -156,6 +161,10 @@ class FSMMMUStage(ControlBase):
                         comb += l_in.rs.eq(a_i)    # incoming operand (RS)
                         comb += done.eq(1) # FIXME l_out.done
 
+                ##########
+                # OP_MFSPR
+                ##########
+
                 with m.Case(MicrOp.OP_MFSPR):
                     comb += Display("MMUTEST: OP_MFSPR: spr=%i returns=%i",
                                     spr, spr1_i)
@@ -177,6 +186,10 @@ class FSMMMUStage(ControlBase):
                     comb += o.ok.eq(1)
                     comb += done.eq(1)
 
+                ##########
+                # OP_TLBIE
+                ##########
+
                 with m.Case(MicrOp.OP_TLBIE):
                     comb += Display("MMUTEST: OP_TLBIE: insn_bits=%i", spr)
                     # pass TLBIE request to MMU (spec: v3.0B p1034)
@@ -191,6 +204,10 @@ class FSMMMUStage(ControlBase):
                     comb += l_in.addr.eq(b_i)  # incoming operand (RB)
                     comb += done.eq(l_out.done) # zzzz
                     comb += self.debug0.eq(2)
+
+                ############
+                # OP_ILLEGAL
+                ############
 
                 with m.Case(MicrOp.OP_ILLEGAL):
                     comb += self.illegal.eq(1)
