@@ -196,17 +196,13 @@ def TLBTagEAArray():
                 for x in range (TLB_NUM_WAYS))
 
 def TLBRecord(name):
-    tlb_layout = [('valid', 1),
+    tlb_layout = [('valid', TLB_NUM_WAYS),
                   ('tag', TLB_TAG_WAY_BITS),
                   ('pte', TLB_PTE_WAY_BITS)
                  ]
     return Record(tlb_layout, name=name)
 
 def TLBArray():
-    tlb_layout = [('valid', TLB_NUM_WAYS),
-                  ('tag', TLB_TAG_WAY_BITS),
-                  ('pte', TLB_PTE_WAY_BITS)
-                 ]
     return Array(TLBRecord(name="tlb%d" % x) for x in range(TLB_SET_SIZE))
 
 def HitWaySet():
@@ -491,7 +487,7 @@ class DTLBUpdate(Elaboratable):
 
 class DCachePendingHit(Elaboratable):
 
-    def __init__(self, tlb_pte_way, tlb_valid_way, tlb_hit_way,
+    def __init__(self, tlb_way, tlb_hit_way,
                       cache_i_validdx, cache_tag_set,
                     req_addr,
                     hit_set):
@@ -506,8 +502,7 @@ class DCachePendingHit(Elaboratable):
         self.reload_tag  = Signal(TAG_BITS)
 
         self.tlb_hit_way = tlb_hit_way
-        self.tlb_pte_way = tlb_pte_way
-        self.tlb_valid_way = tlb_valid_way
+        self.tlb_way = tlb_way
         self.cache_i_validdx = cache_i_validdx
         self.cache_tag_set = cache_tag_set
         self.req_addr = req_addr
@@ -521,8 +516,7 @@ class DCachePendingHit(Elaboratable):
         go = self.go
         virt_mode = self.virt_mode
         is_hit = self.is_hit
-        tlb_pte_way = self.tlb_pte_way
-        tlb_valid_way = self.tlb_valid_way
+        tlb_way = self.tlb_way
         cache_i_validdx = self.cache_i_validdx
         cache_tag_set = self.cache_tag_set
         req_addr = self.req_addr
@@ -550,7 +544,7 @@ class DCachePendingHit(Elaboratable):
                 s_hit       = Signal()
                 s_pte       = Signal(TLB_PTE_BITS)
                 s_ra        = Signal(REAL_ADDR_BITS)
-                comb += s_pte.eq(read_tlb_pte(j, tlb_pte_way))
+                comb += s_pte.eq(read_tlb_pte(j, tlb_way.pte))
                 comb += s_ra.eq(Cat(req_addr[0:TLB_LG_PGSZ],
                                     s_pte[TLB_LG_PGSZ:REAL_ADDR_BITS]))
                 comb += s_tag.eq(get_tag(s_ra))
@@ -559,7 +553,7 @@ class DCachePendingHit(Elaboratable):
                     is_tag_hit = Signal(name="is_tag_hit_%d_%d" % (j, i))
                     comb += is_tag_hit.eq(go & cache_i_validdx[i] &
                                   (read_tag(i, cache_tag_set) == s_tag)
-                                  & tlb_valid_way[j])
+                                  & (tlb_way.valid[j]))
                     with m.If(is_tag_hit):
                         comb += hit_way_set[j].eq(i)
                         comb += s_hit.eq(1)
@@ -668,8 +662,7 @@ class DCache(Elaboratable):
                                  r.req.virt_mode, r.req.addr,
                                  r.req.data, r.req.load)
 
-    def tlb_read(self, m, r0_stall, tlb_valid_way,
-                 tlb_tag_way, tlb_pte_way, dtlb):
+    def tlb_read(self, m, r0_stall, tlb_way, dtlb):
         """TLB
         Operates in the second cycle on the request latched in r0.req.
         TLB updates write the entry at the end of the second cycle.
@@ -693,9 +686,7 @@ class DCache(Elaboratable):
         # If we have any op and the previous op isn't finished,
         # then keep the same output for next cycle.
         with m.If(~r0_stall):
-            sync += tlb_valid_way.eq(dtlb[index].valid)
-            sync += tlb_tag_way.eq(dtlb[index].tag)
-            sync += tlb_pte_way.eq(dtlb[index].pte)
+            sync += tlb_way.eq(dtlb[index])
 
     def maybe_tlb_plrus(self, m, r1, tlb_plru_victim):
         """Generate TLB PLRUs
@@ -717,8 +708,8 @@ class DCache(Elaboratable):
             comb += tlb_plru_victim[i].eq(tlb_plru.lru_o)
 
     def tlb_search(self, m, tlb_req_index, r0, r0_valid,
-                   tlb_valid_way, tlb_tag_way, tlb_hit_way,
-                   tlb_pte_way, pte, tlb_hit, valid_ra, perm_attr, ra):
+                   tlb_way, tlb_hit_way,
+                   pte, tlb_hit, valid_ra, perm_attr, ra):
 
         comb = m.d.comb
 
@@ -733,8 +724,8 @@ class DCache(Elaboratable):
         for i in range(TLB_NUM_WAYS):
             is_tag_hit = Signal(name="is_tag_hit%d" % i)
             tlb_tag = Signal(TLB_EA_TAG_BITS, name="tlb_tag%d" % i)
-            comb += tlb_tag.eq(read_tlb_tag(i, tlb_tag_way))
-            comb += is_tag_hit.eq(tlb_valid_way[i] & (tlb_tag == eatag))
+            comb += tlb_tag.eq(read_tlb_tag(i, tlb_way.tag))
+            comb += is_tag_hit.eq((tlb_way.valid[i]) & (tlb_tag == eatag))
             with m.If(is_tag_hit):
                 comb += hitway.eq(i)
                 comb += hit.eq(1)
@@ -743,7 +734,7 @@ class DCache(Elaboratable):
         comb += tlb_hit_way.eq(hitway)
 
         with m.If(tlb_hit):
-            comb += pte.eq(read_tlb_pte(hitway, tlb_pte_way))
+            comb += pte.eq(read_tlb_pte(hitway, tlb_way.pte))
         comb += valid_ra.eq(tlb_hit | ~r0.req.virt_mode)
 
         with m.If(r0.req.virt_mode):
@@ -777,8 +768,7 @@ class DCache(Elaboratable):
             m.d.sync += Display("       perm wrp=%d", perm_attr.wr_perm)
 
     def tlb_update(self, m, r0_valid, r0, dtlb, tlb_req_index,
-                    tlb_hit_way, tlb_hit, tlb_plru_victim, tlb_tag_way,
-                    tlb_pte_way):
+                    tlb_hit_way, tlb_hit, tlb_plru_victim, tlb_way):
 
         comb = m.d.comb
         sync = m.d.sync
@@ -807,8 +797,8 @@ class DCache(Elaboratable):
         comb += d.doall.eq(r0.doall)
         comb += d.tlb_hit.eq(tlb_hit)
         comb += d.tlb_hit_way.eq(tlb_hit_way)
-        comb += d.tlb_tag_way.eq(tlb_tag_way)
-        comb += d.tlb_pte_way.eq(tlb_pte_way)
+        comb += d.tlb_tag_way.eq(tlb_way.tag)
+        comb += d.tlb_pte_way.eq(tlb_way.pte)
         comb += d.tlb_req_index.eq(tlb_req_index)
 
         with m.If(tlb_hit):
@@ -860,8 +850,7 @@ class DCache(Elaboratable):
                        use_forward1_next, use_forward2_next,
                        req_hit_way, plru_victim, rc_ok, perm_attr,
                        valid_ra, perm_ok, access_ok, req_op, req_go,
-                       tlb_pte_way,
-                       tlb_hit, tlb_hit_way, tlb_valid_way, cache_tag_set,
+                       tlb_hit, tlb_hit_way, tlb_way, cache_tag_set,
                        cancel_store, req_same_tag, r0_stall, early_req_row):
         """Cache request parsing and hit detection
         """
@@ -891,8 +880,8 @@ class DCache(Elaboratable):
         comb += go.eq(r0_valid & ~(r0.tlbie | r0.tlbld) & ~r1.ls_error)
         comb += cache_i_validdx.eq(cache_tags[req_index].valid)
 
-        m.submodules.dcache_pend = dc = DCachePendingHit(tlb_pte_way,
-                                tlb_valid_way, tlb_hit_way,
+        m.submodules.dcache_pend = dc = DCachePendingHit(
+                                tlb_way, tlb_hit_way,
                                 cache_i_validdx, cache_tag_set,
                                 r0.req.addr,
                                 hit_set)
@@ -1661,9 +1650,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         bus_sel           = Signal(8)
 
         # TLB signals
-        tlb_tag_way   = Signal(TLB_TAG_WAY_BITS)
-        tlb_pte_way   = Signal(TLB_PTE_WAY_BITS)
-        tlb_valid_way = Signal(TLB_NUM_WAYS)
+        tlb_way       = TLBRecord("tlb_way")
         tlb_req_index = Signal(TLB_SET_BITS)
         tlb_hit       = Signal()
         tlb_hit_way   = Signal(TLB_WAY_BITS)
@@ -1686,7 +1673,6 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         comb += r0_valid.eq(r0_full & ~r1.full & ~d_in.hold)
         comb += self.stall_out.eq(r0_stall)
 
-
         # deal with litex not doing wishbone pipeline mode
         # XXX in wrong way.  FIFOs are needed in the SRAM test
         # so that stb/ack match up. same thing done in icache.py
@@ -1703,14 +1689,13 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         # call sub-functions putting everything together, using shared
         # signals established above
         self.stage_0(m, r0, r1, r0_full)
-        self.tlb_read(m, r0_stall, tlb_valid_way,
-                      tlb_tag_way, tlb_pte_way, dtlb)
+        self.tlb_read(m, r0_stall, tlb_way, dtlb)
         self.tlb_search(m, tlb_req_index, r0, r0_valid,
-                        tlb_valid_way, tlb_tag_way, tlb_hit_way,
-                        tlb_pte_way, pte, tlb_hit, valid_ra, perm_attr, ra)
+                        tlb_way, tlb_hit_way,
+                        pte, tlb_hit, valid_ra, perm_attr, ra)
         self.tlb_update(m, r0_valid, r0, dtlb, tlb_req_index,
-                        tlb_hit_way, tlb_hit, tlb_plru_victim, tlb_tag_way,
-                        tlb_pte_way)
+                        tlb_hit_way, tlb_hit, tlb_plru_victim,
+                        tlb_way)
         self.maybe_plrus(m, r1, plru_victim)
         self.maybe_tlb_plrus(m, r1, tlb_plru_victim)
         self.cache_tag_read(m, r0_stall, req_index, cache_tag_set, cache_tags)
@@ -1719,8 +1704,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                            use_forward1_next, use_forward2_next,
                            req_hit_way, plru_victim, rc_ok, perm_attr,
                            valid_ra, perm_ok, access_ok, req_op, req_go,
-                           tlb_pte_way,
-                           tlb_hit, tlb_hit_way, tlb_valid_way, cache_tag_set,
+                           tlb_hit, tlb_hit_way, tlb_way, cache_tag_set,
                            cancel_store, req_same_tag, r0_stall, early_req_row)
         self.reservation_comb(m, cancel_store, set_rsrv, clear_rsrv,
                            r0_valid, r0, reservation)
