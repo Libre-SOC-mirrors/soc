@@ -195,12 +195,11 @@ def RowPerLineValidArray():
 # attribute ram_style : string;
 # attribute ram_style of cache_tags : signal is "distributed";
 
-tlb_layout = [('valid', 1),
-              ('tag', TLB_EA_TAG_BITS),
-              ('pte', TLB_PTE_BITS)
-             ]
-
 def TLBArray():
+    tlb_layout = [('valid', 1),
+                  ('tag', TLB_EA_TAG_BITS),
+                  ('pte', TLB_PTE_BITS)
+                 ]
     return Array(Record(tlb_layout, name="tlb%d" % x) for x in range(TLB_SIZE))
 
 # Cache RAM interface
@@ -500,8 +499,7 @@ class ICache(Elaboratable):
                 comb += tagi.eq(read_tag(i, ctag))
                 hit_test = Signal(name="hit_test%d" % i)
                 comb += hit_test.eq(i == r.store_way)
-                with m.If((cvb[i] | (hitcond & hit_test))
-                          & (tagi == req_tag)):
+                with m.If((cvb[i] | (hitcond & hit_test)) & (tagi == req_tag)):
                     comb += hit_way.eq(i)
                     comb += is_hit.eq(1)
 
@@ -572,10 +570,7 @@ class ICache(Elaboratable):
                          "cache hit nia:%x IR:%x SM:%x idx:%x tag:%x " \
                          "way:%x RA:%x", i_in.nia, i_in.virt_mode, \
                          i_in.stop_mark, req_index, req_tag, \
-                         req_hit_way, real_addr
-                        )
-
-
+                         req_hit_way, real_addr)
 
         with m.If(~stall_in):
             # Send stop marks and NIA down regardless of validity
@@ -599,8 +594,7 @@ class ICache(Elaboratable):
                      "cache miss nia:%x IR:%x SM:%x idx:%x "
                      " way:%x tag:%x RA:%x", i_in.nia,
                      i_in.virt_mode, i_in.stop_mark, req_index,
-                     replace_way, req_tag, real_addr
-                    )
+                     replace_way, req_tag, real_addr)
 
             # Keep track of our index and way for subsequent stores
             st_row = Signal(ROW_BITS)
@@ -623,12 +617,12 @@ class ICache(Elaboratable):
     def icache_miss_clr_tag(self, m, r, replace_way,
                             cache_valid_bits, req_index,
                             tagset, cache_tags):
-
         comb = m.d.comb
         sync = m.d.sync
 
         # Get victim way from plru
         sync += r.store_way.eq(replace_way)
+
         # Force misses on that way while reloading that line
         cv = Signal(INDEX_BITS)
         comb += cv.eq(cache_valid_bits[req_index])
@@ -734,24 +728,18 @@ class ICache(Elaboratable):
         with m.Switch(r.state):
 
             with m.Case(State.IDLE):
-                self.icache_miss_idle(
-                    m, r, req_is_miss, req_laddr,
-                    req_index, req_tag, replace_way,
-                    real_addr
-                )
+                self.icache_miss_idle(m, r, req_is_miss, req_laddr,
+                                      req_index, req_tag, replace_way,
+                                      real_addr)
 
             with m.Case(State.CLR_TAG, State.WAIT_ACK):
                 with m.If(r.state == State.CLR_TAG):
-                    self.icache_miss_clr_tag(
-                        m, r, replace_way,
-                        cache_valid_bits, req_index,
-                        tagset, cache_tags
-                    )
+                    self.icache_miss_clr_tag(m, r, replace_way,
+                                             cache_valid_bits, req_index,
+                                             tagset, cache_tags)
 
-                self.icache_miss_wait_ack(
-                    m, r, replace_way, inval_in,
-                    stbs_done, cache_valid_bits
-                )
+                self.icache_miss_wait_ack(m, r, replace_way, inval_in,
+                                          stbs_done, cache_valid_bits)
 
         # TLB miss and protection fault processing
         with m.If(flush_in | m_in.tlbld):
@@ -797,6 +785,7 @@ class ICache(Elaboratable):
         cache_tags       = CacheTagArray()
         cache_valid_bits = CacheValidBitsArray()
 
+        # TLB Array
         itlb            = TLBArray()
 
         # TODO to be passed to nmigen as ram attributes
@@ -984,4 +973,3 @@ if __name__ == '__main__':
         mem.append((i*2) | ((i*2+1)<<32))
 
     test_icache(mem)
-
