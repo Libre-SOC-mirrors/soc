@@ -37,8 +37,9 @@ from soc.experiment.mem_types import (Fetch1ToICacheType,
 from soc.experiment.wb_types import (WB_ADDR_BITS, WB_DATA_BITS,
                                      WB_SEL_BITS, WBAddrType, WBDataType,
                                      WBSelType, WBMasterOut, WBSlaveOut,
-                                     WBMasterOutVector, WBSlaveOutVector,
-                                     WBIOMasterOut, WBIOSlaveOut)
+                                     )
+
+from nmigen_soc.wishbone.bus import Interface
 
 # for test
 from soc.bus.sram import SRAM
@@ -319,6 +320,14 @@ class ICache(Elaboratable):
 
         self.wb_out         = WBMasterOut(name="wb_out")
         self.wb_in          = WBSlaveOut(name="wb_in")
+
+        # standard naming (wired to non-standard for compatibility)
+        self.bus = Interface(addr_width=32,
+                            data_width=64,
+                            granularity=8,
+                            features={'stall'},
+                            alignment=0,
+                            name="dcache")
 
         self.log_out        = Signal(54)
 
@@ -975,6 +984,7 @@ if __name__ == '__main__':
     with open("test_icache.il", "w") as f:
         f.write(vl)
 
+    # set up memory every 32-bits with incrementing values 0 1 2 ...
     mem = []
     for i in range(512):
         mem.append((i*2) | ((i*2+1)<<32))
