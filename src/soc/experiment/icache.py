@@ -349,7 +349,7 @@ class ICache(Elaboratable):
             d_out    = Signal(ROW_SIZE_BITS, name="d_out_%d" % i)
             wr_sel   = Signal(ROW_SIZE)
 
-            way = CacheRam(ROW_BITS, ROW_SIZE_BITS, True)
+            way = CacheRam(ROW_BITS, ROW_SIZE_BITS, True, ram_num=i)
             setattr(m.submodules, "cacheram_%d" % i, way)
 
             comb += way.rd_en.eq(do_read)
@@ -607,7 +607,7 @@ class ICache(Elaboratable):
                     )
 
             # Keep track of our index and way for subsequent stores
-            st_row = Signal(BRAM_ROWS)
+            st_row = Signal(ROW_BITS)
             comb += st_row.eq(get_row(req_laddr))
             sync += r.store_index.eq(req_index)
             sync += r.store_row.eq(st_row)
