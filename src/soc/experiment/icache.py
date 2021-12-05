@@ -20,7 +20,8 @@ TODO (in no specific order):
 """
 
 from enum import (Enum, unique)
-from nmigen import (Module, Signal, Elaboratable, Cat, Array, Const, Repl)
+from nmigen import (Module, Signal, Elaboratable, Cat, Array, Const, Repl,
+                    Record)
 from nmigen.cli import main, rtlil
 from nmutil.iocontrol import RecordObject
 from nmigen.utils import log2_int
@@ -194,18 +195,13 @@ def RowPerLineValidArray():
 # attribute ram_style : string;
 # attribute ram_style of cache_tags : signal is "distributed";
 
+tlb_layout = [('valid', 1),
+              ('tag', TLB_EA_TAG_BITS),
+              ('pte', TLB_PTE_BITS)
+             ]
 
-def TLBValidBitsArray():
-    return Array(Signal(name="tlbvalid_%d" %x) \
-                 for x in range(TLB_SIZE))
-
-def TLBTagArray():
-    return Array(Signal(TLB_EA_TAG_BITS, name="tlbtag_%d" %x) \
-                 for x in range(TLB_SIZE))
-
-def TLBPtesArray():
-    return Array(Signal(TLB_PTE_BITS, name="tlbptes_%d" %x) \
-                 for x in range(TLB_SIZE))
+def TLBArray():
+    return Array(Record(tlb_layout, name="tlb%d" % x) for x in range(TLB_SIZE))
 
 # Cache RAM interface
 def CacheRamOut():
@@ -395,8 +391,8 @@ class ICache(Elaboratable):
                 comb += plru_victim[i].eq(plru.lru_o)
 
     # TLB hit detection and real address generation
-    def itlb_lookup(self, m, tlb_req_index, itlb_ptes, itlb_tags,
-                    real_addr, itlb_valid_bits, ra_valid, eaa_priv,
+    def itlb_lookup(self, m, tlb_req_index, itlb,
+                    real_addr, ra_valid, eaa_priv,
                     priv_fault, access_ok):
 
         comb = m.d.comb
@@ -407,8 +403,8 @@ class ICache(Elaboratable):
         ttag = Signal(TLB_EA_TAG_BITS)
 
         comb += tlb_req_index.eq(hash_ea(i_in.nia))
-        comb += pte.eq(itlb_ptes[tlb_req_index])
-        comb += ttag.eq(itlb_tags[tlb_req_index])
+        comb += pte.eq(itlb[tlb_req_index].pte)
+        comb += ttag.eq(itlb[tlb_req_index].tag)
 
         with m.If(i_in.virt_mode):
             comb += real_addr.eq(Cat(
@@ -417,7 +413,7 @@ class ICache(Elaboratable):
                     ))
 
             with m.If(ttag == i_in.nia[TLB_LG_PGSZ + TLB_BITS:64]):
-                comb += ra_valid.eq(itlb_valid_bits[tlb_req_index])
+                comb += ra_valid.eq(itlb[tlb_req_index].valid)
 
             comb += eaa_priv.eq(pte[3])
 
@@ -431,7 +427,7 @@ class ICache(Elaboratable):
         comb += access_ok.eq(ra_valid & ~priv_fault)
 
     # iTLB update
-    def itlb_update(self, m, itlb_valid_bits, itlb_tags, itlb_ptes):
+    def itlb_update(self, m, itlb):
         comb = m.d.comb
         sync = m.d.sync
 
@@ -443,18 +439,16 @@ class ICache(Elaboratable):
         with m.If(m_in.tlbie & m_in.doall):
             # Clear all valid bits
             for i in range(TLB_SIZE):
-                sync += itlb_valid_bits[i].eq(0)
+                sync += itlb[i].valid.eq(0)
 
         with m.Elif(m_in.tlbie):
             # Clear entry regardless of hit or miss
-            sync += itlb_valid_bits[wr_index].eq(0)
+            sync += itlb[wr_index].valid.eq(0)
 
         with m.Elif(m_in.tlbld):
-            sync += itlb_tags[wr_index].eq(
-                     m_in.addr[TLB_LG_PGSZ + TLB_BITS:64]
-                    )
-            sync += itlb_ptes[wr_index].eq(m_in.pte)
-            sync += itlb_valid_bits[wr_index].eq(1)
+            sync += itlb[wr_index].tag.eq(m_in.addr[TLB_LG_PGSZ + TLB_BITS:64])
+            sync += itlb[wr_index].pte.eq(m_in.pte)
+            sync += itlb[wr_index].valid.eq(1)
 
     # Cache hit detection, output to fetch2 and other misc logic
     def icache_comb(self, m, use_previous, r, req_index, req_row,
@@ -803,9 +797,8 @@ class ICache(Elaboratable):
         cache_tags       = CacheTagArray()
         cache_valid_bits = CacheValidBitsArray()
 
-        itlb_valid_bits  = TLBValidBitsArray()
-        itlb_tags        = TLBTagArray()
-        itlb_ptes        = TLBPtesArray()
+        itlb            = TLBArray()
+
         # TODO to be passed to nmigen as ram attributes
         # attribute ram_style of itlb_tags : signal is "distributed";
         # attribute ram_style of itlb_ptes : signal is "distributed";
@@ -844,10 +837,10 @@ class ICache(Elaboratable):
         # using shared signals established above
         self.rams(m, r, cache_out_row, use_previous, replace_way, req_row)
         self.maybe_plrus(m, r, plru_victim)
-        self.itlb_lookup(m, tlb_req_index, itlb_ptes, itlb_tags, real_addr,
-                         itlb_valid_bits, ra_valid, eaa_priv, priv_fault,
+        self.itlb_lookup(m, tlb_req_index, itlb, real_addr,
+                         ra_valid, eaa_priv, priv_fault,
                          access_ok)
-        self.itlb_update(m, itlb_valid_bits, itlb_tags, itlb_ptes)
+        self.itlb_update(m, itlb)
         self.icache_comb(m, use_previous, r, req_index, req_row, req_hit_way,
                          req_tag, real_addr, req_laddr, cache_valid_bits,
                          cache_tags, access_ok, req_is_hit, req_is_miss,
