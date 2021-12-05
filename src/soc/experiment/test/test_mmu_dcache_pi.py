@@ -28,6 +28,8 @@ from soc.experiment.mem_types import (LoadStore1ToMMUType,
 
 from soc.experiment.mmu import MMU
 from soc.experiment.dcache import DCache
+from openpower.test.wb_get import wb_get
+from openpower.test import wb_get as wbget
 
 #more imports 
 
@@ -48,6 +50,28 @@ from nmigen.compat.sim import run_simulation, Settle
 #class MMUToLoadStore1Type(RecordObject):    mmu.l_out
 # will take at least one week (10.10.2020)
 # many unconnected signals
+
+def b(x):
+    return int.from_bytes(x.to_bytes(8, byteorder='little'),
+                          byteorder='big', signed=False)
+
+mem = {0x10000:    # PARTITION_TABLE_2
+                   # PATB_GR=1 PRTB=0x1000 PRTS=0xb
+       b(0x800000000100000b),
+
+       0x30000:     # RADIX_ROOT_PTE
+                    # V = 1 L = 0 NLB = 0x400 NLS = 9
+       b(0x8000000000040009),
+
+       0x40000:     # RADIX_SECOND_LEVEL
+                    # 	   V = 1 L = 1 SW = 0 RPN = 0
+                       # R = 1 C = 1 ATT = 0 EAA 0x7
+       b(0xc000000000000187),
+
+      0x1000000:   # PROCESS_TABLE_3
+                   # RTS1 = 0x2 RPDB = 0x300 RTS2 = 0x5 RPDS = 13
+       b(0x40000000000300ad),
+      }
 
 
 class TestMicrowattMemoryPortInterface(PortInterfaceBase):
@@ -120,62 +144,11 @@ class TestMicrowattMemoryPortInterface(PortInterfaceBase):
         yield from super().ports()
         # TODO: memory ports
 
-stop = False
-
-
-def todo_replace_wb_get(dc):
-    """simulator process for getting memory load requests
-    """
-
-    global stop
-
-    def b(x):
-        return int.from_bytes(x.to_bytes(8, byteorder='little'),
-                              byteorder='big', signed=False)
-
-    mem = {0x10000:    # PARTITION_TABLE_2
-                       # PATB_GR=1 PRTB=0x1000 PRTS=0xb
-           b(0x800000000100000b),
-
-           0x30000:     # RADIX_ROOT_PTE
-                        # V = 1 L = 0 NLB = 0x400 NLS = 9
-           b(0x8000000000040009),
-
-           0x40000:     # RADIX_SECOND_LEVEL
-                        # 	   V = 1 L = 1 SW = 0 RPN = 0
-                           # R = 1 C = 1 ATT = 0 EAA 0x7
-           b(0xc000000000000187),
-
-          0x1000000:   # PROCESS_TABLE_3
-                       # RTS1 = 0x2 RPDB = 0x300 RTS2 = 0x5 RPDS = 13
-           b(0x40000000000300ad),
-          }
-
-    while not stop:
-        while True: # wait for dc_valid
-            if stop:
-                return
-            cyc = yield (dc.bus.cyc)
-            stb = yield (dc.bus.stb)
-            if cyc and stb:
-                break
-            yield
-        addr = (yield dc.bus.adr) << 3
-        if addr not in mem:
-            print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
-
-        data = mem.get(addr, 0)
-        yield dc.bus.dat_r.eq(data)
-        print ("    DCACHE get %x data %x" % (addr, data))
-        yield dc.bus.ack.eq(1)
-        yield
-        yield dc.bus.ack.eq(0)
-        yield
+wbget.stop = False
 
 
 def mmu_lookup(dut, addr):
     mmu = dut.mmu
-    global stop
 
     print("pi_ld")
     yield from pi_ld(dut.pi, addr, 1)
@@ -210,7 +183,6 @@ def mmu_lookup(dut, addr):
 
 def mmu_sim(dut):
     mmu = dut.mmu
-    global stop
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
 
@@ -226,7 +198,7 @@ def mmu_sim(dut):
     phys_addr = yield from mmu_lookup(dut, 0x10000)
     assert phys_addr == 0x40000
 
-    stop = True
+    wbget.stop = True
 
 
 def test_mmu():
@@ -242,7 +214,7 @@ def test_mmu():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(mmu_sim(dut)))
-    sim.add_sync_process(wrap(todo_replace_wb_get(dcache)))
+    sim.add_sync_process(wrap(wb_get(dcache.bus, mem)))
     with sim.write_vcd('test_mmu_pi.vcd'):
         sim.run()
 
