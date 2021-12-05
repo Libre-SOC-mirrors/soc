@@ -53,7 +53,6 @@ def setup_mmu():
 
     l_in, l_out = mmu.l_in, mmu.l_out
     d_in, d_out = dcache.d_in, dcache.d_out
-    wb_out, wb_in = dcache.wb_out, dcache.wb_in
 
     # link mmu and dcache together
     m.d.comb += dcache.m_in.eq(mmu.d_out) # MMUToDCacheType

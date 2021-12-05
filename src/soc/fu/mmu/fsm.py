@@ -80,7 +80,6 @@ class FSMMMUStage(ControlBase):
 
         l_in, l_out = mmu.l_in, mmu.l_out
         d_in, d_out = dcache.d_in, dcache.d_out
-        wb_out, wb_in = dcache.wb_out, dcache.wb_in
 
         # link ldst and MMU together
         comb += l_in.eq(ldst.m_out)

@@ -155,21 +155,21 @@ def todo_replace_wb_get(dc):
         while True: # wait for dc_valid
             if stop:
                 return
-            cyc = yield (dc.wb_out.cyc)
-            stb = yield (dc.wb_out.stb)
+            cyc = yield (dc.bus.cyc)
+            stb = yield (dc.bus.stb)
             if cyc and stb:
                 break
             yield
-        addr = (yield dc.wb_out.adr) << 3
+        addr = (yield dc.bus.adr) << 3
         if addr not in mem:
             print ("    WB LOOKUP NO entry @ %x, returning zero" % (addr))
 
         data = mem.get(addr, 0)
-        yield dc.wb_in.dat.eq(data)
+        yield dc.bus.dat_r.eq(data)
         print ("    DCACHE get %x data %x" % (addr, data))
-        yield dc.wb_in.ack.eq(1)
+        yield dc.bus.ack.eq(1)
         yield
-        yield dc.wb_in.ack.eq(0)
+        yield dc.bus.ack.eq(0)
         yield
 
 

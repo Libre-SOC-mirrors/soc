@@ -30,6 +30,8 @@ from nmutil.util import Display
 from copy import deepcopy
 from random import randint, seed
 
+from nmigen_soc.wishbone.bus import Interface
+
 from nmigen.cli import main
 from nmutil.iocontrol import RecordObject
 from nmigen.utils import log2_int
@@ -601,8 +603,13 @@ class DCache(Elaboratable):
 
         self.stall_out = Signal()
 
-        self.wb_out    = WBMasterOut("wb_out")
-        self.wb_in     = WBSlaveOut("wb_in")
+        # standard naming (wired to non-standard for compatibility)
+        self.bus = Interface(addr_width=32,
+                            data_width=64,
+                            granularity=8,
+                            features={'stall'},
+                            alignment=0,
+                            name="dcache")
 
         self.log_out   = Signal(20)
 
@@ -1115,7 +1122,7 @@ class DCache(Elaboratable):
         account by using 1-cycle delayed signals for load hits.
         """
         comb = m.d.comb
-        wb_in = self.wb_in
+        bus = self.bus
 
         for i in range(NUM_WAYS):
             do_read  = Signal(name="do_rd%d" % i)
@@ -1164,12 +1171,12 @@ class DCache(Elaboratable):
                 with m.If(r1.dcbz):
                     comb += wr_data.eq(0)
                 with m.Else():
-                    comb += wr_data.eq(wb_in.dat)
+                    comb += wr_data.eq(bus.dat_r)
                 comb += wr_addr.eq(r1.store_row)
                 comb += wr_sel.eq(~0) # all 1s
 
                 with m.If((r1.state == State.RELOAD_WAIT_ACK)
-                          & wb_in.ack & (replace_way == i)):
+                          & bus.ack & (replace_way == i)):
                     comb += do_write.eq(1)
 
             # Mask write selects with do_write since BRAM
@@ -1248,7 +1255,7 @@ class DCache(Elaboratable):
 
         comb = m.d.comb
         sync = m.d.sync
-        wb_in = self.wb_in
+        bus = self.bus
         d_in = self.d_in
 
         req         = MemAccessRequest("mreq_ds")
@@ -1279,7 +1286,7 @@ class DCache(Elaboratable):
             with m.If(r1.dcbz):
                 sync += r1.forward_data1.eq(0)
             with m.Else():
-                sync += r1.forward_data1.eq(wb_in.dat)
+                sync += r1.forward_data1.eq(bus.dat_r)
             sync += r1.forward_sel1.eq(~0) # all 1s
             sync += r1.forward_way1.eq(replace_way)
             sync += r1.forward_row1.eq(r1.store_row)
@@ -1450,7 +1457,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                 comb += ld_stbs_done.eq(~r1.wb.stb)
 
                 # If we are still sending requests, was one accepted?
-                with m.If((~wb_in.stall) & r1.wb.stb):
+                with m.If((~bus.stall) & r1.wb.stb):
                     # That was the last word?  We are done sending.
                     # Clear stb and set ld_stbs_done so we can handle an
                     # eventual last ack on the same cycle.
@@ -1466,8 +1473,8 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                     sync += r1.wb.adr[:LINE_OFF_BITS-ROW_OFF_BITS].eq(row+1)
 
                 # Incoming acks processing
-                sync += r1.forward_valid1.eq(wb_in.ack)
-                with m.If(wb_in.ack):
+                sync += r1.forward_valid1.eq(bus.ack)
+                with m.If(bus.ack):
                     srow = Signal(ROW_LINE_BITS)
                     comb += srow.eq(r1.store_row)
                     sync += r1.rows_valid[srow].eq(1)
@@ -1529,7 +1536,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                 sync += r1.acks_pending.eq(adjust_acks)
 
                 # Clear stb when slave accepted request
-                with m.If(~wb_in.stall):
+                with m.If(~bus.stall):
                     # See if there is another store waiting
                     # to be done which is in the same real page.
                     with m.If(req.valid):
@@ -1558,7 +1565,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                         comb += st_stbs_done.eq(1)
 
                 # Got ack ? See if complete.
-                with m.If(wb_in.ack):
+                with m.If(bus.ack):
                     with m.If(st_stbs_done & (adjust_acks == 1)):
                         sync += r1.state.eq(State.IDLE)
                         sync += r1.wb.cyc.eq(0)
@@ -1567,11 +1574,11 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
 
             with m.Case(State.NC_LOAD_WAIT_ACK):
                 # Clear stb when slave accepted request
-                with m.If(~wb_in.stall):
+                with m.If(~bus.stall):
                     sync += r1.wb.stb.eq(0)
 
                 # Got ack ? complete.
-                with m.If(wb_in.ack):
+                with m.If(bus.ack):
                     sync += r1.state.eq(State.IDLE)
                     sync += r1.full.eq(0)
                     sync += r1.slow_valid.eq(1)
@@ -1589,11 +1596,11 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
     def dcache_log(self, m, r1, valid_ra, tlb_hit_way, stall_out):
 
         sync = m.d.sync
-        d_out, wb_in, log_out = self.d_out, self.wb_in, self.log_out
+        d_out, bus, log_out = self.d_out, self.bus, self.log_out
 
         sync += log_out.eq(Cat(r1.state[:3], valid_ra, tlb_hit_way[:3],
                                stall_out, req_op[:3], d_out.valid, d_out.error,
-                               r1.wb.cyc, r1.wb.stb, wb_in.ack, wb_in.stall,
+                               r1.wb.cyc, r1.wb.stb, bus.ack, bus.stall,
                                r1.real_adr[3:6]))
 
     def elaborate(self, platform):
@@ -1684,13 +1691,19 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         comb += r0_valid.eq(r0_full & ~r1.full & ~d_in.hold)
         comb += self.stall_out.eq(r0_stall)
 
-        # Wire up wishbone request latch out of stage 1
-        comb += self.wb_out.eq(r1.wb)
 
         # deal with litex not doing wishbone pipeline mode
         # XXX in wrong way.  FIFOs are needed in the SRAM test
         # so that stb/ack match up
-        comb += self.wb_in.stall.eq(self.wb_out.cyc & ~self.wb_in.ack)
+        comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
+
+        # Wire up wishbone request latch out of stage 1
+        comb += self.bus.we.eq(r1.wb.we)
+        comb += self.bus.adr.eq(r1.wb.adr)
+        comb += self.bus.sel.eq(r1.wb.sel)
+        comb += self.bus.stb.eq(r1.wb.stb)
+        comb += self.bus.dat_w.eq(r1.wb.dat)
+        comb += self.bus.cyc.eq(r1.wb.cyc)
 
         # call sub-functions putting everything together, using shared
         # signals established above

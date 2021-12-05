@@ -319,17 +319,17 @@ class LoadStore1(PortInterfaceBase):
         comb += exc.segment_fault.eq(m_in.segerr)
 
         # TODO, connect dcache wb_in/wb_out to "standard" nmigen Wishbone bus
-        comb += dbus.adr.eq(dcache.wb_out.adr)
-        comb += dbus.dat_w.eq(dcache.wb_out.dat)
-        comb += dbus.sel.eq(dcache.wb_out.sel)
-        comb += dbus.cyc.eq(dcache.wb_out.cyc)
-        comb += dbus.stb.eq(dcache.wb_out.stb)
-        comb += dbus.we.eq(dcache.wb_out.we)
+        comb += dbus.adr.eq(dcache.bus.adr)
+        comb += dbus.dat_w.eq(dcache.bus.dat_w)
+        comb += dbus.sel.eq(dcache.bus.sel)
+        comb += dbus.cyc.eq(dcache.bus.cyc)
+        comb += dbus.stb.eq(dcache.bus.stb)
+        comb += dbus.we.eq(dcache.bus.we)
 
-        comb += dcache.wb_in.dat.eq(dbus.dat_r)
-        comb += dcache.wb_in.ack.eq(dbus.ack)
+        comb += dcache.bus.dat_r.eq(dbus.dat_r)
+        comb += dcache.bus.ack.eq(dbus.ack)
         if hasattr(dbus, "stall"):
-            comb += dcache.wb_in.stall.eq(dbus.stall)
+            comb += dcache.bus.stall.eq(dbus.stall)
 
         # update out d data when flag set
         with m.If(self.d_w_valid):

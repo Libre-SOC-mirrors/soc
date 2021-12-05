@@ -73,22 +73,22 @@ def todo_replace_wb_get(c, mem, name):
             if stop:
                 log("stop")
                 return
-            cyc = yield (c.wb_out.cyc)
-            stb = yield (c.wb_out.stb)
+            cyc = yield (c.bus.cyc)
+            stb = yield (c.bus.stb)
             if cyc and stb:
                 break
             yield
-        addr = (yield c.wb_out.adr) << 3
+        addr = (yield c.bus.adr) << 3
         if addr not in mem:
             log("%s LOOKUP FAIL %x (return zero)" % (name, addr))
 
         yield
         data = mem.get(addr, 0)
-        yield c.wb_in.dat.eq(data)
+        yield c.bus.dat_r.eq(data)
         log("%s get %x data %x" % (name, addr, data))
-        yield c.wb_in.ack.eq(1)
+        yield c.bus.ack.eq(1)
         yield
-        yield c.wb_in.ack.eq(0)
+        yield c.bus.ack.eq(0)
         yield
 
 

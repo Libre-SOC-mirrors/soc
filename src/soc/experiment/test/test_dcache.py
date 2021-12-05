@@ -255,15 +255,15 @@ def tst_dcache(mem, test_fn, test_name):
     m.submodules.dcache = dut
     m.submodules.sram = sram
 
-    m.d.comb += sram.bus.cyc.eq(dut.wb_out.cyc)
-    m.d.comb += sram.bus.stb.eq(dut.wb_out.stb)
-    m.d.comb += sram.bus.we.eq(dut.wb_out.we)
-    m.d.comb += sram.bus.sel.eq(dut.wb_out.sel)
-    m.d.comb += sram.bus.adr.eq(dut.wb_out.adr)
-    m.d.comb += sram.bus.dat_w.eq(dut.wb_out.dat)
+    m.d.comb += sram.bus.cyc.eq(dut.bus.cyc)
+    m.d.comb += sram.bus.stb.eq(dut.bus.stb)
+    m.d.comb += sram.bus.we.eq(dut.bus.we)
+    m.d.comb += sram.bus.sel.eq(dut.bus.sel)
+    m.d.comb += sram.bus.adr.eq(dut.bus.adr)
+    m.d.comb += sram.bus.dat_w.eq(dut.bus.dat_w)
 
-    m.d.comb += dut.wb_in.ack.eq(sram.bus.ack)
-    m.d.comb += dut.wb_in.dat.eq(sram.bus.dat_r)
+    m.d.comb += dut.bus.ack.eq(sram.bus.ack)
+    m.d.comb += dut.bus.dat_r.eq(sram.bus.dat_r)
 
     dcache_write_gtkw(test_name)
 
@@ -286,6 +286,7 @@ def dcache_write_gtkw(test_name):
         ('d_out', [
             'd_out_valid', 'd_out_data[63:0]'
         ]),
+        # XXX TODO, update to standard wishbone Signals (single "bus" Interface)
         ('wb_out', [
             'wb_out_cyc', 'wb_out_stb', 'wb_out_we',
             'wb_out_adr[31:0]', 'wb_out_sel[7:0]', 'wb_out_dat[63:0]'
