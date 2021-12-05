@@ -24,7 +24,8 @@ sys.setrecursionlimit(1000000)
 
 from enum import Enum, unique
 
-from nmigen import Module, Signal, Elaboratable, Cat, Repl, Array, Const
+from nmigen import (Module, Signal, Elaboratable, Cat, Repl, Array, Const,
+                    Record)
 from nmutil.util import Display
 
 from copy import deepcopy
@@ -155,12 +156,10 @@ TAG_RAM_WIDTH = TAG_WIDTH * NUM_WAYS
 print ("TAG_RAM_WIDTH", TAG_RAM_WIDTH)
 
 def CacheTagArray():
-    return Array(Signal(TAG_RAM_WIDTH, name="cachetag_%d" % x) \
-                        for x in range(NUM_LINES))
-
-def CacheValidBitsArray():
-    return Array(Signal(NUM_WAYS, name="cachevalid_%d" % x) \
-                        for x in range(NUM_LINES))
+    tag_layout = [('valid', 1),
+                  ('tag', TAG_RAM_WIDTH),
+                 ]
+    return Array(Record(tag_layout, name="tag%d" % x) for x in range(NUM_LINES))
 
 def RowPerLineValidArray():
     return Array(Signal(name="rows_valid%d" % x) \
@@ -855,10 +854,10 @@ class DCache(Elaboratable):
             comb += index.eq(get_index(m_in.addr))
         with m.Else():
             comb += index.eq(get_index(d_in.addr))
-        sync += cache_tag_set.eq(cache_tags[index])
+        sync += cache_tag_set.eq(cache_tags[index].tag)
 
     def dcache_request(self, m, r0, ra, req_index, req_row, req_tag,
-                       r0_valid, r1, cache_valids, replace_way,
+                       r0_valid, r1, cache_tags, replace_way,
                        use_forward1_next, use_forward2_next,
                        req_hit_way, plru_victim, rc_ok, perm_attr,
                        valid_ra, perm_ok, access_ok, req_op, req_go,
@@ -891,7 +890,7 @@ class DCache(Elaboratable):
                     r0.req.addr, ra, req_index, req_tag, req_row)
 
         comb += go.eq(r0_valid & ~(r0.tlbie | r0.tlbld) & ~r1.ls_error)
-        comb += cache_i_validdx.eq(cache_valids[req_index])
+        comb += cache_i_validdx.eq(cache_tags[req_index].valid)
 
         m.submodules.dcache_pend = dc = DCachePendingHit(tlb_pte_way,
                                 tlb_valid_way, tlb_hit_way,
@@ -1249,7 +1248,7 @@ class DCache(Elaboratable):
     # All wishbone requests generation is done here.
     # This machine operates at stage 1.
     def dcache_slow(self, m, r1, use_forward1_next, use_forward2_next,
-                    cache_valids, r0, replace_way,
+                    r0, replace_way,
                     req_hit_way, req_same_tag,
                     r0_valid, req_op, cache_tags, req_go, ra):
 
@@ -1313,14 +1312,14 @@ class DCache(Elaboratable):
             for i in range(NUM_WAYS):
                 with m.If(i == replace_way):
                     ct = Signal(TAG_RAM_WIDTH)
-                    comb += ct.eq(cache_tags[r1.store_index])
+                    comb += ct.eq(cache_tags[r1.store_index].tag)
                     """
 TODO: check this
 cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                     (TAG_WIDTH - 1 downto TAG_BITS => '0') & r1.reload_tag;
                     """
                     comb += ct.word_select(i, TAG_WIDTH).eq(r1.reload_tag)
-                    sync += cache_tags[r1.store_index].eq(ct)
+                    sync += cache_tags[r1.store_index].tag.eq(ct)
             sync += r1.store_way.eq(replace_way)
             sync += r1.write_tag.eq(0)
 
@@ -1505,9 +1504,9 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
 
                         # Cache line is now valid
                         cv = Signal(INDEX_BITS)
-                        comb += cv.eq(cache_valids[r1.store_index])
+                        comb += cv.eq(cache_tags[r1.store_index].valid)
                         comb += cv.bit_select(r1.store_way, 1).eq(1)
-                        sync += cache_valids[r1.store_index].eq(cv)
+                        sync += cache_tags[r1.store_index].valid.eq(cv)
 
                         sync += r1.state.eq(State.IDLE)
                         sync += Display("cache valid set %x "
@@ -1612,7 +1611,6 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         # Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
         cache_tags       = CacheTagArray()
         cache_tag_set    = Signal(TAG_RAM_WIDTH)
-        cache_valids = CacheValidBitsArray()
 
         # TODO attribute ram_style : string;
         # TODO attribute ram_style of cache_tags : signal is "distributed";
@@ -1721,7 +1719,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
         self.maybe_tlb_plrus(m, r1, tlb_plru_victim)
         self.cache_tag_read(m, r0_stall, req_index, cache_tag_set, cache_tags)
         self.dcache_request(m, r0, ra, req_index, req_row, req_tag,
-                           r0_valid, r1, cache_valids, replace_way,
+                           r0_valid, r1, cache_tags, replace_way,
                            use_forward1_next, use_forward2_next,
                            req_hit_way, plru_victim, rc_ok, perm_attr,
                            valid_ra, perm_ok, access_ok, req_op, req_go,
@@ -1738,7 +1736,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                         req_hit_way, req_index, req_tag, access_ok,
                         tlb_hit, tlb_hit_way, tlb_req_index)
         self.dcache_slow(m, r1, use_forward1_next, use_forward2_next,
-                    cache_valids, r0, replace_way,
+                    r0, replace_way,
                     req_hit_way, req_same_tag,
                          r0_valid, req_op, cache_tags, req_go, ra)
         #self.dcache_log(m, r1, valid_ra, tlb_hit_way, stall_out)
