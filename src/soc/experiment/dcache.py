@@ -937,6 +937,7 @@ class DCache(Elaboratable):
                            (perm_attr.wr_perm |
                               (r0.req.load & perm_attr.rd_perm)))
         comb += access_ok.eq(valid_ra & perm_ok & rc_ok)
+
         # Combine the request and cache hit status to decide what
         # operation needs to be done
         comb += nc.eq(r0.req.nc | perm_attr.nocache)
@@ -996,7 +997,6 @@ class DCache(Elaboratable):
 
     def reservation_reg(self, m, r0_valid, access_ok, set_rsrv, clear_rsrv,
                         reservation, r0):
-
         comb = m.d.comb
         sync = m.d.sync
 
@@ -1033,6 +1033,7 @@ class DCache(Elaboratable):
                 dsel = data_fwd.word_select(i, 8)
                 comb += data_out.word_select(i, 8).eq(dsel)
 
+        # DCache output to LoadStore
         comb += d_out.valid.eq(r1.ls_valid)
         comb += d_out.data.eq(data_out)
         comb += d_out.store_done.eq(~r1.stcx_fail)
@@ -1175,7 +1176,6 @@ class DCache(Elaboratable):
     def dcache_fast_hit(self, m, req_op, r0_valid, r0, r1,
                         req_hit_way, req_index, req_tag, access_ok,
                         tlb_hit, tlb_req_index):
-
         comb = m.d.comb
         sync = m.d.sync
 
@@ -1192,15 +1192,9 @@ class DCache(Elaboratable):
         sync += r1.hit_way.eq(req_hit_way)
         sync += r1.hit_index.eq(req_index)
 
-        with m.If(req_op == Op.OP_LOAD_HIT):
-            sync += r1.hit_load_valid.eq(1)
-        with m.Else():
-            sync += r1.hit_load_valid.eq(0)
-
-        with m.If((req_op == Op.OP_LOAD_HIT) | (req_op == Op.OP_STORE_HIT)):
-            sync += r1.cache_hit.eq(1)
-        with m.Else():
-            sync += r1.cache_hit.eq(0)
+        sync += r1.hit_load_valid.eq(req_op == Op.OP_LOAD_HIT)
+        sync += r1.cache_hit.eq((req_op == Op.OP_LOAD_HIT) |
+                                (req_op == Op.OP_STORE_HIT))
 
         with m.If(req_op == Op.OP_BAD):
             sync += Display("Signalling ld/st error "
@@ -1209,16 +1203,12 @@ class DCache(Elaboratable):
             sync += r1.ls_error.eq(~r0.mmu_req)
             sync += r1.mmu_error.eq(r0.mmu_req)
             sync += r1.cache_paradox.eq(access_ok)
-
         with m.Else():
             sync += r1.ls_error.eq(0)
             sync += r1.mmu_error.eq(0)
             sync += r1.cache_paradox.eq(0)
 
-        with m.If(req_op == Op.OP_STCX_FAIL):
-            sync += r1.stcx_fail.eq(1)
-        with m.Else():
-            sync += r1.stcx_fail.eq(0)
+        sync += r1.stcx_fail.eq(req_op == Op.OP_STCX_FAIL)
 
         # Record TLB hit information for updating TLB PLRU
         sync += r1.tlb_hit.eq(tlb_hit)
@@ -1298,11 +1288,6 @@ class DCache(Elaboratable):
                 with m.If(i == replace_way):
                     ct = Signal(TAG_RAM_WIDTH)
                     comb += ct.eq(cache_tags[r1.store_index].tag)
-                    """
-TODO: check this
-cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
-                    (TAG_WIDTH - 1 downto TAG_BITS => '0') & r1.reload_tag;
-                    """
                     comb += ct.word_select(i, TAG_WIDTH).eq(r1.reload_tag)
                     sync += cache_tags[r1.store_index].tag.eq(ct)
             sync += r1.store_way.eq(replace_way)
