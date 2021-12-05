@@ -227,7 +227,7 @@ def get_row(addr):
 
 # Return the index of a row within a line
 def get_row_of_line(row):
-    return row[:ROW_LINE_BITS]
+    return row[:ROW_BITS][:ROW_LINE_BITS]
 
 # Returns whether this is the last row of a line
 def is_last_row_addr(addr, last):
@@ -256,7 +256,7 @@ def get_tag(addr):
 
 # Read a tag from a tag memory row
 def read_tag(way, tagset):
-    return tagset.word_select(way, TAG_BITS)
+    return tagset.word_select(way, TAG_WIDTH)[:TAG_BITS]
 
 # Write a tag to tag memory row
 def write_tag(way, tagset, tag):
