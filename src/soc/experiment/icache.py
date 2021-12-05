@@ -178,13 +178,10 @@ assert (REAL_ADDR_BITS == (TAG_BITS + ROW_BITS + ROW_OFF_BITS)), \
 # not handle a clean (commented) definition of the cache tags as a 3d
 # memory. For now, work around it by putting all the tags
 def CacheTagArray():
-    return Array(Signal(TAG_RAM_WIDTH, name="cachetag_%d" %x) \
-                 for x in range(NUM_LINES))
-
-# The cache valid bits
-def CacheValidBitsArray():
-    return Array(Signal(NUM_WAYS, name="cachevalid_%d" %x) \
-                 for x in range(NUM_LINES))
+    tag_layout = [('valid', 1),
+                  ('tag', TAG_RAM_WIDTH),
+                 ]
+    return Array(Record(tag_layout, name="tag%d" % x) for x in range(NUM_LINES))
 
 def RowPerLineValidArray():
     return Array(Signal(name="rows_valid_%d" %x) \
@@ -452,7 +449,7 @@ class ICache(Elaboratable):
     # Cache hit detection, output to fetch2 and other misc logic
     def icache_comb(self, m, use_previous, r, req_index, req_row,
                     req_hit_way, req_tag, real_addr, req_laddr,
-                    cache_valid_bits, cache_tags, access_ok,
+                    cache_tags, access_ok,
                     req_is_hit, req_is_miss, replace_way,
                     plru_victim, cache_out_row):
 
@@ -492,8 +489,8 @@ class ICache(Elaboratable):
         with m.If(i_in.req):
             cvb = Signal(NUM_WAYS)
             ctag = Signal(TAG_RAM_WIDTH)
-            comb += ctag.eq(cache_tags[req_index])
-            comb += cvb.eq(cache_valid_bits[req_index])
+            comb += ctag.eq(cache_tags[req_index].tag)
+            comb += cvb.eq(cache_tags[req_index].valid)
             for i in range(NUM_WAYS):
                 tagi = Signal(TAG_BITS, name="tag_i%d" % i)
                 comb += tagi.eq(read_tag(i, ctag))
@@ -615,7 +612,7 @@ class ICache(Elaboratable):
             sync += r.state.eq(State.CLR_TAG)
 
     def icache_miss_clr_tag(self, m, r, replace_way,
-                            cache_valid_bits, req_index,
+                            req_index,
                             tagset, cache_tags):
         comb = m.d.comb
         sync = m.d.sync
@@ -625,20 +622,20 @@ class ICache(Elaboratable):
 
         # Force misses on that way while reloading that line
         cv = Signal(INDEX_BITS)
-        comb += cv.eq(cache_valid_bits[req_index])
+        comb += cv.eq(cache_tags[req_index].valid)
         comb += cv.bit_select(replace_way, 1).eq(0)
-        sync += cache_valid_bits[req_index].eq(cv)
+        sync += cache_tags[req_index].valid.eq(cv)
 
         for i in range(NUM_WAYS):
             with m.If(i == replace_way):
-                comb += tagset.eq(cache_tags[r.store_index])
+                comb += tagset.eq(cache_tags[r.store_index].tag)
                 comb += write_tag(i, tagset, r.store_tag)
-                sync += cache_tags[r.store_index].eq(tagset)
+                sync += cache_tags[r.store_index].tag.eq(tagset)
 
         sync += r.state.eq(State.WAIT_ACK)
 
     def icache_miss_wait_ack(self, m, r, replace_way, inval_in,
-                             stbs_done, cache_valid_bits):
+                             cache_tags, stbs_done):
         comb = m.d.comb
         sync = m.d.sync
 
@@ -689,11 +686,10 @@ class ICache(Elaboratable):
 
                 # Cache line is now valid
                 cv = Signal(INDEX_BITS)
-                comb += cv.eq(cache_valid_bits[r.store_index])
+                comb += cv.eq(cache_tags[r.store_index].valid)
                 comb += cv.bit_select(replace_way, 1).eq(
-                         r.store_valid & ~inval_in
-                        )
-                sync += cache_valid_bits[r.store_index].eq(cv)
+                         r.store_valid & ~inval_in)
+                sync += cache_tags[r.store_index].valid.eq(cv)
 
                 sync += r.state.eq(State.IDLE)
 
@@ -702,7 +698,7 @@ class ICache(Elaboratable):
             sync += r.store_row.eq(next_row(r.store_row))
 
     # Cache miss/reload synchronous machine
-    def icache_miss(self, m, cache_valid_bits, r, req_is_miss,
+    def icache_miss(self, m, r, req_is_miss,
                     req_index, req_laddr, req_tag, replace_way,
                     cache_tags, access_ok, real_addr):
         comb = m.d.comb
@@ -721,7 +717,7 @@ class ICache(Elaboratable):
         # Process cache invalidations
         with m.If(inval_in):
             for i in range(NUM_LINES):
-                sync += cache_valid_bits[i].eq(0)
+                sync += cache_tags[i].valid.eq(0)
             sync += r.store_valid.eq(0)
 
         # Main state machine
@@ -735,11 +731,10 @@ class ICache(Elaboratable):
             with m.Case(State.CLR_TAG, State.WAIT_ACK):
                 with m.If(r.state == State.CLR_TAG):
                     self.icache_miss_clr_tag(m, r, replace_way,
-                                             cache_valid_bits, req_index,
-                                             tagset, cache_tags)
+                                             req_index, tagset, cache_tags)
 
                 self.icache_miss_wait_ack(m, r, replace_way, inval_in,
-                                          stbs_done, cache_valid_bits)
+                                          cache_tags, stbs_done)
 
         # TLB miss and protection fault processing
         with m.If(flush_in | m_in.tlbld):
@@ -783,7 +778,6 @@ class ICache(Elaboratable):
 
         # Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
         cache_tags       = CacheTagArray()
-        cache_valid_bits = CacheValidBitsArray()
 
         # TLB Array
         itlb            = TLBArray()
@@ -831,12 +825,12 @@ class ICache(Elaboratable):
                          access_ok)
         self.itlb_update(m, itlb)
         self.icache_comb(m, use_previous, r, req_index, req_row, req_hit_way,
-                         req_tag, real_addr, req_laddr, cache_valid_bits,
+                         req_tag, real_addr, req_laddr,
                          cache_tags, access_ok, req_is_hit, req_is_miss,
                          replace_way, plru_victim, cache_out_row)
         self.icache_hit(m, use_previous, r, req_is_hit, req_hit_way,
                         req_index, req_tag, real_addr)
-        self.icache_miss(m, cache_valid_bits, r, req_is_miss, req_index,
+        self.icache_miss(m, r, req_is_miss, req_index,
                          req_laddr, req_tag, replace_way, cache_tags,
                          access_ok, real_addr)
         #self.icache_log(m, log_out, req_hit_way, ra_valid, access_ok,
