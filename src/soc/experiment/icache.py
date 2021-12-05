@@ -563,11 +563,10 @@ class ICache(Elaboratable):
 
             with m.If(req_is_hit):
                 sync += r.hit_way.eq(req_hit_way)
-                sync += Display(
-                         "cache hit nia:%x IR:%x SM:%x idx:%x tag:%x " \
-                         "way:%x RA:%x", i_in.nia, i_in.virt_mode, \
-                         i_in.stop_mark, req_index, req_tag, \
-                         req_hit_way, real_addr)
+                sync += Display("cache hit nia:%x IR:%x SM:%x idx:%x tag:%x "
+                                "way:%x RA:%x", i_in.nia, i_in.virt_mode,
+                                 i_in.stop_mark, req_index, req_tag,
+                                 req_hit_way, real_addr)
 
         with m.If(~stall_in):
             # Send stop marks and NIA down regardless of validity
@@ -652,12 +651,10 @@ class ICache(Elaboratable):
             # Clear stb and set stbs_done so we can handle
             # an eventual last ack on the same cycle.
             with m.If(is_last_row_addr(r.req_adr, r.end_row_ix)):
-                sync += Display(
-                         "IS_LAST_ROW_ADDR r.wb.addr:%x " \
-                         "r.end_row_ix:%x r.wb.stb:%x stbs_zero:%x " \
+                sync += Display("IS_LAST_ROW_ADDR r.wb.addr:%x "
+                         "r.end_row_ix:%x r.wb.stb:%x stbs_zero:%x "
                          "stbs_done:%x", r.wb.adr, r.end_row_ix,
-                         r.wb.stb, stbs_zero, stbs_done
-                        )
+                         r.wb.stb, stbs_zero, stbs_done)
                 sync += r.wb.stb.eq(0)
                 comb += stbs_done.eq(1)
 
@@ -925,7 +922,6 @@ def icache_sim(dut):
     yield i_in.req.eq(0)
 
 
-
 def test_icache(mem):
      dut    = ICache()
 
@@ -954,6 +950,7 @@ def test_icache(mem):
      sim.add_sync_process(wrap(icache_sim(dut)))
      with sim.write_vcd('test_icache.vcd'):
          sim.run()
+
 
 if __name__ == '__main__':
     dut = ICache()
