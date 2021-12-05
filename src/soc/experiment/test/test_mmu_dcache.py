@@ -57,6 +57,8 @@ def icache_sim(dut, mem):
     i_in  = dut.i_out
     m_out = dut.m_in
 
+    wbget.stop = False
+
     for k,v in mem.items():
         yield i_in.valid.eq(0)
         yield i_out.priv_mode.eq(1)
@@ -86,6 +88,7 @@ def icache_sim(dut, mem):
         yield i_out.req.eq(0)
         yield
 
+    wbget.stop = True
 
 def test_icache_il():
     dut = ICache()
@@ -115,22 +118,21 @@ def test_icache():
 
     # read from "memory" process and corresponding wishbone "read" process
     sim.add_sync_process(wrap(icache_sim(icache, mem)))
-    sim.add_sync_process(wrap(todo_replace_wb_get(icache, mem, "ICACHE")))
+    sim.add_sync_process(wrap(wb_get(icache.bus, mem, "ICACHE")))
     with sim.write_vcd('test_icache.vcd'):
         sim.run()
 
 
 def mmu_lookup(mmu, addr):
-    global stop
 
     yield mmu.l_in.load.eq(1)
     yield mmu.l_in.priv.eq(1)
     yield mmu.l_in.addr.eq(addr)
     yield mmu.l_in.valid.eq(1)
 
-    print ("mmu lookup %x stopped" % addr, stop)
-    while not stop: # wait for dc_valid / err
-        print ("stopped", stop)
+    print ("mmu lookup %x stopped" % addr, wbget.stop)
+    while not wbget.stop: # wait for dc_valid / err
+        print ("stopped", wbget.stop)
         l_done = yield (mmu.l_out.done)
         l_err = yield (mmu.l_out.err)
         l_badtree = yield (mmu.l_out.badtree)
@@ -153,7 +155,7 @@ def mmu_lookup(mmu, addr):
 
 
 def mmu_sim(mmu):
-    global stop
+    wbget.stop = False
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
 
@@ -164,7 +166,7 @@ def mmu_sim(mmu):
     assert phys_addr == 0x40000
     yield
 
-    stop = True
+    wbget.stop = True
 
 
 def test_mmu():
@@ -183,7 +185,7 @@ def test_mmu():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(mmu_sim(mmu)))
-    sim.add_sync_process(wrap(wb_get(dcache,
+    sim.add_sync_process(wrap(wb_get(dcache.bus,
                               default_mem, "DCACHE")))
     with sim.write_vcd('test_mmu.vcd'):
         sim.run()
