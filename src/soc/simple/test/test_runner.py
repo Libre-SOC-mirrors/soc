@@ -26,7 +26,6 @@ from soc.fu.compunits.test.test_compunit import (setup_tst_memory,
                                                  check_sim_memory)
 from soc.debug.dmi import DBGCore, DBGCtrl, DBGStat
 from nmutil.util import wrap
-from soc.experiment.test.test_mmu_dcache import wb_get
 from openpower.test.state import TestState, StateRunner
 from openpower.test.runner import TestRunnerBase
 
