@@ -695,14 +695,19 @@ class DCache(Elaboratable):
 
         if TLB_NUM_WAYS == 0:
             return
+
+        # XXX TODO: use a Binary-to-Unary Encoder here
+        tlb_hit_onehot = Signal(TLB_SET_SIZE)
+        with m.If(r1.tlb_hit.valid):
+            comb += tlb_hit_onehot.eq(1<<r1.tlb_hit_index)
+
         for i in range(TLB_SET_SIZE):
             # TLB PLRU interface
             tlb_plru        = PLRU(TLB_WAY_BITS)
             setattr(m.submodules, "maybe_plru_%d" % i, tlb_plru)
             tlb_plru_acc_en = Signal()
 
-            comb += tlb_plru_acc_en.eq(r1.tlb_hit.valid &
-                                       (r1.tlb_hit_index == i))
+            comb += tlb_plru_acc_en.eq(tlb_hit_onehot[i])
             comb += tlb_plru.acc_en.eq(tlb_plru_acc_en)
             comb += tlb_plru.acc_i.eq(r1.tlb_hit.way)
             comb += tlb_plru_victim[i].eq(tlb_plru.lru_o)
@@ -816,13 +821,18 @@ class DCache(Elaboratable):
         if TLB_NUM_WAYS == 0:
             return
 
+        # XXX TODO: use a Binary-to-Unary Encoder here
+        hit_onehot = Signal(NUM_LINES)
+        with m.If(r1.cache_hit):
+            comb += hit_onehot.eq(1<<r1.hit_index)
+
         for i in range(NUM_LINES):
             # PLRU interface
             plru        = PLRU(WAY_BITS)
             setattr(m.submodules, "plru%d" % i, plru)
             plru_acc_en = Signal()
 
-            comb += plru_acc_en.eq(r1.cache_hit & (r1.hit_index == i))
+            comb += plru_acc_en.eq(hit_onehot[i])
             comb += plru.acc_en.eq(plru_acc_en)
             comb += plru.acc_i.eq(r1.hit_way)
             comb += plru_victim[i].eq(plru.lru_o)
@@ -1110,6 +1120,14 @@ class DCache(Elaboratable):
         comb = m.d.comb
         bus = self.bus
 
+        # XXX TODO: use a Binary-to-Unary Encoder here
+        hit_way_onehot = Signal(NUM_WAYS)
+        replace_way_onehot = Signal(NUM_WAYS)
+        hit_req_way_onehot = Signal(NUM_WAYS)
+        comb += hit_way_onehot.eq(1<<r1.hit_way)
+        comb += hit_req_way_onehot.eq(1<<r1.req.hit_way)
+        comb += replace_way_onehot.eq(1<<replace_way)
+
         for i in range(NUM_WAYS):
             do_read  = Signal(name="do_rd%d" % i)
             rd_addr  = Signal(ROW_BITS, name="rd_addr_%d" % i)
@@ -1133,7 +1151,7 @@ class DCache(Elaboratable):
             # Cache hit reads
             comb += do_read.eq(1)
             comb += rd_addr.eq(early_req_row)
-            with m.If(r1.hit_way == i):
+            with m.If(hit_way_onehot[i]):
                 comb += cache_out_row.eq(_d_out)
 
             # Write mux:
@@ -1150,8 +1168,7 @@ class DCache(Elaboratable):
                 comb += wr_sel.eq(r1.req.byte_sel)
                 comb += wr_addr.eq(get_row(r1.req.real_addr))
 
-                with m.If(i == r1.req.hit_way):
-                    comb += do_write.eq(1)
+                comb += do_write.eq(hit_req_way_onehot[i])
             with m.Else():
                 # Otherwise, we might be doing a reload or a DCBZ
                 with m.If(r1.dcbz):
@@ -1161,8 +1178,8 @@ class DCache(Elaboratable):
                 comb += wr_addr.eq(r1.store_row)
                 comb += wr_sel.eq(~0) # all 1s
 
-                with m.If((r1.state == State.RELOAD_WAIT_ACK)
-                          & bus.ack & (replace_way == i)):
+                with m.If((r1.state == State.RELOAD_WAIT_ACK) &
+                           bus.ack & replace_way_onehot[i]):
                     comb += do_write.eq(1)
 
             # Mask write selects with do_write since BRAM
@@ -1284,8 +1301,10 @@ class DCache(Elaboratable):
 
         with m.If(r1.write_tag):
             # Store new tag in selected way
+            replace_way_onehot = Signal(NUM_WAYS)
+            comb += replace_way_onehot.eq(1<<replace_way)
             for i in range(NUM_WAYS):
-                with m.If(i == replace_way):
+                with m.If(replace_way_onehot[i]):
                     ct = Signal(TAG_RAM_WIDTH)
                     comb += ct.eq(cache_tags[r1.store_index].tag)
                     comb += ct.word_select(i, TAG_WIDTH).eq(r1.reload_tag)
