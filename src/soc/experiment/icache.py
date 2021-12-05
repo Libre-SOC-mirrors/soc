@@ -865,15 +865,14 @@ class ICache(Elaboratable):
 
 
 def icache_sim(dut):
-    i_out = dut.i_in
-    i_in  = dut.i_out
+    i_in = dut.i_in
+    i_out  = dut.i_out
     m_out = dut.m_in
 
-    yield i_in.valid.eq(0)
-    yield i_out.priv_mode.eq(1)
-    yield i_out.req.eq(0)
-    yield i_out.nia.eq(0)
-    yield i_out.stop_mark.eq(0)
+    yield i_in.priv_mode.eq(1)
+    yield i_in.req.eq(0)
+    yield i_in.nia.eq(0)
+    yield i_in.stop_mark.eq(0)
     yield m_out.tlbld.eq(0)
     yield m_out.tlbie.eq(0)
     yield m_out.addr.eq(0)
@@ -882,66 +881,70 @@ def icache_sim(dut):
     yield
     yield
     yield
-    yield i_out.req.eq(1)
-    yield i_out.nia.eq(Const(0x0000000000000004, 64))
-    for i in range(30):
-        yield
+
+    # miss, stalls for a bit
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(Const(0x0000000000000004, 64))
     yield
-    valid = yield i_in.valid
+    valid = yield i_out.valid
+    while not valid:
+        yield
+        valid = yield i_out.valid
+    yield i_in.req.eq(0)
+
+    insn  = yield i_out.insn
     nia   = yield i_out.nia
-    insn  = yield i_in.insn
-    print(f"valid? {valid}")
-    assert valid
     assert insn == 0x00000001, \
         "insn @%x=%x expected 00000001" % (nia, insn)
-    yield i_out.req.eq(0)
+    yield i_in.req.eq(0)
     yield
 
     # hit
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(Const(0x0000000000000008, 64))
     yield
+    valid = yield i_out.valid
+    while not valid:
+        yield
+        valid = yield i_out.valid
+    yield i_in.req.eq(0)
+
+    nia   = yield i_out.nia
+    insn  = yield i_out.insn
     yield
-    yield i_out.req.eq(1)
-    yield i_out.nia.eq(Const(0x0000000000000008, 64))
-    yield
-    yield
-    valid = yield i_in.valid
-    nia   = yield i_in.nia
-    insn  = yield i_in.insn
-    assert valid
     assert insn == 0x00000002, \
         "insn @%x=%x expected 00000002" % (nia, insn)
-    yield
 
     # another miss
-    yield i_out.req.eq(1)
-    yield i_out.nia.eq(Const(0x0000000000000040, 64))
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(Const(0x0000000000000040, 64))
     for i in range(30):
         yield
     yield
-    valid = yield i_in.valid
-    nia   = yield i_out.nia
-    insn  = yield i_in.insn
+    valid = yield i_out.valid
+    nia   = yield i_in.nia
+    insn  = yield i_out.insn
     assert valid
     assert insn == 0x00000010, \
         "insn @%x=%x expected 00000010" % (nia, insn)
 
     # test something that aliases
-    yield i_out.req.eq(1)
-    yield i_out.nia.eq(Const(0x0000000000000100, 64))
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(Const(0x0000000000000100, 64))
     yield
     yield
-    valid = yield i_in.valid
+    valid = yield i_out.valid
     assert ~valid
     for i in range(30):
         yield
     yield
-    insn  = yield i_in.insn
-    valid = yield i_in.valid
-    insn  = yield i_in.insn
+    insn  = yield i_out.insn
+    valid = yield i_out.valid
+    insn  = yield i_out.insn
     assert valid
     assert insn == 0x00000040, \
          "insn @%x=%x expected 00000040" % (nia, insn)
-    yield i_out.req.eq(0)
+    yield i_in.req.eq(0)
 
 
 
