@@ -1694,7 +1694,7 @@ cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
 
         # deal with litex not doing wishbone pipeline mode
         # XXX in wrong way.  FIFOs are needed in the SRAM test
-        # so that stb/ack match up
+        # so that stb/ack match up. same thing done in icache.py
         comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
 
         # Wire up wishbone request latch out of stage 1

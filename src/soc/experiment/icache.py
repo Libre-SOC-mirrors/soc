@@ -676,12 +676,8 @@ class ICache(Elaboratable):
 
             # Calculate the next row address
             rarange = Signal(LINE_OFF_BITS - ROW_OFF_BITS)
-            comb += rarange.eq(
-                     r.req_adr[ROW_OFF_BITS:LINE_OFF_BITS] + 1
-                    )
-            sync += r.req_adr[ROW_OFF_BITS:LINE_OFF_BITS].eq(
-                     rarange
-                    )
+            comb += rarange.eq(r.req_adr[ROW_OFF_BITS:LINE_OFF_BITS] + 1)
+            sync += r.req_adr[ROW_OFF_BITS:LINE_OFF_BITS].eq(rarange)
             sync += Display("RARANGE r.req_adr:%x rarange:%x "
                             "stbs_zero:%x stbs_done:%x",
                             r.req_adr, rarange, stbs_zero, stbs_done)
@@ -695,8 +691,7 @@ class ICache(Elaboratable):
             sync += r.rows_valid[r.store_row % ROW_PER_LINE].eq(1)
 
             # Check for completion
-            with m.If(stbs_done &
-                      is_last_row(r.store_row, r.end_row_ix)):
+            with m.If(stbs_done & is_last_row(r.store_row, r.end_row_ix)):
                 # Complete wishbone cycle
                 sync += r.wb.cyc.eq(0)
                 # be nice, clear addr
@@ -712,11 +707,9 @@ class ICache(Elaboratable):
 
                 sync += r.state.eq(State.IDLE)
 
-            # not completed, move on to next request in row
-            with m.Else():
-                # Increment store row counter
-                sync += r.store_row.eq(next_row(r.store_row))
-
+            # move on to next request in row
+            # Increment store row counter
+            sync += r.store_row.eq(next_row(r.store_row))
 
     # Cache miss/reload synchronous machine
     def icache_miss(self, m, cache_valid_bits, r, req_is_miss,
