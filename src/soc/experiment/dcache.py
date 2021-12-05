@@ -195,13 +195,19 @@ def TLBTagEAArray():
     return Array(Signal(TLB_EA_TAG_BITS, name="tlbtagea%d" % x) \
                 for x in range (TLB_NUM_WAYS))
 
-def TLBArray():
+def TLBRecord(name):
     tlb_layout = [('valid', 1),
                   ('tag', TLB_TAG_WAY_BITS),
                   ('pte', TLB_PTE_WAY_BITS)
                  ]
-    return Array(Record(tlb_layout, name="tlb%d" % x) \
-                        for x in range(TLB_SET_SIZE))
+    return Record(tlb_layout, name=name)
+
+def TLBArray():
+    tlb_layout = [('valid', TLB_NUM_WAYS),
+                  ('tag', TLB_TAG_WAY_BITS),
+                  ('pte', TLB_PTE_WAY_BITS)
+                 ]
+    return Array(TLBRecord(name="tlb%d" % x) for x in range(TLB_SET_SIZE))
 
 def HitWaySet():
     return Array(Signal(WAY_BITS, name="hitway_%d" % x) \
