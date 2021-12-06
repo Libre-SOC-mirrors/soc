@@ -444,8 +444,6 @@ class DTLBUpdate(Elaboratable):
         self.eatag           = Signal(TLB_EA_TAG_BITS)
         self.pte_data        = Signal(TLB_PTE_BITS)
 
-        self.dv = Signal(TLB_NUM_WAYS) # tlb_way_valids_t
-
         # read from dtlb array
         self.tlb_read       = Signal()
         self.tlb_read_index = Signal(TLB_SET_BITS)
@@ -463,21 +461,23 @@ class DTLBUpdate(Elaboratable):
         tb_out = Signal(TLB_TAG_WAY_BITS) # tlb_way_tags_t
         db_out = Signal(TLB_NUM_WAYS)     # tlb_way_valids_t
         pb_out = Signal(TLB_PTE_WAY_BITS) # tlb_way_ptes_t
+        dv = Signal(TLB_NUM_WAYS) # tlb_way_valids_t
 
         dtlb, tlb_req_index = self.dtlb, self.tlb_req_index
-        comb += db_out.eq(self.dv)
+        comb += dv.eq(dtlb[tlb_req_index].valid)
+        comb += db_out.eq(dv)
 
         with m.If(self.tlbie & self.doall):
             # clear all valid bits at once
             for i in range(TLB_SET_SIZE):
                 sync += dtlb[i].valid.eq(0)
         with m.Elif(self.tlbie):
+            # invalidate just the hit_way
             with m.If(self.tlb_hit.valid):
                 comb += db_out.bit_select(self.tlb_hit.way, 1).eq(0)
                 comb += v_updated.eq(1)
-
         with m.Elif(self.tlbwe):
-
+            # write to tge rrquested tag and PTE
             comb += tagset.eq(self.tlb_tag_way)
             comb += write_tlb_tag(self.repl_way, tagset, self.eatag)
             comb += tb_out.eq(tagset)
@@ -496,8 +496,6 @@ class DTLBUpdate(Elaboratable):
             sync += dtlb[tlb_req_index].pte.eq(pb_out)
         with m.If(v_updated):
             sync += dtlb[tlb_req_index].valid.eq(db_out)
-
-        comb += self.dv.eq(dtlb[tlb_req_index].valid)
 
         # select one TLB way
         with m.If(self.tlb_read):
