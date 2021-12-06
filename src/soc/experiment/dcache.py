@@ -431,6 +431,7 @@ class Reservation(RecordObject):
 
 class DTLBUpdate(Elaboratable):
     def __init__(self):
+        self.dtlb     = TLBArray()
         self.tlbie    = Signal()
         self.tlbwe    = Signal()
         self.doall    = Signal()
@@ -778,7 +779,8 @@ class DCache(Elaboratable):
         comb += tlbie.eq(r0_valid & r0.tlbie)
         comb += tlbwe.eq(r0_valid & r0.tlbld)
 
-        m.submodules.tlb_update = d = DTLBUpdate()
+        d = self.dtlb_update
+
         with m.If(tlbie & r0.doall):
             # clear all valid bits at once
             for i in range(TLB_SET_SIZE):
@@ -1603,7 +1605,6 @@ class DCache(Elaboratable):
         """note: these are passed to nmigen.hdl.Memory as "attributes".
            don't know how, just that they are.
         """
-        dtlb            = TLBArray()
         # TODO attribute ram_style of
         #  dtlb_tags : signal is "distributed";
         # TODO attribute ram_style of
@@ -1681,6 +1682,10 @@ class DCache(Elaboratable):
         comb += self.bus.stb.eq(r1.wb.stb)
         comb += self.bus.dat_w.eq(r1.wb.dat)
         comb += self.bus.cyc.eq(r1.wb.cyc)
+
+        # create submodule TLBUpdate
+        m.submodules.dtlb_update = self.dtlb_update = DTLBUpdate()
+        dtlb = self.dtlb_update.dtlb
 
         # call sub-functions putting everything together, using shared
         # signals established above
