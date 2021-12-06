@@ -50,7 +50,7 @@ from soc.experiment.wb_types import (WB_ADDR_BITS, WB_DATA_BITS, WB_SEL_BITS,
 
 from soc.experiment.cache_ram import CacheRam
 #from soc.experiment.plru import PLRU
-from nmutil.plru import PLRU
+from nmutil.plru import PLRU, PLRUs
 
 # for test
 from soc.bus.sram import SRAM
@@ -698,20 +698,11 @@ class DCache(Elaboratable):
             return
 
         # Binary-to-Unary one-hot, enabled by tlb_hit valid
-        m.submodules.tlb_hit_e = te = Decoder(TLB_SET_SIZE)
-        comb += te.n.eq(~r1.tlb_hit.valid)
-        comb += te.i.eq(r1.tlb_hit_index)
-
-        for i in range(TLB_SET_SIZE):
-            # TLB PLRU interface
-            tlb_plru        = PLRU(TLB_WAY_BITS)
-            setattr(m.submodules, "maybe_plru_%d" % i, tlb_plru)
-            tlb_plru_acc_en = Signal()
-
-            comb += tlb_plru_acc_en.eq(te.o[i])
-            comb += tlb_plru.acc_en.eq(tlb_plru_acc_en)
-            comb += tlb_plru.acc_i.eq(r1.tlb_hit.way)
-            comb += tlb_plru_victim[i].eq(tlb_plru.lru_o)
+        tlb_plrus = PLRUs(TLB_SET_SIZE, TLB_WAY_BITS, tlb_plru_victim)
+        m.submodules.tlb_plrus = tlb_plrus
+        comb += tlb_plrus.way.eq(r1.tlb_hit.way)
+        comb += tlb_plrus.valid.eq(r1.tlb_hit.valid)
+        comb += tlb_plrus.index.eq(r1.tlb_hit_index)
 
     def tlb_search(self, m, tlb_req_index, r0, r0_valid,
                    tlb_way,
@@ -822,22 +813,10 @@ class DCache(Elaboratable):
         if TLB_NUM_WAYS == 0:
             return
 
-        # XXX TODO: use a Binary-to-Unary one-hot here,
-        # enabled by cache_hit
-        m.submodules.hit_e = he = Decoder(NUM_LINES)
-        comb += he.n.eq(~r1.cache_hit)
-        comb += he.i.eq(r1.hit_index)
-
-        for i in range(NUM_LINES):
-            # PLRU interface
-            plru        = PLRU(WAY_BITS)
-            m.submodules["plru%d" % i] = plru
-            plru_acc_en = Signal()
-
-            comb += plru_acc_en.eq(he.o[i])
-            comb += plru.acc_en.eq(plru_acc_en)
-            comb += plru.acc_i.eq(r1.hit_way)
-            comb += plru_victim[i].eq(plru.lru_o)
+        m.submodules.plrus = plrus = PLRUs(NUM_LINES, WAY_BITS, plru_victim)
+        comb += plrus.way.eq(r1.hit_way)
+        comb += plrus.valid.eq(r1.cache_hit)
+        comb += plrus.index.eq(r1.hit_index)
 
     def cache_tag_read(self, m, r0_stall, req_index, cache_tag_set, cache_tags):
         """Cache tag RAM read port

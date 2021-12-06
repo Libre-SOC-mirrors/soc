@@ -29,8 +29,8 @@ from nmigen.lib.coding import Decoder
 from nmutil.util import Display
 
 #from nmutil.plru import PLRU
+from soc.experiment.plru import PLRU, PLRUs
 from soc.experiment.cache_ram import CacheRam
-from soc.experiment.plru import PLRU
 
 from soc.experiment.mem_types import (Fetch1ToICacheType,
                                       ICacheToDecode1Type,
@@ -380,20 +380,13 @@ class ICache(Elaboratable):
     def maybe_plrus(self, m, r, plru_victim):
         comb = m.d.comb
 
-        with m.If(NUM_WAYS > 1):
-            m.submodules.plru_e = e = Decoder(NUM_LINES)
-            comb += e.i.eq(get_index(r.hit_nia))
+        if NUM_WAYS == 0:
+            return
 
-            for i in range(NUM_LINES):
-                plru        = PLRU(WAY_BITS)
-                m.submodules["plru_%d" % i] = plru
-
-                # PLRU interface
-                with m.If(e.o[i]):
-                    comb += plru.acc_en.eq(r.hit_valid)
-
-                comb += plru.acc_i.eq(r.hit_way)
-                comb += plru_victim[i].eq(plru.lru_o)
+        m.submodules.plrus = plru = PLRUs(NUM_LINES, WAY_BITS, plru_victim)
+        comb += plru.way.eq(r.hit_way)
+        comb += plru.valid.eq(r.hit_valid)
+        comb += plru.index.eq(get_index(r.hit_nia))
 
     # TLB hit detection and real address generation
     def itlb_lookup(self, m, tlb_req_index, itlb,
