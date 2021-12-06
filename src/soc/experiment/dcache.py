@@ -583,7 +583,7 @@ class DCachePendingHit(Elaboratable):
                 comb += hit_set[j].eq(s_hit)
                 with m.If(s_tag == reload_tag):
                     comb += rel_matches[j].eq(1)
-            with m.If(tlb_hit.way):
+            with m.If(tlb_hit.valid):
                 comb += is_hit.eq(hit_set[tlb_hit.way])
                 comb += hit_way.eq(hit_way_set[tlb_hit.way])
                 comb += rel_match.eq(rel_matches[tlb_hit.way])
