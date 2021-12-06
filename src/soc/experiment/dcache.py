@@ -134,15 +134,18 @@ TAG_WIDTH = TAG_BITS + 7 - ((TAG_BITS + 7) % 8)
 WAY_BITS = log2_int(NUM_WAYS)
 
 # Example of layout for 32 lines of 64 bytes:
-layout = """\
+layout = f"""\
+  DCache Layout:
+ |.. -----------------------| REAL_ADDR_BITS ({REAL_ADDR_BITS})
+  ..         |--------------| SET_SIZE_BITS ({SET_SIZE_BITS})
   ..  tag    |index|  line  |
   ..         |   row   |    |
-  ..         |     |---|    | ROW_LINE_BITS  (3)
-  ..         |     |--- - --| LINE_OFF_BITS (6)
-  ..         |         |- --| ROW_OFF_BITS  (3)
-  ..         |----- ---|    | ROW_BITS      (8)
-  ..         |-----|        | INDEX_BITS    (5)
-  .. --------|              | TAG_BITS      (45)
+  ..         |     |---|    | ROW_LINE_BITS ({ROW_LINE_BITS})
+  ..         |     |--- - --| LINE_OFF_BITS ({LINE_OFF_BITS})
+  ..         |         |- --| ROW_OFF_BITS  ({ROW_OFF_BITS})
+  ..         |----- ---|    | ROW_BITS      ({ROW_BITS})
+  ..         |-----|        | INDEX_BITS    ({INDEX_BITS})
+  .. --------|              | TAG_BITS      ({TAG_BITS})
 """
 print (layout)
 print ("Dcache TAG %d IDX %d ROW_BITS %d ROFF %d LOFF %d RLB %d" % \
@@ -441,8 +444,6 @@ class DTLBUpdate(Elaboratable):
         self.tlb_hit     = TLBHit("tlb_hit")
         self.tlb_req_index = Signal(TLB_SET_BITS)
 
-        self.tlb_tag_way     = Signal(TLB_TAG_WAY_BITS)
-        self.tlb_pte_way     = Signal(TLB_PTE_WAY_BITS)
         self.repl_way        = Signal(TLB_WAY_BITS)
         self.eatag           = Signal(TLB_EA_TAG_BITS)
         self.pte_data        = Signal(TLB_PTE_BITS)
@@ -781,7 +782,7 @@ class DCache(Elaboratable):
         if TLB_NUM_WAYS == 0:
             return
 
-        # Binary-to-Unary one-hot, enabled by tlb_hit valid
+        # suite of PLRUs with a selection and output mechanism
         tlb_plrus = PLRUs(TLB_SET_SIZE, TLB_WAY_BITS)
         m.submodules.tlb_plrus = tlb_plrus
         comb += tlb_plrus.way.eq(r1.tlb_hit.way)
@@ -851,7 +852,7 @@ class DCache(Elaboratable):
             m.d.sync += Display("       perm wrp=%d", perm_attr.wr_perm)
 
     def tlb_update(self, m, r0_valid, r0, tlb_req_index,
-                    tlb_hit, tlb_plru_victim, tlb_way):
+                    tlb_hit, tlb_plru_victim):
 
         comb = m.d.comb
         sync = m.d.sync
@@ -868,8 +869,6 @@ class DCache(Elaboratable):
         comb += d.tlbwe.eq(tlbwe)
         comb += d.doall.eq(r0.doall)
         comb += d.tlb_hit.eq(tlb_hit)
-        comb += d.tlb_tag_way.eq(tlb_way.tag)
-        comb += d.tlb_pte_way.eq(tlb_way.pte)
         comb += d.tlb_req_index.eq(tlb_req_index)
 
         with m.If(tlb_hit.valid):
@@ -888,6 +887,7 @@ class DCache(Elaboratable):
         if TLB_NUM_WAYS == 0:
             return
 
+        # suite of PLRUs with a selection and output mechanism
         m.submodules.plrus = plrus = PLRUs(NUM_LINES, WAY_BITS)
         comb += plrus.way.eq(r1.hit_way)
         comb += plrus.valid.eq(r1.cache_hit)
@@ -1765,8 +1765,7 @@ class DCache(Elaboratable):
                         tlb_way,
                         pte, tlb_hit, valid_ra, perm_attr, ra)
         self.tlb_update(m, r0_valid, r0, tlb_req_index,
-                        tlb_hit, tlb_plru_victim,
-                        tlb_way)
+                        tlb_hit, tlb_plru_victim)
         self.maybe_plrus(m, r1, plru_victim)
         self.maybe_tlb_plrus(m, r1, tlb_plru_victim, tlb_req_index)
         self.cache_tag_read(m, r0_stall, req_index, cache_tag_set, cache_tags)
