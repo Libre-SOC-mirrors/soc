@@ -452,6 +452,11 @@ class DTLBUpdate(Elaboratable):
         self.db_out = Signal(TLB_NUM_WAYS)     # tlb_way_valids_t
         self.pb_out = Signal(TLB_PTE_WAY_BITS) # tlb_way_ptes_t
 
+        # read from dtlb array
+        self.tlb_read       = Signal()
+        self.tlb_read_index = Signal(TLB_SET_BITS)
+        self.tlb_way        = TLBRecord("o_tlb_way")
+
     def elaborate(self, platform):
         m = Module()
         comb = m.d.comb
@@ -460,6 +465,7 @@ class DTLBUpdate(Elaboratable):
         tagset   = Signal(TLB_TAG_WAY_BITS)
         pteset   = Signal(TLB_PTE_WAY_BITS)
 
+        dtlb, tlb_req_index = self.dtlb, self.tlb_req_index
         tb_out, pb_out, db_out = self.tb_out, self.pb_out, self.db_out
         comb += db_out.eq(self.dv)
 
@@ -484,6 +490,22 @@ class DTLBUpdate(Elaboratable):
 
             comb += self.updated.eq(1)
             comb += self.v_updated.eq(1)
+
+        with m.If(self.tlbie & self.doall):
+            # clear all valid bits at once
+            for i in range(TLB_SET_SIZE):
+                sync += dtlb[i].valid.eq(0)
+        with m.If(self.updated):
+            sync += dtlb[tlb_req_index].tag.eq(self.tb_out)
+            sync += dtlb[tlb_req_index].pte.eq(self.pb_out)
+        with m.If(self.v_updated):
+            sync += dtlb[tlb_req_index].valid.eq(self.db_out)
+
+        comb += self.dv.eq(dtlb[tlb_req_index].valid)
+
+        # select one TLB way
+        with m.If(self.tlb_read):
+            sync += self.tlb_way.eq(dtlb[self.tlb_read_index])
 
         return m
 
@@ -672,7 +694,6 @@ class DCache(Elaboratable):
         sync = m.d.sync
         m_in, d_in = self.m_in, self.d_in
 
-        index    = Signal(TLB_SET_BITS)
         addrbits = Signal(TLB_SET_BITS)
 
         amin = TLB_LG_PGSZ
@@ -682,12 +703,13 @@ class DCache(Elaboratable):
             comb += addrbits.eq(m_in.addr[amin : amax])
         with m.Else():
             comb += addrbits.eq(d_in.addr[amin : amax])
-        comb += index.eq(addrbits)
 
         # If we have any op and the previous op isn't finished,
         # then keep the same output for next cycle.
-        with m.If(~r0_stall):
-            sync += tlb_way.eq(dtlb[index])
+        d = self.dtlb_update
+        comb += d.tlb_read_index.eq(addrbits)
+        comb += d.tlb_read.eq(~r0_stall)
+        comb += tlb_way.eq(d.tlb_way)
 
     def maybe_tlb_plrus(self, m, r1, tlb_plru_victim, tlb_req_index):
         """Generate TLB PLRUs
@@ -780,18 +802,6 @@ class DCache(Elaboratable):
         comb += tlbwe.eq(r0_valid & r0.tlbld)
 
         d = self.dtlb_update
-
-        with m.If(tlbie & r0.doall):
-            # clear all valid bits at once
-            for i in range(TLB_SET_SIZE):
-                sync += dtlb[i].valid.eq(0)
-        with m.If(d.updated):
-            sync += dtlb[tlb_req_index].tag.eq(d.tb_out)
-            sync += dtlb[tlb_req_index].pte.eq(d.pb_out)
-        with m.If(d.v_updated):
-            sync += dtlb[tlb_req_index].valid.eq(d.db_out)
-
-        comb += d.dv.eq(dtlb[tlb_req_index].valid)
 
         comb += d.tlbie.eq(tlbie)
         comb += d.tlbwe.eq(tlbwe)
