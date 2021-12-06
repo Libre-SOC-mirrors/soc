@@ -330,13 +330,20 @@ class ICache(Elaboratable):
         sync = m.d.sync
 
         bus, stall_in = self.bus, self.stall_in
+
+        # read condition (for every cache ram)
+        do_read  = Signal()
+        comb += do_read.eq(~(stall_in | use_previous))
+
+        # binary-to-unary converters: replace-way enabled by bus.ack,
+        # hit-way left permanently enabled
         m.submodules.replace_way_e = re = Decoder(NUM_WAYS)
         m.submodules.hit_way_e = he = Decoder(NUM_WAYS)
         comb += re.i.eq(replace_way)
+        comb += re.n.eq(~bus.ack)
         comb += he.i.eq(r.hit_way)
 
         for i in range(NUM_WAYS):
-            do_read  = Signal(name="do_rd_%d" % i)
             do_write = Signal(name="do_wr_%d" % i)
             rd_addr  = Signal(ROW_BITS)
             wr_addr  = Signal(ROW_BITS)
@@ -353,8 +360,7 @@ class ICache(Elaboratable):
             comb += way.wr_addr.eq(wr_addr)
             comb += way.wr_data.eq(bus.dat_r)
 
-            comb += do_read.eq(~(stall_in | use_previous))
-            comb += do_write.eq(bus.ack & re.o[i])
+            comb += do_write.eq(re.o[i])
 
             with m.If(do_write):
                 sync += Display("cache write adr: %x data: %lx",

@@ -27,6 +27,7 @@ from enum import Enum, unique
 from nmigen import (Module, Signal, Elaboratable, Cat, Repl, Array, Const,
                     Record)
 from nmutil.util import Display
+from nmigen.lib.coding import Decoder
 
 from copy import deepcopy
 from random import randint, seed
@@ -696,10 +697,10 @@ class DCache(Elaboratable):
         if TLB_NUM_WAYS == 0:
             return
 
-        # XXX TODO: use a Binary-to-Unary Encoder here
-        tlb_hit_onehot = Signal(TLB_SET_SIZE)
-        with m.If(r1.tlb_hit.valid):
-            comb += tlb_hit_onehot.eq(1<<r1.tlb_hit_index)
+        # Binary-to-Unary one-hot, enabled by tlb_hit valid
+        m.submodules.tlb_hit_e = te = Decoder(TLB_SET_SIZE)
+        te.n.eq(~r1.tlb_hit.valid)
+        te.i.eq(r1.tlb_hit_index)
 
         for i in range(TLB_SET_SIZE):
             # TLB PLRU interface
@@ -707,7 +708,7 @@ class DCache(Elaboratable):
             setattr(m.submodules, "maybe_plru_%d" % i, tlb_plru)
             tlb_plru_acc_en = Signal()
 
-            comb += tlb_plru_acc_en.eq(tlb_hit_onehot[i])
+            comb += tlb_plru_acc_en.eq(te.o[i])
             comb += tlb_plru.acc_en.eq(tlb_plru_acc_en)
             comb += tlb_plru.acc_i.eq(r1.tlb_hit.way)
             comb += tlb_plru_victim[i].eq(tlb_plru.lru_o)
@@ -821,18 +822,19 @@ class DCache(Elaboratable):
         if TLB_NUM_WAYS == 0:
             return
 
-        # XXX TODO: use a Binary-to-Unary Encoder here
-        hit_onehot = Signal(NUM_LINES)
-        with m.If(r1.cache_hit):
-            comb += hit_onehot.eq(1<<r1.hit_index)
+        # XXX TODO: use a Binary-to-Unary one-hot here,
+        # enabled by cache_hit
+        m.submodules.hit_e = he = Decoder(NUM_LINES)
+        he.n.eq(~r1.cache_hit)
+        he.i.eq(r1.hit_index)
 
         for i in range(NUM_LINES):
             # PLRU interface
             plru        = PLRU(WAY_BITS)
-            setattr(m.submodules, "plru%d" % i, plru)
+            m.submodules["plru%d" % i] = plru
             plru_acc_en = Signal()
 
-            comb += plru_acc_en.eq(hit_onehot[i])
+            comb += plru_acc_en.eq(he.o[i])
             comb += plru.acc_en.eq(plru_acc_en)
             comb += plru.acc_i.eq(r1.hit_way)
             comb += plru_victim[i].eq(plru.lru_o)
@@ -1120,7 +1122,10 @@ class DCache(Elaboratable):
         comb = m.d.comb
         bus = self.bus
 
-        # XXX TODO: use a Binary-to-Unary Encoder here
+        # a Binary-to-Unary one-hots here
+        #m.submodules.hit_e = he = Decoder(NUM_LINES)
+        #he.n.eq(~r1.cache_hit)
+        #he.i.eq(r1.hit_index)
         hit_way_onehot = Signal(NUM_WAYS)
         replace_way_onehot = Signal(NUM_WAYS)
         hit_req_way_onehot = Signal(NUM_WAYS)
