@@ -435,8 +435,6 @@ class DTLBUpdate(Elaboratable):
         self.tlbie    = Signal()
         self.tlbwe    = Signal()
         self.doall    = Signal()
-        self.updated  = Signal()
-        self.v_updated  = Signal()
         self.tlb_hit     = TLBHit("tlb_hit")
         self.tlb_req_index = Signal(TLB_SET_BITS)
 
@@ -464,17 +462,21 @@ class DTLBUpdate(Elaboratable):
 
         tagset   = Signal(TLB_TAG_WAY_BITS)
         pteset   = Signal(TLB_PTE_WAY_BITS)
+        updated  = Signal()
+        v_updated  = Signal()
 
         dtlb, tlb_req_index = self.dtlb, self.tlb_req_index
         tb_out, pb_out, db_out = self.tb_out, self.pb_out, self.db_out
         comb += db_out.eq(self.dv)
 
         with m.If(self.tlbie & self.doall):
-            pass # clear all back in parent
+            # clear all valid bits at once
+            for i in range(TLB_SET_SIZE):
+                sync += dtlb[i].valid.eq(0)
         with m.Elif(self.tlbie):
             with m.If(self.tlb_hit.valid):
                 comb += db_out.bit_select(self.tlb_hit.way, 1).eq(0)
-                comb += self.v_updated.eq(1)
+                comb += v_updated.eq(1)
 
         with m.Elif(self.tlbwe):
 
@@ -488,17 +490,13 @@ class DTLBUpdate(Elaboratable):
 
             comb += db_out.bit_select(self.repl_way, 1).eq(1)
 
-            comb += self.updated.eq(1)
-            comb += self.v_updated.eq(1)
+            comb += updated.eq(1)
+            comb += v_updated.eq(1)
 
-        with m.If(self.tlbie & self.doall):
-            # clear all valid bits at once
-            for i in range(TLB_SET_SIZE):
-                sync += dtlb[i].valid.eq(0)
-        with m.If(self.updated):
+        with m.If(updated):
             sync += dtlb[tlb_req_index].tag.eq(self.tb_out)
             sync += dtlb[tlb_req_index].pte.eq(self.pb_out)
-        with m.If(self.v_updated):
+        with m.If(v_updated):
             sync += dtlb[tlb_req_index].valid.eq(self.db_out)
 
         comb += self.dv.eq(dtlb[tlb_req_index].valid)
