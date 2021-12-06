@@ -576,8 +576,7 @@ class DCachePendingHit(Elaboratable):
 
     def __init__(self, tlb_way,
                       cache_i_validdx, cache_tag_set,
-                    req_addr,
-                    hit_set):
+                    req_addr):
 
         self.go          = Signal()
         self.virt_mode   = Signal()
@@ -592,7 +591,6 @@ class DCachePendingHit(Elaboratable):
         self.cache_i_validdx = cache_i_validdx
         self.cache_tag_set = cache_tag_set
         self.req_addr = req_addr
-        self.hit_set = hit_set
 
     def elaborate(self, platform):
         m = Module()
@@ -607,12 +605,13 @@ class DCachePendingHit(Elaboratable):
         cache_tag_set = self.cache_tag_set
         req_addr = self.req_addr
         tlb_hit = self.tlb_hit
-        hit_set = self.hit_set
         hit_way = self.hit_way
         rel_match = self.rel_match
         req_index = self.req_index
         reload_tag = self.reload_tag
 
+        hit_set     = Array(Signal(name="hit_set_%d" % i) \
+                                  for i in range(TLB_NUM_WAYS))
         rel_matches = Array(Signal(name="rel_matches_%d" % i) \
                                     for i in range(TLB_NUM_WAYS))
         hit_way_set = HitWaySet()
@@ -931,8 +930,6 @@ class DCache(Elaboratable):
         opsel       = Signal(3)
         go          = Signal()
         nc          = Signal()
-        hit_set     = Array(Signal(name="hit_set_%d" % i) \
-                                  for i in range(TLB_NUM_WAYS))
         cache_i_validdx = Signal(NUM_WAYS)
 
         # Extract line, row and tag from request
@@ -949,8 +946,7 @@ class DCache(Elaboratable):
 
         m.submodules.dcache_pend = dc = DCachePendingHit(tlb_way,
                                             cache_i_validdx, cache_tag_set,
-                                            r0.req.addr,
-                                            hit_set)
+                                            r0.req.addr)
         comb += dc.tlb_hit.eq(tlb_hit)
         comb += dc.reload_tag.eq(r1.reload_tag)
         comb += dc.virt_mode.eq(r0.req.virt_mode)
