@@ -688,7 +688,7 @@ class DCache(Elaboratable):
         with m.If(~r0_stall):
             sync += tlb_way.eq(dtlb[index])
 
-    def maybe_tlb_plrus(self, m, r1, tlb_plru_victim):
+    def maybe_tlb_plrus(self, m, r1, tlb_plru_victim, tlb_req_index):
         """Generate TLB PLRUs
         """
         comb = m.d.comb
@@ -698,11 +698,13 @@ class DCache(Elaboratable):
             return
 
         # Binary-to-Unary one-hot, enabled by tlb_hit valid
-        tlb_plrus = PLRUs(TLB_SET_SIZE, TLB_WAY_BITS, tlb_plru_victim)
+        tlb_plrus = PLRUs(TLB_SET_SIZE, TLB_WAY_BITS)
         m.submodules.tlb_plrus = tlb_plrus
         comb += tlb_plrus.way.eq(r1.tlb_hit.way)
         comb += tlb_plrus.valid.eq(r1.tlb_hit.valid)
         comb += tlb_plrus.index.eq(r1.tlb_hit_index)
+        comb += tlb_plrus.isel.eq(tlb_req_index) # select victim
+        comb += tlb_plru_victim.eq(tlb_plrus.o_index) # selected victim
 
     def tlb_search(self, m, tlb_req_index, r0, r0_valid,
                    tlb_way,
@@ -800,7 +802,7 @@ class DCache(Elaboratable):
         with m.If(tlb_hit.valid):
             comb += d.repl_way.eq(tlb_hit.way)
         with m.Else():
-            comb += d.repl_way.eq(tlb_plru_victim[tlb_req_index])
+            comb += d.repl_way.eq(tlb_plru_victim)
         comb += d.eatag.eq(r0.req.addr[TLB_LG_PGSZ + TLB_SET_BITS:64])
         comb += d.pte_data.eq(r0.req.data)
 
@@ -813,10 +815,12 @@ class DCache(Elaboratable):
         if TLB_NUM_WAYS == 0:
             return
 
-        m.submodules.plrus = plrus = PLRUs(NUM_LINES, WAY_BITS, plru_victim)
+        m.submodules.plrus = plrus = PLRUs(NUM_LINES, WAY_BITS)
         comb += plrus.way.eq(r1.hit_way)
         comb += plrus.valid.eq(r1.cache_hit)
         comb += plrus.index.eq(r1.hit_index)
+        comb += plrus.isel.eq(r1.store_index) # select victim
+        comb += plru_victim.eq(plrus.o_index) # selected victim
 
     def cache_tag_read(self, m, r0_stall, req_index, cache_tag_set, cache_tags):
         """Cache tag RAM read port
@@ -916,7 +920,7 @@ class DCache(Elaboratable):
 
         # The way to replace on a miss
         with m.If(r1.write_tag):
-            comb += replace_way.eq(plru_victim[r1.store_index])
+            comb += replace_way.eq(plru_victim)
         with m.Else():
             comb += replace_way.eq(r1.store_way)
 
@@ -1636,7 +1640,7 @@ class DCache(Elaboratable):
 
         cache_out_row     = Signal(WB_DATA_BITS)
 
-        plru_victim       = PLRUOut()
+        plru_victim       = Signal(WAY_BITS)
         replace_way       = Signal(WAY_BITS)
 
         # Wishbone read/write/cache write formatting signals
@@ -1654,7 +1658,7 @@ class DCache(Elaboratable):
         perm_ok       = Signal()
         access_ok     = Signal()
 
-        tlb_plru_victim = TLBPLRUOut()
+        tlb_plru_victim = Signal(TLB_WAY_BITS)
 
         # we don't yet handle collisions between loadstore1 requests
         # and MMU requests
@@ -1689,7 +1693,7 @@ class DCache(Elaboratable):
                         tlb_hit, tlb_plru_victim,
                         tlb_way)
         self.maybe_plrus(m, r1, plru_victim)
-        self.maybe_tlb_plrus(m, r1, tlb_plru_victim)
+        self.maybe_tlb_plrus(m, r1, tlb_plru_victim, tlb_req_index)
         self.cache_tag_read(m, r0_stall, req_index, cache_tag_set, cache_tags)
         self.dcache_request(m, r0, ra, req_index, req_row, req_tag,
                            r0_valid, r1, cache_tags, replace_way,

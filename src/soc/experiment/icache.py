@@ -384,10 +384,13 @@ class ICache(Elaboratable):
         if NUM_WAYS == 0:
             return
 
-        m.submodules.plrus = plru = PLRUs(NUM_LINES, WAY_BITS, plru_victim)
+
+        m.submodules.plrus = plru = PLRUs(NUM_LINES, WAY_BITS)
         comb += plru.way.eq(r.hit_way)
         comb += plru.valid.eq(r.hit_valid)
         comb += plru.index.eq(get_index(r.hit_nia))
+        comb += plru.isel.eq(r.store_index) # select victim
+        comb += plru_victim.eq(plru.o_index) # selected victim
 
     # TLB hit detection and real address generation
     def itlb_lookup(self, m, tlb_req_index, itlb,
@@ -519,7 +522,7 @@ class ICache(Elaboratable):
 
         # The way to replace on a miss
         with m.If(r.state == State.CLR_TAG):
-            comb += replace_way.eq(plru_victim[r.store_index])
+            comb += replace_way.eq(plru_victim)
         with m.Else():
             comb += replace_way.eq(r.store_way)
 
@@ -815,7 +818,7 @@ class ICache(Elaboratable):
 
         cache_out_row    = Signal(ROW_SIZE_BITS)
 
-        plru_victim      = PLRUOut()
+        plru_victim      = Signal(WAY_BITS)
         replace_way      = Signal(WAY_BITS)
 
         # fake-up the wishbone stall signal to comply with pipeline mode

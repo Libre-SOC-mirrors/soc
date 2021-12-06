@@ -55,16 +55,14 @@ class PLRU(Elaboratable):
 
 
 class PLRUs(Elaboratable):
-    def __init__(self, n_plrus, n_bits, out=None):
+    def __init__(self, n_plrus, n_bits):
         self.n_plrus = n_plrus
         self.n_bits = n_bits
         self.valid = Signal()
         self.way = Signal(n_bits)
         self.index = Signal(n_plrus.bit_length())
-        if out is None:
-            out = Array(Signal(n_bits, name="plru_out%d" % x) \
-                             for x in range(n_plrus))
-        self.out = out
+        self.isel = Signal(n_plrus.bit_length())
+        self.o_index = Signal(n_bits)
 
     def elaborate(self, platform):
         """Generate TLB PLRUs
@@ -80,18 +78,24 @@ class PLRUs(Elaboratable):
         comb += te.n.eq(~self.valid)
         comb += te.i.eq(self.index)
 
+        out = Array(Signal(self.n_bits, name="plru_out%d" % x) \
+                             for x in range(self.n_plrus))
+
         for i in range(self.n_plrus):
             # PLRU interface
             m.submodules["plru_%d" % i] = plru = PLRU(self.n_bits)
 
             comb += plru.acc_en.eq(te.o[i])
             comb += plru.acc_i.eq(self.way)
-            comb += self.out[i].eq(plru.lru_o)
+            comb += out[i].eq(plru.lru_o)
+
+        # select output based on index
+        comb += self.o_index.eq(out[self.isel])
 
         return m
 
     def ports(self):
-        return [self.valid, self.way, self.index] + list(self.out)
+        return [self.valid, self.way, self.index, self.isel, self.o_index]
 
 
 if __name__ == '__main__':
