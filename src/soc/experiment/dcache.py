@@ -435,7 +435,6 @@ class Reservation(RecordObject):
 
 class DTLBUpdate(Elaboratable):
     def __init__(self):
-        self.dtlb     = TLBValidArray()
         self.tlbie    = Signal()
         self.tlbwe    = Signal()
         self.doall    = Signal()
@@ -458,7 +457,16 @@ class DTLBUpdate(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
 
-        dtlb, tlb_req_index = self.dtlb, self.tlb_req_index
+        # there are 3 parts to this:
+        # QTY TLB_NUM_WAYs TAGs - of width (say) 46 bits of Effective Address
+        # QTY TLB_NUM_WAYs PTEs - of width (say) 64 bits
+        # "Valid" bits, one per "way", of QTY TLB_NUM_WAYs.  these cannot
+        # be a Memory because they can all be cleared (tlbie, doall), i mean,
+        # we _could_, in theory, by overriding the Reset Signal of the Memory,
+        # hmmm....
+
+        dtlb_valid = TLBValidArray()
+        tlb_req_index = self.tlb_req_index
 
         print ("TLB_TAG_WAY_BITS", TLB_TAG_WAY_BITS)
         print ("     TLB_EA_TAG_BITS", TLB_EA_TAG_BITS)
@@ -478,13 +486,21 @@ class DTLBUpdate(Elaboratable):
         m.submodules.wr_pteway = wr_pteway = pteway.write_port(
                                     granularity=TLB_PTE_BITS)
 
+        # commented out for now, can be put in if Memory.reset can be
+        # used for tlbie&doall to reset the entire Memory to zero in 1 cycle
+        #validm = Memory(depth=TLB_SET_SIZE, width=TLB_NUM_WAYS)
+        #m.submodules.rd_valid = rd_valid = validm.read_port()
+        #m.submodules.wr_valid = wr_valid = validm.write_port(
+                                    #granularity=1)
+
+        # connect up read and write addresses to Valid/PTE/TAG SRAMs
         m.d.comb += rd_pteway.addr.eq(self.tlb_read_index)
         m.d.comb += rd_tagway.addr.eq(self.tlb_read_index)
+        #m.d.comb += rd_valid.addr.eq(self.tlb_read_index)
         m.d.comb += wr_tagway.addr.eq(tlb_req_index)
         m.d.comb += wr_pteway.addr.eq(tlb_req_index)
+        #m.d.comb += wr_valid.addr.eq(tlb_req_index)
 
-        tagset   = Signal(TLB_TAG_WAY_BITS)
-        pteset   = Signal(TLB_PTE_WAY_BITS)
         updated  = Signal()
         v_updated  = Signal()
         tb_out = Signal(TLB_TAG_WAY_BITS) # tlb_way_tags_t
@@ -492,13 +508,14 @@ class DTLBUpdate(Elaboratable):
         pb_out = Signal(TLB_PTE_WAY_BITS) # tlb_way_ptes_t
         dv = Signal(TLB_NUM_WAYS) # tlb_way_valids_t
 
-        comb += dv.eq(dtlb[tlb_req_index])
+        comb += dv.eq(dtlb_valid[tlb_req_index])
         comb += db_out.eq(dv)
 
         with m.If(self.tlbie & self.doall):
             # clear all valid bits at once
+            # XXX hmmm, validm _could_ use Memory reset here...
             for i in range(TLB_SET_SIZE):
-                sync += dtlb[i].eq(0)
+                sync += dtlb_valid[i].eq(0)
         with m.Elif(self.tlbie):
             # invalidate just the hit_way
             with m.If(self.tlb_hit.valid):
@@ -514,28 +531,42 @@ class DTLBUpdate(Elaboratable):
             comb += updated.eq(1)
             comb += v_updated.eq(1)
 
-        with m.If(updated):
+        # above, sometimes valid is requested to be updated but data not
+        # therefore split them out, here.  note the granularity thing matches
+        # with the shift-up of the eatag/pte_data into the correct TLB way.
+        # thus is it not necessary to write the entire lot, just the portion
+        # being altered: hence writing the *old* copy of the row is not needed
+        with m.If(updated): # PTE and TAG to be written
             comb += wr_pteway.data.eq(pb_out)
             comb += wr_pteway.en.eq(1<<self.repl_way)
             comb += wr_tagway.data.eq(tb_out)
             comb += wr_tagway.en.eq(1<<self.repl_way)
-        with m.If(v_updated):
-            sync += dtlb[tlb_req_index].eq(db_out)
+        with m.If(v_updated): # Valid to be written
+            sync += dtlb_valid[tlb_req_index].eq(db_out)
+            #comb += wr_valid.data.eq(db_out)
+            #comb += wr_valid.en.eq(1<<self.repl_way)
 
-        # select one TLB way
+        # select one TLB way, use a register here
         r_tlb_way        = TLBRecord("r_tlb_way")
         r_delay = Signal()
         sync += r_delay.eq(self.tlb_read)
         with m.If(self.tlb_read):
-            sync += self.tlb_way.valid.eq(dtlb[self.tlb_read_index])
+            sync += self.tlb_way.valid.eq(dtlb_valid[self.tlb_read_index])
         with m.If(r_delay):
+            # on one clock delay, output the contents of the read port(s)
+            # comb += self.tlb_way.valid.eq(rd_valid.data)
             comb += self.tlb_way.tag.eq(rd_tagway.data)
             comb += self.tlb_way.pte.eq(rd_pteway.data)
+            # and also capture the (delayed) output...
+            #sync += r_tlb_way.valid.eq(rd_valid.data)
             sync += r_tlb_way.tag.eq(rd_tagway.data)
             sync += r_tlb_way.pte.eq(rd_pteway.data)
         with m.Else():
+            # ... so that the register can output it when no read is requested
+            # it's rather overkill but better to be safe than sorry
             comb += self.tlb_way.tag.eq(r_tlb_way.tag)
             comb += self.tlb_way.pte.eq(r_tlb_way.pte)
+            #comb += self.tlb_way.eq(r_tlb_way)
 
         return m
 
@@ -715,7 +746,7 @@ class DCache(Elaboratable):
                                  r.req.virt_mode, r.req.addr,
                                  r.req.data, r.req.load)
 
-    def tlb_read(self, m, r0_stall, tlb_way, dtlb):
+    def tlb_read(self, m, r0_stall, tlb_way):
         """TLB
         Operates in the second cycle on the request latched in r0.req.
         TLB updates write the entry at the end of the second cycle.
@@ -819,7 +850,7 @@ class DCache(Elaboratable):
             m.d.sync += Display("       perm rdp=%d", perm_attr.rd_perm)
             m.d.sync += Display("       perm wrp=%d", perm_attr.wr_perm)
 
-    def tlb_update(self, m, r0_valid, r0, dtlb, tlb_req_index,
+    def tlb_update(self, m, r0_valid, r0, tlb_req_index,
                     tlb_hit, tlb_plru_victim, tlb_way):
 
         comb = m.d.comb
@@ -1725,16 +1756,15 @@ class DCache(Elaboratable):
 
         # create submodule TLBUpdate
         m.submodules.dtlb_update = self.dtlb_update = DTLBUpdate()
-        dtlb = self.dtlb_update.dtlb
 
         # call sub-functions putting everything together, using shared
         # signals established above
         self.stage_0(m, r0, r1, r0_full)
-        self.tlb_read(m, r0_stall, tlb_way, dtlb)
+        self.tlb_read(m, r0_stall, tlb_way)
         self.tlb_search(m, tlb_req_index, r0, r0_valid,
                         tlb_way,
                         pte, tlb_hit, valid_ra, perm_attr, ra)
-        self.tlb_update(m, r0_valid, r0, dtlb, tlb_req_index,
+        self.tlb_update(m, r0_valid, r0, tlb_req_index,
                         tlb_hit, tlb_plru_victim,
                         tlb_way)
         self.maybe_plrus(m, r1, plru_victim)
