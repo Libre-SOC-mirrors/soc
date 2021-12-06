@@ -209,8 +209,9 @@ def TLBRecord(name):
                  ]
     return Record(tlb_layout, name=name)
 
-def TLBArray():
-    return Array(TLBRecord(name="tlb%d" % x) for x in range(TLB_SET_SIZE))
+def TLBValidArray():
+    return Array(Signal(TLB_NUM_WAYS, name="tlb_valid%d" % x)
+                        for x in range(TLB_SET_SIZE))
 
 def HitWaySet():
     return Array(Signal(WAY_BITS, name="hitway_%d" % x) \
@@ -434,7 +435,7 @@ class Reservation(RecordObject):
 
 class DTLBUpdate(Elaboratable):
     def __init__(self):
-        self.dtlb     = TLBArray()
+        self.dtlb     = TLBValidArray()
         self.tlbie    = Signal()
         self.tlbwe    = Signal()
         self.doall    = Signal()
@@ -491,13 +492,13 @@ class DTLBUpdate(Elaboratable):
         pb_out = Signal(TLB_PTE_WAY_BITS) # tlb_way_ptes_t
         dv = Signal(TLB_NUM_WAYS) # tlb_way_valids_t
 
-        comb += dv.eq(dtlb[tlb_req_index].valid)
+        comb += dv.eq(dtlb[tlb_req_index])
         comb += db_out.eq(dv)
 
         with m.If(self.tlbie & self.doall):
             # clear all valid bits at once
             for i in range(TLB_SET_SIZE):
-                sync += dtlb[i].valid.eq(0)
+                sync += dtlb[i].eq(0)
         with m.Elif(self.tlbie):
             # invalidate just the hit_way
             with m.If(self.tlb_hit.valid):
@@ -519,14 +520,14 @@ class DTLBUpdate(Elaboratable):
             comb += wr_tagway.data.eq(tb_out)
             comb += wr_tagway.en.eq(1<<self.repl_way)
         with m.If(v_updated):
-            sync += dtlb[tlb_req_index].valid.eq(db_out)
+            sync += dtlb[tlb_req_index].eq(db_out)
 
         # select one TLB way
         r_tlb_way        = TLBRecord("r_tlb_way")
         r_delay = Signal()
         sync += r_delay.eq(self.tlb_read)
         with m.If(self.tlb_read):
-            sync += self.tlb_way.valid.eq(dtlb[self.tlb_read_index].valid)
+            sync += self.tlb_way.valid.eq(dtlb[self.tlb_read_index])
         with m.If(r_delay):
             comb += self.tlb_way.tag.eq(rd_tagway.data)
             comb += self.tlb_way.pte.eq(rd_pteway.data)
