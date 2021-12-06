@@ -1133,8 +1133,10 @@ class DCache(Elaboratable):
         comb += hit_req_way_onehot.eq(1<<r1.req.hit_way)
         comb += replace_way_onehot.eq(1<<replace_way)
 
+        do_read  = Signal()
+        comb += do_read.eq(1)
+
         for i in range(NUM_WAYS):
-            do_read  = Signal(name="do_rd%d" % i)
             rd_addr  = Signal(ROW_BITS, name="rd_addr_%d" % i)
             do_write = Signal(name="do_wr%d" % i)
             wr_addr  = Signal(ROW_BITS, name="wr_addr_%d" % i)
@@ -1154,7 +1156,6 @@ class DCache(Elaboratable):
             comb += way.wr_data.eq(wr_data)
 
             # Cache hit reads
-            comb += do_read.eq(1)
             comb += rd_addr.eq(early_req_row)
             with m.If(hit_way_onehot[i]):
                 comb += cache_out_row.eq(_d_out)
