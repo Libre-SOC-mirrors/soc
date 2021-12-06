@@ -1117,55 +1117,58 @@ class DCache(Elaboratable):
         comb += hre.n.eq(~r1.write_bram) # Decoder.n is inverted
         comb += hre.i.eq(r1.req.hit_way)
 
+        # common Signals
         do_read  = Signal()
-        comb += do_read.eq(1)
+        wr_addr  = Signal(ROW_BITS)
+        wr_data  = Signal(WB_DATA_BITS)
+        wr_sel   = Signal(ROW_SIZE)
+        rd_addr  = Signal(ROW_BITS)
 
+        comb += do_read.eq(1) # always enable
+        comb += rd_addr.eq(early_req_row)
+
+        # Write mux:
+        #
+        # Defaults to wishbone read responses (cache refill)
+        #
+        # For timing, the mux on wr_data/sel/addr is not
+        # dependent on anything other than the current state.
+
+        with m.If(r1.write_bram):
+            # Write store data to BRAM.  This happens one
+            # cycle after the store is in r0.
+            comb += wr_data.eq(r1.req.data)
+            comb += wr_sel.eq(r1.req.byte_sel)
+            comb += wr_addr.eq(get_row(r1.req.real_addr))
+
+        with m.Else():
+            # Otherwise, we might be doing a reload or a DCBZ
+            with m.If(r1.dcbz):
+                comb += wr_data.eq(0)
+            with m.Else():
+                comb += wr_data.eq(bus.dat_r)
+            comb += wr_addr.eq(r1.store_row)
+            comb += wr_sel.eq(~0) # all 1s
+
+        # set up Cache Rams
         for i in range(NUM_WAYS):
-            rd_addr  = Signal(ROW_BITS, name="rd_addr_%d" % i)
             do_write = Signal(name="do_wr%d" % i)
-            wr_addr  = Signal(ROW_BITS, name="wr_addr_%d" % i)
-            wr_data  = Signal(WB_DATA_BITS, name="din_%d" % i)
-            wr_sel   = Signal(ROW_SIZE)
-            wr_sel_m = Signal(ROW_SIZE)
-            _d_out   = Signal(WB_DATA_BITS, name="dout_%d" % i) # cache_row_t
+            wr_sel_m = Signal(ROW_SIZE, name="wr_sel_m_%d" % i)
+            d_out   = Signal(WB_DATA_BITS, name="dout_%d" % i) # cache_row_t
 
             way = CacheRam(ROW_BITS, WB_DATA_BITS, ADD_BUF=True, ram_num=i)
             setattr(m.submodules, "cacheram_%d" % i, way)
 
             comb += way.rd_en.eq(do_read)
             comb += way.rd_addr.eq(rd_addr)
-            comb += _d_out.eq(way.rd_data_o)
+            comb += d_out.eq(way.rd_data_o)
             comb += way.wr_sel.eq(wr_sel_m)
             comb += way.wr_addr.eq(wr_addr)
             comb += way.wr_data.eq(wr_data)
 
             # Cache hit reads
-            comb += rd_addr.eq(early_req_row)
             with m.If(hwe.o[i]):
-                comb += cache_out_row.eq(_d_out)
-
-            # Write mux:
-            #
-            # Defaults to wishbone read responses (cache refill)
-            #
-            # For timing, the mux on wr_data/sel/addr is not
-            # dependent on anything other than the current state.
-
-            with m.If(r1.write_bram):
-                # Write store data to BRAM.  This happens one
-                # cycle after the store is in r0.
-                comb += wr_data.eq(r1.req.data)
-                comb += wr_sel.eq(r1.req.byte_sel)
-                comb += wr_addr.eq(get_row(r1.req.real_addr))
-
-            with m.Else():
-                # Otherwise, we might be doing a reload or a DCBZ
-                with m.If(r1.dcbz):
-                    comb += wr_data.eq(0)
-                with m.Else():
-                    comb += wr_data.eq(bus.dat_r)
-                comb += wr_addr.eq(r1.store_row)
-                comb += wr_sel.eq(~0) # all 1s
+                comb += cache_out_row.eq(d_out)
 
             # these are mutually-exclusive via their Decoder-enablers
             # (note: Decoder-enable is inverted)

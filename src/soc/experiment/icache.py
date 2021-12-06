@@ -335,6 +335,11 @@ class ICache(Elaboratable):
         do_read  = Signal()
         comb += do_read.eq(~(stall_in | use_previous))
 
+        rd_addr  = Signal(ROW_BITS)
+        wr_addr  = Signal(ROW_BITS)
+        comb += rd_addr.eq(req_row)
+        comb += wr_addr.eq(r.store_row)
+
         # binary-to-unary converters: replace-way enabled by bus.ack,
         # hit-way left permanently enabled
         m.submodules.replace_way_e = re = Decoder(NUM_WAYS)
@@ -345,10 +350,8 @@ class ICache(Elaboratable):
 
         for i in range(NUM_WAYS):
             do_write = Signal(name="do_wr_%d" % i)
-            rd_addr  = Signal(ROW_BITS)
-            wr_addr  = Signal(ROW_BITS)
             d_out    = Signal(ROW_SIZE_BITS, name="d_out_%d" % i)
-            wr_sel   = Signal(ROW_SIZE)
+            wr_sel   = Signal(ROW_SIZE, name="wr_sel_%d" % i)
 
             way = CacheRam(ROW_BITS, ROW_SIZE_BITS, TRACE=True, ram_num=i)
             m.submodules["cacheram_%d" % i] =  way
@@ -372,8 +375,6 @@ class ICache(Elaboratable):
                     sync += Display("cache read adr: %x data: %x",
                                      req_row, d_out)
 
-            comb += rd_addr.eq(req_row)
-            comb += wr_addr.eq(r.store_row)
             comb += wr_sel.eq(Repl(do_write, ROW_SIZE))
 
     # Generate PLRUs
