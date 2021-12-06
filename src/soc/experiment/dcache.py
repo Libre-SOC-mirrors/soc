@@ -162,7 +162,7 @@ print ("    TAG_WIDTH", TAG_WIDTH)
 print ("     NUM_WAYS", NUM_WAYS)
 
 def CacheTagArray():
-    tag_layout = [('valid', 1),
+    tag_layout = [('valid', NUM_WAYS),
                   ('tag', TAG_RAM_WIDTH),
                  ]
     return Array(Record(tag_layout, name="tag%d" % x) for x in range(NUM_LINES))
