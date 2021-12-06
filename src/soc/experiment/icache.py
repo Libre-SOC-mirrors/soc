@@ -489,24 +489,25 @@ class ICache(Elaboratable):
                  & (req_index == r.store_index)
                  & r.rows_valid[req_row % ROW_PER_LINE]
                 )
-        with m.If(i_in.req):
-            cvb = Signal(NUM_WAYS)
-            ctag = Signal(TAG_RAM_WIDTH)
-            comb += ctag.eq(cache_tags[req_index].tag)
-            comb += cvb.eq(cache_tags[req_index].valid)
-            m.submodules.store_way_e = se = Decoder(NUM_WAYS)
-            comb += se.i.eq(r.store_way)
-            for i in range(NUM_WAYS):
-                tagi = Signal(TAG_BITS, name="tag_i%d" % i)
-                hit_test = Signal(name="hit_test%d" % i)
-                is_tag_hit = Signal(name="is_tag_hit_%d" % i)
-                comb += tagi.eq(read_tag(i, ctag))
-                comb += hit_test.eq(se.o[i])
-                comb += is_tag_hit.eq((cvb[i] | (hitcond & hit_test)) &
-                                      (tagi == req_tag))
-                with m.If(is_tag_hit):
-                    comb += hit_way.eq(i)
-                    comb += is_hit.eq(1)
+        # i_in.req asserts Decoder active
+        cvb = Signal(NUM_WAYS)
+        ctag = Signal(TAG_RAM_WIDTH)
+        comb += ctag.eq(cache_tags[req_index].tag)
+        comb += cvb.eq(cache_tags[req_index].valid)
+        m.submodules.store_way_e = se = Decoder(NUM_WAYS)
+        comb += se.i.eq(r.store_way)
+        comb += se.n.eq(~i_in.req)
+        for i in range(NUM_WAYS):
+            tagi = Signal(TAG_BITS, name="tag_i%d" % i)
+            hit_test = Signal(name="hit_test%d" % i)
+            is_tag_hit = Signal(name="is_tag_hit_%d" % i)
+            comb += tagi.eq(read_tag(i, ctag))
+            comb += hit_test.eq(se.o[i])
+            comb += is_tag_hit.eq((cvb[i] | (hitcond & hit_test)) &
+                                  (tagi == req_tag))
+            with m.If(is_tag_hit):
+                comb += hit_way.eq(i)
+                comb += is_hit.eq(1)
 
         # Generate the "hit" and "miss" signals
         # for the synchronous blocks
