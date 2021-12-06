@@ -1122,7 +1122,8 @@ class DCache(Elaboratable):
         comb = m.d.comb
         bus = self.bus
 
-        # a Binary-to-Unary one-hots here
+        # a Binary-to-Unary one-hots here.  replace-way one-hot is gated
+        # (enabled) by bus.ack, not-write-bram, and state RELOAD_WAIT_ACK
         m.submodules.rams_replace_way_e = rwe = Decoder(NUM_WAYS)
         comb += rwe.n.eq(~((r1.state == State.RELOAD_WAIT_ACK) & bus.ack &
                    ~r1.write_bram))
@@ -1131,6 +1132,8 @@ class DCache(Elaboratable):
         m.submodules.rams_hit_way_e = hwe = Decoder(NUM_WAYS)
         comb += hwe.i.eq(r1.hit_way)
 
+        # this one is gated with write_bram, and replace_way_e can never be
+        # set at the same time.  that means that do_write can OR the outputs
         m.submodules.rams_hit_req_way_e = hre = Decoder(NUM_WAYS)
         comb += hre.n.eq(~r1.write_bram) # Decoder.n is inverted
         comb += hre.i.eq(r1.req.hit_way)
@@ -1185,7 +1188,8 @@ class DCache(Elaboratable):
                 comb += wr_addr.eq(r1.store_row)
                 comb += wr_sel.eq(~0) # all 1s
 
-            # these are mutually-exclusive via their Decoder-enables
+            # these are mutually-exclusive via their Decoder-enablers
+            # (note: Decoder-enable is inverted)
             comb += do_write.eq(hre.o[i] | rwe.o[i])
 
             # Mask write selects with do_write since BRAM
