@@ -25,6 +25,7 @@ from nmigen import (Module, Signal, Elaboratable, Cat, Array, Const, Repl,
 from nmigen.cli import main, rtlil
 from nmutil.iocontrol import RecordObject
 from nmigen.utils import log2_int
+from nmigen.lib.coding import Decoder
 from nmutil.util import Display
 
 #from nmutil.plru import PLRU
@@ -329,6 +330,10 @@ class ICache(Elaboratable):
         sync = m.d.sync
 
         bus, stall_in = self.bus, self.stall_in
+        m.submodules.replace_way_e = re = Decoder(NUM_WAYS)
+        m.submodules.hit_way_e = he = Decoder(NUM_WAYS)
+        comb += re.i.eq(replace_way)
+        comb += he.i.eq(r.hit_way)
 
         for i in range(NUM_WAYS):
             do_read  = Signal(name="do_rd_%d" % i)
@@ -338,8 +343,8 @@ class ICache(Elaboratable):
             d_out    = Signal(ROW_SIZE_BITS, name="d_out_%d" % i)
             wr_sel   = Signal(ROW_SIZE)
 
-            way = CacheRam(ROW_BITS, ROW_SIZE_BITS, True, ram_num=i)
-            setattr(m.submodules, "cacheram_%d" % i, way)
+            way = CacheRam(ROW_BITS, ROW_SIZE_BITS, TRACE=True, ram_num=i)
+            m.submodules["cacheram_%d" % i] =  way
 
             comb += way.rd_en.eq(do_read)
             comb += way.rd_addr.eq(rd_addr)
@@ -349,13 +354,13 @@ class ICache(Elaboratable):
             comb += way.wr_data.eq(bus.dat_r)
 
             comb += do_read.eq(~(stall_in | use_previous))
-            comb += do_write.eq(bus.ack & (replace_way == i))
+            comb += do_write.eq(bus.ack & re.o[i])
 
             with m.If(do_write):
                 sync += Display("cache write adr: %x data: %lx",
                                 wr_addr, way.wr_data)
 
-            with m.If(r.hit_way == i):
+            with m.If(he.o[i]):
                 comb += cache_out_row.eq(d_out)
                 with m.If(do_read):
                     sync += Display("cache read adr: %x data: %x",
@@ -370,17 +375,15 @@ class ICache(Elaboratable):
         comb = m.d.comb
 
         with m.If(NUM_WAYS > 1):
-            for i in range(NUM_LINES):
-                plru_acc_i  = Signal(WAY_BITS)
-                plru_acc_en = Signal()
-                plru        = PLRU(WAY_BITS)
-                setattr(m.submodules, "plru_%d" % i, plru)
+            m.submodules.plru_e = e = Decoder(NUM_LINES)
+            comb += e.i.eq(get_index(r.hit_nia))
 
-                comb += plru.acc_i.eq(plru_acc_i)
-                comb += plru.acc_en.eq(plru_acc_en)
+            for i in range(NUM_LINES):
+                plru        = PLRU(WAY_BITS)
+                m.submodules["plru_%d" % i] = plru
 
                 # PLRU interface
-                with m.If(get_index(r.hit_nia) == i):
+                with m.If(e.o[i]):
                     comb += plru.acc_en.eq(r.hit_valid)
 
                 comb += plru.acc_i.eq(r.hit_way)
@@ -491,12 +494,17 @@ class ICache(Elaboratable):
             ctag = Signal(TAG_RAM_WIDTH)
             comb += ctag.eq(cache_tags[req_index].tag)
             comb += cvb.eq(cache_tags[req_index].valid)
+            m.submodules.store_way_e = se = Decoder(NUM_WAYS)
+            comb += se.i.eq(r.store_way)
             for i in range(NUM_WAYS):
                 tagi = Signal(TAG_BITS, name="tag_i%d" % i)
-                comb += tagi.eq(read_tag(i, ctag))
                 hit_test = Signal(name="hit_test%d" % i)
-                comb += hit_test.eq(i == r.store_way)
-                with m.If((cvb[i] | (hitcond & hit_test)) & (tagi == req_tag)):
+                is_tag_hit = Signal(name="is_tag_hit_%d" % i)
+                comb += tagi.eq(read_tag(i, ctag))
+                comb += hit_test.eq(se.o[i])
+                comb += is_tag_hit.eq((cvb[i] | (hitcond & hit_test)) &
+                                      (tagi == req_tag))
+                with m.If(is_tag_hit):
                     comb += hit_way.eq(i)
                     comb += is_hit.eq(1)
 
