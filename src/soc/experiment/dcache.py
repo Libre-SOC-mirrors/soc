@@ -446,10 +446,6 @@ class DTLBUpdate(Elaboratable):
 
         self.dv = Signal(TLB_NUM_WAYS) # tlb_way_valids_t
 
-        self.tb_out = Signal(TLB_TAG_WAY_BITS) # tlb_way_tags_t
-        self.db_out = Signal(TLB_NUM_WAYS)     # tlb_way_valids_t
-        self.pb_out = Signal(TLB_PTE_WAY_BITS) # tlb_way_ptes_t
-
         # read from dtlb array
         self.tlb_read       = Signal()
         self.tlb_read_index = Signal(TLB_SET_BITS)
@@ -464,9 +460,11 @@ class DTLBUpdate(Elaboratable):
         pteset   = Signal(TLB_PTE_WAY_BITS)
         updated  = Signal()
         v_updated  = Signal()
+        tb_out = Signal(TLB_TAG_WAY_BITS) # tlb_way_tags_t
+        db_out = Signal(TLB_NUM_WAYS)     # tlb_way_valids_t
+        pb_out = Signal(TLB_PTE_WAY_BITS) # tlb_way_ptes_t
 
         dtlb, tlb_req_index = self.dtlb, self.tlb_req_index
-        tb_out, pb_out, db_out = self.tb_out, self.pb_out, self.db_out
         comb += db_out.eq(self.dv)
 
         with m.If(self.tlbie & self.doall):
@@ -494,10 +492,10 @@ class DTLBUpdate(Elaboratable):
             comb += v_updated.eq(1)
 
         with m.If(updated):
-            sync += dtlb[tlb_req_index].tag.eq(self.tb_out)
-            sync += dtlb[tlb_req_index].pte.eq(self.pb_out)
+            sync += dtlb[tlb_req_index].tag.eq(tb_out)
+            sync += dtlb[tlb_req_index].pte.eq(pb_out)
         with m.If(v_updated):
-            sync += dtlb[tlb_req_index].valid.eq(self.db_out)
+            sync += dtlb[tlb_req_index].valid.eq(db_out)
 
         comb += self.dv.eq(dtlb[tlb_req_index].valid)
 
