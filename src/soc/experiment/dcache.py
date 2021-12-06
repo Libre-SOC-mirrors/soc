@@ -699,8 +699,8 @@ class DCache(Elaboratable):
 
         # Binary-to-Unary one-hot, enabled by tlb_hit valid
         m.submodules.tlb_hit_e = te = Decoder(TLB_SET_SIZE)
-        te.n.eq(~r1.tlb_hit.valid)
-        te.i.eq(r1.tlb_hit_index)
+        comb += te.n.eq(~r1.tlb_hit.valid)
+        comb += te.i.eq(r1.tlb_hit_index)
 
         for i in range(TLB_SET_SIZE):
             # TLB PLRU interface
@@ -825,8 +825,8 @@ class DCache(Elaboratable):
         # XXX TODO: use a Binary-to-Unary one-hot here,
         # enabled by cache_hit
         m.submodules.hit_e = he = Decoder(NUM_LINES)
-        he.n.eq(~r1.cache_hit)
-        he.i.eq(r1.hit_index)
+        comb += he.n.eq(~r1.cache_hit)
+        comb += he.i.eq(r1.hit_index)
 
         for i in range(NUM_LINES):
             # PLRU interface
@@ -1123,15 +1123,17 @@ class DCache(Elaboratable):
         bus = self.bus
 
         # a Binary-to-Unary one-hots here
-        #m.submodules.hit_e = he = Decoder(NUM_LINES)
-        #he.n.eq(~r1.cache_hit)
-        #he.i.eq(r1.hit_index)
-        hit_way_onehot = Signal(NUM_WAYS)
-        replace_way_onehot = Signal(NUM_WAYS)
-        hit_req_way_onehot = Signal(NUM_WAYS)
-        comb += hit_way_onehot.eq(1<<r1.hit_way)
-        comb += hit_req_way_onehot.eq(1<<r1.req.hit_way)
-        comb += replace_way_onehot.eq(1<<replace_way)
+        m.submodules.rams_replace_way_e = rwe = Decoder(NUM_WAYS)
+        comb += rwe.n.eq(~((r1.state == State.RELOAD_WAIT_ACK) & bus.ack &
+                   ~r1.write_bram))
+        comb += rwe.i.eq(replace_way)
+
+        m.submodules.rams_hit_way_e = hwe = Decoder(NUM_WAYS)
+        comb += hwe.i.eq(r1.hit_way)
+
+        m.submodules.rams_hit_req_way_e = hre = Decoder(NUM_WAYS)
+        comb += hre.n.eq(~r1.write_bram) # Decoder.n is inverted
+        comb += hre.i.eq(r1.req.hit_way)
 
         do_read  = Signal()
         comb += do_read.eq(1)
@@ -1157,7 +1159,7 @@ class DCache(Elaboratable):
 
             # Cache hit reads
             comb += rd_addr.eq(early_req_row)
-            with m.If(hit_way_onehot[i]):
+            with m.If(hwe.o[i]):
                 comb += cache_out_row.eq(_d_out)
 
             # Write mux:
@@ -1174,7 +1176,6 @@ class DCache(Elaboratable):
                 comb += wr_sel.eq(r1.req.byte_sel)
                 comb += wr_addr.eq(get_row(r1.req.real_addr))
 
-                comb += do_write.eq(hit_req_way_onehot[i])
             with m.Else():
                 # Otherwise, we might be doing a reload or a DCBZ
                 with m.If(r1.dcbz):
@@ -1184,9 +1185,8 @@ class DCache(Elaboratable):
                 comb += wr_addr.eq(r1.store_row)
                 comb += wr_sel.eq(~0) # all 1s
 
-                with m.If((r1.state == State.RELOAD_WAIT_ACK) &
-                           bus.ack & replace_way_onehot[i]):
-                    comb += do_write.eq(1)
+            # these are mutually-exclusive via their Decoder-enables
+            comb += do_write.eq(hre.o[i] | rwe.o[i])
 
             # Mask write selects with do_write since BRAM
             # doesn't have a global write-enable
