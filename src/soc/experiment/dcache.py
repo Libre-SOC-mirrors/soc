@@ -25,7 +25,7 @@ sys.setrecursionlimit(1000000)
 from enum import Enum, unique
 
 from nmigen import (Module, Signal, Elaboratable, Cat, Repl, Array, Const,
-                    Record)
+                    Record, Memory)
 from nmutil.util import Display
 from nmigen.lib.coding import Decoder
 
@@ -155,6 +155,8 @@ print ("tag @: %d-%d width %d" % (SET_SIZE_BITS, REAL_ADDR_BITS, TAG_WIDTH))
 TAG_RAM_WIDTH = TAG_WIDTH * NUM_WAYS
 
 print ("TAG_RAM_WIDTH", TAG_RAM_WIDTH)
+print ("    TAG_WIDTH", TAG_WIDTH)
+print ("     NUM_WAYS", NUM_WAYS)
 
 def CacheTagArray():
     tag_layout = [('valid', 1),
@@ -190,6 +192,7 @@ assert REAL_ADDR_BITS == (TAG_BITS + ROW_BITS + ROW_OFF_BITS), \
          "geometry bits don't add up"
 assert 64 == WB_DATA_BITS, "Can't yet handle wb width that isn't 64-bits"
 assert SET_SIZE_BITS <= TLB_LG_PGSZ, "Set indexed by virtual address"
+
 
 def TLBHit(name):
     return Record([('valid', 1),
@@ -454,6 +457,31 @@ class DTLBUpdate(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
 
+        dtlb, tlb_req_index = self.dtlb, self.tlb_req_index
+
+        print ("TLB_TAG_WAY_BITS", TLB_TAG_WAY_BITS)
+        print ("     TLB_EA_TAG_BITS", TLB_EA_TAG_BITS)
+        print ("        TLB_NUM_WAYS", TLB_NUM_WAYS)
+        print ("TLB_PTE_WAY_BITS", TLB_PTE_WAY_BITS)
+        print ("    TLB_PTE_BITS", TLB_PTE_BITS)
+        print ("    TLB_NUM_WAYS", TLB_NUM_WAYS)
+
+        # TAG and PTE Memory SRAMs. transparent, write-enables are TLB_NUM_WAYS
+        tagway = Memory(depth=TLB_SET_SIZE, width=TLB_TAG_WAY_BITS)
+        m.submodules.rd_tagway = rd_tagway = tagway.read_port()
+        m.submodules.wr_tagway = wr_tagway = tagway.write_port(
+                                    granularity=TLB_EA_TAG_BITS)
+
+        pteway = Memory(depth=TLB_SET_SIZE, width=TLB_PTE_WAY_BITS)
+        m.submodules.rd_pteway = rd_pteway = pteway.read_port()
+        m.submodules.wr_pteway = wr_pteway = pteway.write_port(
+                                    granularity=TLB_PTE_BITS)
+
+        m.d.comb += rd_pteway.addr.eq(self.tlb_read_index)
+        m.d.comb += rd_tagway.addr.eq(self.tlb_read_index)
+        m.d.comb += wr_tagway.addr.eq(tlb_req_index)
+        m.d.comb += wr_pteway.addr.eq(tlb_req_index)
+
         tagset   = Signal(TLB_TAG_WAY_BITS)
         pteset   = Signal(TLB_PTE_WAY_BITS)
         updated  = Signal()
@@ -463,7 +491,6 @@ class DTLBUpdate(Elaboratable):
         pb_out = Signal(TLB_PTE_WAY_BITS) # tlb_way_ptes_t
         dv = Signal(TLB_NUM_WAYS) # tlb_way_valids_t
 
-        dtlb, tlb_req_index = self.dtlb, self.tlb_req_index
         comb += dv.eq(dtlb[tlb_req_index].valid)
         comb += db_out.eq(dv)
 
@@ -477,29 +504,37 @@ class DTLBUpdate(Elaboratable):
                 comb += db_out.bit_select(self.tlb_hit.way, 1).eq(0)
                 comb += v_updated.eq(1)
         with m.Elif(self.tlbwe):
-            # write to tge rrquested tag and PTE
-            comb += tagset.eq(self.tlb_tag_way)
-            comb += write_tlb_tag(self.repl_way, tagset, self.eatag)
-            comb += tb_out.eq(tagset)
-
-            comb += pteset.eq(self.tlb_pte_way)
-            comb += write_tlb_pte(self.repl_way, pteset, self.pte_data)
-            comb += pb_out.eq(pteset)
-
+            # write to the requested tag and PTE
+            comb += write_tlb_tag(self.repl_way, tb_out, self.eatag)
+            comb += write_tlb_pte(self.repl_way, pb_out, self.pte_data)
+            # set valid bit
             comb += db_out.bit_select(self.repl_way, 1).eq(1)
 
             comb += updated.eq(1)
             comb += v_updated.eq(1)
 
         with m.If(updated):
-            sync += dtlb[tlb_req_index].tag.eq(tb_out)
-            sync += dtlb[tlb_req_index].pte.eq(pb_out)
+            comb += wr_pteway.data.eq(pb_out)
+            comb += wr_pteway.en.eq(1<<self.repl_way)
+            comb += wr_tagway.data.eq(tb_out)
+            comb += wr_tagway.en.eq(1<<self.repl_way)
         with m.If(v_updated):
             sync += dtlb[tlb_req_index].valid.eq(db_out)
 
         # select one TLB way
+        r_tlb_way        = TLBRecord("r_tlb_way")
+        r_delay = Signal()
+        sync += r_delay.eq(self.tlb_read)
         with m.If(self.tlb_read):
-            sync += self.tlb_way.eq(dtlb[self.tlb_read_index])
+            sync += self.tlb_way.valid.eq(dtlb[self.tlb_read_index].valid)
+        with m.If(r_delay):
+            comb += self.tlb_way.tag.eq(rd_tagway.data)
+            comb += self.tlb_way.pte.eq(rd_pteway.data)
+            sync += r_tlb_way.tag.eq(rd_tagway.data)
+            sync += r_tlb_way.pte.eq(rd_pteway.data)
+        with m.Else():
+            comb += self.tlb_way.tag.eq(r_tlb_way.tag)
+            comb += self.tlb_way.pte.eq(r_tlb_way.pte)
 
         return m
 
