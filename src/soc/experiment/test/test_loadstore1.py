@@ -65,7 +65,8 @@ test_random = True
 
 def _test_loadstore1_ifetch(dut, mem):
     mmu = dut.submodules.mmu
-    pi = dut.submodules.ldst.pi
+    ldst = dut.submodules.ldst
+    pi = ldst.pi
     icache = dut.submodules.ldst.icache
     wbget.stop = False
 
@@ -75,7 +76,11 @@ def _test_loadstore1_ifetch(dut, mem):
     i_out  = icache.i_out
     i_m_in = icache.m_in
 
-    # first basic test
+    # first virtual memory test
+
+    print ("set process table")
+    yield mmu.rin.prtbl.eq(0x1000000) # set process table
+    yield
 
     # set address to zero, update mem[0] to 01234
     addr = 8
@@ -117,14 +122,15 @@ def _test_loadstore1_ifetch(dut, mem):
     # look up i-cache expecting it to fail
 
     # set address to zero, update mem[0] to 01234
-    addr = 16
+    virt_addr = 0x10200
+    real_addr = virt_addr
     expected_insn = 0x5678
-    mem[addr] = expected_insn
+    mem[real_addr] = expected_insn
 
     yield i_in.priv_mode.eq(1)
     yield i_in.virt_mode.eq(1)
     yield i_in.req.eq(0)
-    yield i_in.nia.eq(addr)
+    yield i_in.nia.eq(virt_addr)
     yield i_in.stop_mark.eq(0)
     yield i_m_in.tlbld.eq(0)
     yield i_m_in.tlbie.eq(0)
@@ -136,7 +142,7 @@ def _test_loadstore1_ifetch(dut, mem):
 
     # miss, stalls for a bit
     yield i_in.req.eq(1)
-    yield i_in.nia.eq(addr)
+    yield i_in.nia.eq(virt_addr)
     yield
     valid = yield i_out.valid
     failed = yield i_out.fetch_failed
@@ -148,6 +154,29 @@ def _test_loadstore1_ifetch(dut, mem):
 
     print ("failed?", "yes" if failed else "no")
     assert failed == 1
+    yield
+    yield
+
+    print("=== test loadstore instruction (instruction fault) ===")
+
+    virt_addr = 0x10200
+
+    yield mmu.l_in.iside.eq(1)
+    yield mmu.l_in.load.eq(1)
+    yield mmu.l_in.valid.eq(1)
+    yield mmu.l_in.priv.eq(1)
+    yield mmu.l_in.addr.eq(virt_addr)
+    #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=1)
+    #yield ldst.iside.eq(0)
+    yield
+    l_done = yield (mmu.l_out.done)
+    l_err = yield (mmu.l_out.err)
+    while not l_done and not l_err:
+        yield
+        l_done = yield (mmu.l_out.done)
+        l_err = yield (mmu.l_out.err)
+    yield mmu.l_in.valid.eq(0)
+    yield
     yield
     yield
 

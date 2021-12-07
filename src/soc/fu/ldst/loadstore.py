@@ -111,6 +111,7 @@ class LoadStore1(PortInterfaceBase):
         self.virt_mode     = Signal()
         self.priv_mode     = Signal()
         self.state        = Signal(State)
+        self.iside         = Signal() # request instruction-side load
         self.instr_fault   = Signal()
         self.align_intr    = Signal()
         self.busy          = Signal()
@@ -380,7 +381,7 @@ class LoadStore1(PortInterfaceBase):
 
         # Update outputs to MMU
         m.d.comb += m_out.valid.eq(mmureq)
-        m.d.comb += m_out.iside.eq(self.instr_fault)
+        m.d.comb += m_out.iside.eq(self.iside)
         m.d.comb += m_out.load.eq(ldst_r.load)
         # m_out.priv <= r.priv_mode; TODO
         m.d.comb += m_out.tlbie.eq(self.tlbie)
