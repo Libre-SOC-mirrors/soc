@@ -64,6 +64,28 @@ test_random = True
 
 
 def _test_loadstore1_ifetch(dut, mem):
+    """test_loadstore1_ifetch
+
+    this is quite a complex multi-step test.
+
+    * first (just because, as a demo) read in priv mode, non-virtual.
+      just like in experiment/icache.py itself.
+
+    * second, using the (usual) PTE for these things (which came originally
+      from gem5-experimental experiment/radix_walk_example.txt) do a
+      virtual-memory read through the *instruction* cache.
+      this is expected to FAIL
+
+    * third: mess about with the MMU, setting "iside" (instruction-side),
+      requesting an MMU RADIX LOOKUP.  this triggers an itlb_load
+      (instruction-cache TLB entry-insertion)
+
+    * fourth and finally: retry the read of the instruction through i-cache.
+      this is now expected to SUCCEED
+
+    a lot going on.
+    """
+
     mmu = dut.submodules.mmu
     ldst = dut.submodules.ldst
     pi = ldst.pi
@@ -121,7 +143,7 @@ def _test_loadstore1_ifetch(dut, mem):
 
     # look up i-cache expecting it to fail
 
-    # set address to zero, update mem[0] to 01234
+    # set address to 0x10200, update mem[] to 5678
     virt_addr = 0x10200
     real_addr = virt_addr
     expected_insn = 0x5678
@@ -169,16 +191,65 @@ def _test_loadstore1_ifetch(dut, mem):
     #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=1)
     #yield ldst.iside.eq(0)
     yield
-    l_done = yield (mmu.l_out.done)
-    l_err = yield (mmu.l_out.err)
-    while not l_done and not l_err:
-        yield
+    while True:
         l_done = yield (mmu.l_out.done)
         l_err = yield (mmu.l_out.err)
+        l_badtree = yield (mmu.l_out.badtree)
+        l_permerr = yield (mmu.l_out.perm_error)
+        l_rc_err = yield (mmu.l_out.rc_error)
+        l_segerr = yield (mmu.l_out.segerr)
+        l_invalid = yield (mmu.l_out.invalid)
+        if (l_done or l_err or l_badtree or
+            l_permerr or l_rc_err or l_segerr or l_invalid):
+            break
+        yield
     yield mmu.l_in.valid.eq(0)
+    print ("********    errs?",
+            l_err, l_badtree, l_permerr, l_rc_err, l_segerr, l_invalid)
     yield
     yield
     yield
+
+    print("=== test loadstore instruction (try instruction again) ===")
+    # set address to 0x10200, update mem[] to 5678
+    virt_addr = 0x10200
+    real_addr = virt_addr
+    expected_insn = 0x5678
+
+    yield i_in.priv_mode.eq(1)
+    yield i_in.virt_mode.eq(1)
+    yield i_in.req.eq(0)
+    yield i_in.nia.eq(virt_addr)
+    yield i_in.stop_mark.eq(0)
+    yield i_m_in.tlbld.eq(0)
+    yield i_m_in.tlbie.eq(0)
+    yield i_m_in.addr.eq(0)
+    yield i_m_in.pte.eq(0)
+    yield
+    yield
+    yield
+
+    # miss, stalls for a bit
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(virt_addr)
+    yield
+    valid = yield i_out.valid
+    failed = yield i_out.fetch_failed
+    while not valid and not failed:
+        yield
+        valid = yield i_out.valid
+        failed = yield i_out.fetch_failed
+    yield i_in.req.eq(0)
+    nia   = yield i_out.nia
+    insn  = yield i_out.insn
+    yield
+    yield
+
+    print ("failed?", "yes" if failed else "no")
+    assert failed == 0
+
+    print ("fetched %x from addr %x" % (insn, nia))
+    assert insn == expected_insn
 
     wbget.stop = True
 
@@ -378,6 +449,6 @@ def test_loadstore1_invalid():
 
 
 if __name__ == '__main__':
-    #test_loadstore1()
-    #test_loadstore1_invalid()
+    test_loadstore1()
+    test_loadstore1_invalid()
     test_loadstore1_ifetch()
