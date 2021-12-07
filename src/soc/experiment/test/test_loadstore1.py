@@ -43,7 +43,7 @@ def setup_mmu():
 
     l_in, l_out = mmu.l_in, mmu.l_out
     d_in, d_out = dcache.d_in, dcache.d_out
-    i_in, i_out = icache.i_in, icache.i_out
+    i_in, i_out = icache.i_in, icache.i_out # FetchToICache, ICacheToDecode
 
     # link mmu, dcache and icache together
     m.d.comb += dcache.m_in.eq(mmu.d_out) # MMUToDCacheType
