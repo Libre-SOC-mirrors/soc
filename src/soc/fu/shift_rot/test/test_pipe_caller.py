@@ -71,6 +71,7 @@ class ShiftRotIlangCase(TestAccumulatorBase):
 
     def case_ilang(self):
         pspec = ShiftRotPipeSpec(id_wid=2)
+        pspec.draft_bitmanip = True
         alu = ShiftRotBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("shift_rot_pipeline.il", "w") as f:
@@ -137,6 +138,7 @@ class TestRunner(unittest.TestCase):
         pdecode = pdecode2.dec
 
         pspec = ShiftRotPipeSpec(id_wid=2)
+        pspec.draft_bitmanip = True
         m.submodules.alu = alu = ShiftRotBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

@@ -8,6 +8,7 @@
 # output stage
 from nmigen import (Module, Signal, Cat, Repl, Mux, Const)
 from nmutil.pipemodbase import PipeModBase
+from soc.fu.pipe_data import get_pspec_draft_bitmanip
 from soc.fu.shift_rot.pipe_data import (ShiftRotOutputData,
                                         ShiftRotInputData)
 from nmutil.lut import BitwiseLut
@@ -21,6 +22,7 @@ from openpower.decoder.power_fieldsn import SignalBitRange
 class ShiftRotMainStage(PipeModBase):
     def __init__(self, pspec):
         super().__init__(pspec, "main")
+        self.draft_bitmanip = get_pspec_draft_bitmanip(pspec)
         self.fields = DecodeFields(SignalBitRange, [self.i.ctx.op.insn])
         self.fields.create_specs()
 
@@ -36,11 +38,13 @@ class ShiftRotMainStage(PipeModBase):
         op = self.i.ctx.op
         o = self.o.o
 
-        bitwise_lut = BitwiseLut(input_count=3, width=64)
-        m.submodules.bitwise_lut = bitwise_lut
-        comb += bitwise_lut.inputs[0].eq(self.i.rb)
-        comb += bitwise_lut.inputs[1].eq(self.i.ra)
-        comb += bitwise_lut.inputs[2].eq(self.i.rc)
+        bitwise_lut = None
+        if self.draft_bitmanip:
+            bitwise_lut = BitwiseLut(input_count=3, width=64)
+            m.submodules.bitwise_lut = bitwise_lut
+            comb += bitwise_lut.inputs[0].eq(self.i.rb)
+            comb += bitwise_lut.inputs[1].eq(self.i.ra)
+            comb += bitwise_lut.inputs[2].eq(self.i.rc)
 
         # NOTE: the sh field immediate is read in by PowerDecode2
         # (actually DecodeRB), whereupon by way of rb "immediate" mode
@@ -95,12 +99,13 @@ class ShiftRotMainStage(PipeModBase):
                 comb += mode.eq(0b0100)  # clear R
             with m.Case(MicrOp.OP_EXTSWSLI):
                 comb += mode.eq(0b1000)  # L-ext
-            with m.Case(MicrOp.OP_TERNLOG):
-                # TODO: this only works for ternaryi, change to get lut value
-                # from register when we implement other variants
-                comb += bitwise_lut.lut.eq(self.fields.FormTLI.TLI[:])
-                comb += o.data.eq(bitwise_lut.output)
-                comb += self.o.xer_ca.data.eq(0)
+            if self.draft_bitmanip:
+                with m.Case(MicrOp.OP_TERNLOG):
+                    # TODO: this only works for ternlogi, change to get lut
+                    # value from register when we implement other variants
+                    comb += bitwise_lut.lut.eq(self.fields.FormTLI.TLI[:])
+                    comb += o.data.eq(bitwise_lut.output)
+                    comb += self.o.xer_ca.data.eq(0)
             with m.Default():
                 comb += o.ok.eq(0)  # otherwise disable
 
