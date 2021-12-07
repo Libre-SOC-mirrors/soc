@@ -39,12 +39,15 @@ def setup_mmu():
     m.submodules.ldst = ldst = cmpi.pi
     m.submodules.mmu = mmu = MMU()
     dcache = ldst.dcache
+    icache = ldst.icache
 
     l_in, l_out = mmu.l_in, mmu.l_out
     d_in, d_out = dcache.d_in, dcache.d_out
+    i_in, i_out = icache.i_in, icache.i_out
 
-    # link mmu and dcache together
+    # link mmu, dcache and icache together
     m.d.comb += dcache.m_in.eq(mmu.d_out) # MMUToDCacheType
+    m.d.comb += icache.m_in.eq(mmu.i_out) # MMUToICacheType
     m.d.comb += mmu.d_in.eq(dcache.m_out) # DCacheToMMUType
 
     # link ldst and MMU together

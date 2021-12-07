@@ -25,6 +25,7 @@ from nmutil.util import rising_edge, Display
 from enum import Enum, unique
 
 from soc.experiment.dcache import DCache
+from soc.experiment.icache import ICache
 from soc.experiment.pimem import PortInterfaceBase
 from soc.experiment.mem_types import LoadStore1ToMMUType
 from soc.experiment.mem_types import MMUToLoadStore1Type
@@ -58,6 +59,7 @@ class LDSTRequest(RecordObject):
         self.priv_mode     = Signal()
         self.align_intr    = Signal()
 
+
 # glue logic for microwatt mmu and dcache
 class LoadStore1(PortInterfaceBase):
     def __init__(self, pspec):
@@ -69,15 +71,19 @@ class LoadStore1(PortInterfaceBase):
 
         super().__init__(regwid, addrwid)
         self.dcache = DCache()
+        self.icache = ICache()
         # these names are from the perspective of here (LoadStore1)
         self.d_out  = self.dcache.d_in     # in to dcache is out for LoadStore
         self.d_in = self.dcache.d_out      # out from dcache is in for LoadStore
+        self.i_out  = self.icache.i_in     # in to icache is out for LoadStore
+        self.i_in = self.icache.i_out      # out from icache is in for LoadStore
         self.m_out  = LoadStore1ToMMUType() # out *to* MMU
         self.m_in = MMUToLoadStore1Type()   # in *from* MMU
         self.req = LDSTRequest(name="ldst_req")
 
         # TODO, convert dcache wb_in/wb_out to "standard" nmigen Wishbone bus
         self.dbus = Record(make_wb_layout(pspec))
+        self.ibus = Record(make_wb_layout(pspec))
 
         # for creating a single clock blip to DCache
         self.d_valid = Signal()
@@ -180,11 +186,13 @@ class LoadStore1(PortInterfaceBase):
         sync += self.done_delay.eq(self.done)
         sync += self.load_data_delay.eq(self.load_data)
 
-        # create dcache module
+        # create dcache and icache module
         m.submodules.dcache = dcache = self.dcache
+        m.submodules.icache = icache = self.icache
 
         # temp vars
         d_out, d_in, dbus = self.d_out, self.d_in, self.dbus
+        i_out, i_in, ibus = self.i_out, self.i_in, self.ibus
         m_out, m_in = self.m_out, self.m_in
         exc = self.pi.exc_o
         exception = exc.happened
