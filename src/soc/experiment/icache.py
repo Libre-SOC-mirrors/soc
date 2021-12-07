@@ -186,7 +186,7 @@ assert (REAL_ADDR_BITS == (TAG_BITS + ROW_BITS + ROW_OFF_BITS)), \
 # not handle a clean (commented) definition of the cache tags as a 3d
 # memory. For now, work around it by putting all the tags
 def CacheTagArray():
-    tag_layout = [('valid', 1),
+    tag_layout = [('valid', NUM_WAYS),
                   ('tag', TAG_RAM_WIDTH),
                  ]
     return Array(Record(tag_layout, name="tag%d" % x) for x in range(NUM_LINES))
