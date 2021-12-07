@@ -1360,10 +1360,10 @@ class DCache(Elaboratable):
         sync += r1.mmu_done.eq(r0_valid & (r0.tlbie | r0.tlbld))
 
         with m.If((req_op == Op.OP_LOAD_HIT) | (req_op == Op.OP_STCX_FAIL)):
-            with m.If(~r0.mmu_req):
-                sync += r1.ls_valid.eq(1)
-            with m.Else():
+            with m.If(r0.mmu_req):
                 sync += r1.mmu_done.eq(1)
+            with m.Else():
+                sync += r1.ls_valid.eq(1)
 
         with m.If(r1.write_tag):
             # Store new tag in selected way
@@ -1476,10 +1476,10 @@ class DCache(Elaboratable):
                             sync += r1.full.eq(0)
                             sync += r1.slow_valid.eq(1)
 
-                            with m.If(~req.mmu_req):
-                                sync += r1.ls_valid.eq(1)
-                            with m.Else():
+                            with m.If(req.mmu_req):
                                 sync += r1.mmu_done.eq(1)
+                            with m.Else():
+                                sync += r1.ls_valid.eq(1)
 
                             with m.If(req.op == Op.OP_STORE_HIT):
                                 sync += r1.write_bram.eq(1)
@@ -1544,10 +1544,10 @@ class DCache(Elaboratable):
                                 (r1.store_row == get_row(req.real_addr))):
                         sync += r1.full.eq(0)
                         sync += r1.slow_valid.eq(1)
-                        with m.If(~r1.mmu_req):
-                            sync += r1.ls_valid.eq(1)
-                        with m.Else():
+                        with m.If(r1.mmu_req):
                             sync += r1.mmu_done.eq(1)
+                        with m.Else():
+                            sync += r1.ls_valid.eq(1)
                         sync += r1.forward_sel.eq(~0) # all 1s
                         sync += r1.use_forward1.eq(1)
 
@@ -1637,10 +1637,10 @@ class DCache(Elaboratable):
                     sync += r1.full.eq(0)
                     sync += r1.slow_valid.eq(1)
 
-                    with m.If(~r1.mmu_req):
-                        sync += r1.ls_valid.eq(1)
-                    with m.Else():
+                    with m.If(r1.mmu_req):
                         sync += r1.mmu_done.eq(1)
+                    with m.Else():
+                        sync += r1.ls_valid.eq(1)
 
                     sync += r1.forward_sel.eq(~0) # all 1s
                     sync += r1.use_forward1.eq(1)
