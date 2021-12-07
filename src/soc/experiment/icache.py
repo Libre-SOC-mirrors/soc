@@ -324,7 +324,7 @@ class ICache(Elaboratable):
                             granularity=8,
                             features={'stall'},
                             alignment=0,
-                            name="dcache")
+                            name="icache_wb")
 
         self.log_out        = Signal(54)
 

@@ -1,4 +1,5 @@
-from nmigen import (C, Module, Signal, Elaboratable, Mux, Cat, Repl, Signal)
+from nmigen import (C, Module, Signal, Elaboratable, Mux, Cat, Repl, Signal,
+                    Const)
 from nmigen.cli import main
 from nmigen.cli import rtlil
 from nmutil.mask import Mask, masked
@@ -60,6 +61,45 @@ def setup_mmu():
 test_exceptions = True
 test_dcbz = True
 test_random = True
+
+
+def _test_loadstore1_ifetch(dut, mem):
+    mmu = dut.submodules.mmu
+    pi = dut.submodules.ldst.pi
+    icache = dut.submodules.ldst.icache
+    wbget.stop = False
+
+    print("=== test loadstore instruction ===")
+
+    addr = 0
+
+    i_in = icache.i_in
+    i_out  = icache.i_out
+    m_out = icache.m_in
+
+    yield i_in.priv_mode.eq(1)
+    yield i_in.req.eq(0)
+    yield i_in.nia.eq(0)
+    yield i_in.stop_mark.eq(0)
+    yield m_out.tlbld.eq(0)
+    yield m_out.tlbie.eq(0)
+    yield m_out.addr.eq(0)
+    yield m_out.pte.eq(0)
+    yield
+
+    # miss, stalls for a bit
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(Const(0x0000000000000004, 64))
+    yield
+    valid = yield i_out.valid
+    while not valid:
+        yield
+        valid = yield i_out.valid
+    yield i_in.req.eq(0)
+
+    print("=== test loadstore instruction ===")
+
+    wbget.stop = True
 
 
 def _test_loadstore1_invalid(dut, mem):
@@ -204,6 +244,26 @@ def _test_loadstore1(dut, mem):
     wbget.stop = True
 
 
+def test_loadstore1_ifetch():
+
+    m, cmpi = setup_mmu()
+
+    mem = pagetables.test1
+
+    # nmigen Simulation
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    icache = m.submodules.ldst.icache
+    sim.add_sync_process(wrap(_test_loadstore1_ifetch(m, mem)))
+    # add two wb_get processes onto the *same* memory dictionary.
+    # this shouuuld work.... cross-fingers...
+    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get(icache.bus, mem)))
+    with sim.write_vcd('test_loadstore1_ifetch.vcd'):
+        sim.run()
+
+
 def test_loadstore1():
 
     m, cmpi = setup_mmu()
@@ -237,5 +297,6 @@ def test_loadstore1_invalid():
 
 
 if __name__ == '__main__':
-    test_loadstore1()
-    test_loadstore1_invalid()
+    #test_loadstore1()
+    #test_loadstore1_invalid()
+    test_loadstore1_ifetch()
