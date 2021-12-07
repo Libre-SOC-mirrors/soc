@@ -17,7 +17,7 @@ class FUBaseData:
     """
 
     def __init__(self, pspec, output, exc_kls=None):
-        self.ctx = PipeContext(pspec) # context for ReservationStation usage
+        self.ctx = PipeContext(pspec)  # context for ReservationStation usage
         self.muxid = self.ctx.muxid
         self.data = []
         self.is_output = output
@@ -45,19 +45,19 @@ class FUBaseData:
     def eq(self, i):
         eqs = [self.ctx.eq(i.ctx)]
         assert len(self.data) == len(i.data), \
-               "length of %s mismatch against %s: %s %s" % \
-                   (repr(self), repr(i), repr(self.data), repr(i.data))
+            "length of %s mismatch against %s: %s %s" % \
+            (repr(self), repr(i), repr(self.data), repr(i.data))
         for j in range(len(self.data)):
             assert type(self.data[j]) == type(i.data[j]), \
-                   "type mismatch in FUBaseData %s %s" % \
-                   (repr(self.data[j]), repr(i.data[j]))
+                "type mismatch in FUBaseData %s %s" % \
+                (repr(self.data[j]), repr(i.data[j]))
             eqs.append(self.data[j].eq(i.data[j]))
         if hasattr(self, "exception"):
             eqs.append(self.exception.eq(i.exception))
         return eqs
 
     def ports(self):
-        return self.ctx.ports() # TODO: include self.data
+        return self.ctx.ports()  # TODO: include self.data
 
 
 # hmmm there has to be a better way than this
@@ -74,9 +74,10 @@ class CommonPipeSpec:
     """CommonPipeSpec: base class for all pipeline specifications
     see README.md for explanation of members.
     """
+
     def __init__(self, id_wid):
         self.pipekls = SimpleHandshakeRedir
         self.id_wid = id_wid
         self.opkls = lambda _: self.opsubsetkls()
-        self.op_wid = get_rec_width(self.opkls(None)) # hmm..
+        self.op_wid = get_rec_width(self.opkls(None))  # hmm..
         self.stage = None
