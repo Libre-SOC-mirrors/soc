@@ -69,27 +69,34 @@ def _test_loadstore1_ifetch(dut, mem):
     icache = dut.submodules.ldst.icache
     wbget.stop = False
 
-    print("=== test loadstore instruction ===")
-
-    addr = 0
+    print("=== test loadstore instruction (real) ===")
 
     i_in = icache.i_in
     i_out  = icache.i_out
-    m_out = icache.m_in
+    i_m_in = icache.m_in
+
+    # first basic test
+
+    # set address to zero, update mem[0] to 01234
+    addr = 8
+    expected_insn = 0x1234
+    mem[addr] = expected_insn
 
     yield i_in.priv_mode.eq(1)
     yield i_in.req.eq(0)
-    yield i_in.nia.eq(0)
+    yield i_in.nia.eq(addr)
     yield i_in.stop_mark.eq(0)
-    yield m_out.tlbld.eq(0)
-    yield m_out.tlbie.eq(0)
-    yield m_out.addr.eq(0)
-    yield m_out.pte.eq(0)
+    yield i_m_in.tlbld.eq(0)
+    yield i_m_in.tlbie.eq(0)
+    yield i_m_in.addr.eq(0)
+    yield i_m_in.pte.eq(0)
+    yield
+    yield
     yield
 
     # miss, stalls for a bit
     yield i_in.req.eq(1)
-    yield i_in.nia.eq(Const(0x0000000000000004, 64))
+    yield i_in.nia.eq(addr)
     yield
     valid = yield i_out.valid
     while not valid:
@@ -97,7 +104,52 @@ def _test_loadstore1_ifetch(dut, mem):
         valid = yield i_out.valid
     yield i_in.req.eq(0)
 
-    print("=== test loadstore instruction ===")
+    nia   = yield i_out.nia
+    insn  = yield i_out.insn
+    yield
+    yield
+
+    print ("fetched %x from addr %x" % (insn, nia))
+    assert insn == expected_insn
+
+    print("=== test loadstore instruction (virtual) ===")
+
+    # look up i-cache expecting it to fail
+
+    # set address to zero, update mem[0] to 01234
+    addr = 16
+    expected_insn = 0x5678
+    mem[addr] = expected_insn
+
+    yield i_in.priv_mode.eq(1)
+    yield i_in.virt_mode.eq(1)
+    yield i_in.req.eq(0)
+    yield i_in.nia.eq(addr)
+    yield i_in.stop_mark.eq(0)
+    yield i_m_in.tlbld.eq(0)
+    yield i_m_in.tlbie.eq(0)
+    yield i_m_in.addr.eq(0)
+    yield i_m_in.pte.eq(0)
+    yield
+    yield
+    yield
+
+    # miss, stalls for a bit
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(addr)
+    yield
+    valid = yield i_out.valid
+    failed = yield i_out.fetch_failed
+    while not valid and not failed:
+        yield
+        valid = yield i_out.valid
+        failed = yield i_out.fetch_failed
+    yield i_in.req.eq(0)
+
+    print ("failed?", "yes" if failed else "no")
+    assert failed == 1
+    yield
+    yield
 
     wbget.stop = True
 
