@@ -629,11 +629,12 @@ class DCachePendingHit(Elaboratable):
                 s_hit       = Signal()
                 s_pte       = Signal(TLB_PTE_BITS)
                 s_ra        = Signal(REAL_ADDR_BITS)
+                # read the PTE, calc the Real Address, get tge tag
                 comb += s_pte.eq(read_tlb_pte(j, tlb_way.pte))
                 comb += s_ra.eq(Cat(req_addr[0:TLB_LG_PGSZ],
                                     s_pte[TLB_LG_PGSZ:REAL_ADDR_BITS]))
                 comb += s_tag.eq(get_tag(s_ra))
-
+                # for each way check tge tag against the cache tag set
                 for i in range(NUM_WAYS): # way_t
                     is_tag_hit = Signal(name="is_tag_hit_%d_%d" % (j, i))
                     comb += is_tag_hit.eq(go & cache_i_validdx[i] &
@@ -643,8 +644,7 @@ class DCachePendingHit(Elaboratable):
                         comb += hit_way_set[j].eq(i)
                         comb += s_hit.eq(1)
                 comb += hit_set[j].eq(s_hit)
-                with m.If(s_tag == reload_tag):
-                    comb += rel_matches[j].eq(1)
+                comb += rel_matches[j].eq(s_tag == reload_tag)
             with m.If(tlb_hit.valid):
                 comb += is_hit.eq(hit_set[tlb_hit.way])
                 comb += hit_way.eq(hit_way_set[tlb_hit.way])
