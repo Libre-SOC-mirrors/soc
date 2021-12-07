@@ -17,6 +17,13 @@ TODO (in no specific order):
   write TAG_BITS width which may not match full ram blocks and might
   cause muxes to be inferred for "partial writes".
 * Check if making the read size of PLRU a ROM helps utilization
+
+Links:
+
+* https://bugs.libre-soc.org/show_bug.cgi?id=485
+* https://libre-soc.org/irclog-microwatt/%23microwatt.2021-12-07.log.html
+  (discussion about brams for ECP5)
+
 """
 
 from enum import (Enum, unique)

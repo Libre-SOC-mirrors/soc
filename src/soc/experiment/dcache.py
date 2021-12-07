@@ -13,6 +13,8 @@ Links:
 
 * https://libre-soc.org/3d_gpu/architecture/set_associative_cache.jpg
 * https://bugs.libre-soc.org/show_bug.cgi?id=469
+* https://libre-soc.org/irclog-microwatt/%23microwatt.2021-12-07.log.html
+  (discussion about brams for ECP5)
 
 """
 
