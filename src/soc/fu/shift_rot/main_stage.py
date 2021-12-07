@@ -71,12 +71,17 @@ class ShiftRotMainStage(PipeModBase):
 
         comb += o.ok.eq(1)  # defaults to enabled
 
+        # instruction rotate type
+        mode = Signal(4, reset_less=True)
+        comb += Cat(rotator.right_shift,
+                    rotator.clear_left,
+                    rotator.clear_right,
+                    rotator.sign_ext_rs).eq(mode)
+
         # outputs from the microwatt rotator module
         comb += [o.data.eq(rotator.result_o),
                  self.o.xer_ca.data.eq(Repl(rotator.carry_out_o, 2))]
 
-        # instruction rotate type
-        mode = Signal(4, reset_less=True)
         with m.Switch(op.insn_type):
             with m.Case(MicrOp.OP_SHL):
                 comb += mode.eq(0b0000)  # L-shift
@@ -98,11 +103,6 @@ class ShiftRotMainStage(PipeModBase):
                 comb += self.o.xer_ca.data.eq(0)
             with m.Default():
                 comb += o.ok.eq(0)  # otherwise disable
-
-        comb += Cat(rotator.right_shift,
-                    rotator.clear_left,
-                    rotator.clear_right,
-                    rotator.sign_ext_rs).eq(mode)
 
         ###### sticky overflow and context, both pass-through #####
 
