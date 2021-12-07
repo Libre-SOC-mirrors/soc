@@ -160,6 +160,7 @@ TAG_RAM_WIDTH = TAG_WIDTH * NUM_WAYS
 print ("TAG_RAM_WIDTH", TAG_RAM_WIDTH)
 print ("    TAG_WIDTH", TAG_WIDTH)
 print ("     NUM_WAYS", NUM_WAYS)
+print ("    NUM_LINES", NUM_LINES)
 
 def CacheTagArray():
     tag_layout = [('valid', NUM_WAYS),
