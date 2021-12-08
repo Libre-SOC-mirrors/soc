@@ -183,29 +183,18 @@ def _test_loadstore1_ifetch(dut, mem):
 
     virt_addr = 0x10200
 
-    yield mmu.l_in.iside.eq(1)
-    yield mmu.l_in.load.eq(1)
-    yield mmu.l_in.valid.eq(1)
-    yield mmu.l_in.priv.eq(1)
-    yield mmu.l_in.addr.eq(virt_addr)
+    yield ldst.priv_mode.eq(1)
+    yield ldst.instr_fault.eq(1)
+    yield ldst.maddr.eq(virt_addr)
     #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=1)
     #yield ldst.iside.eq(0)
     yield
     while True:
-        l_done = yield (mmu.l_out.done)
-        l_err = yield (mmu.l_out.err)
-        l_badtree = yield (mmu.l_out.badtree)
-        l_permerr = yield (mmu.l_out.perm_error)
-        l_rc_err = yield (mmu.l_out.rc_error)
-        l_segerr = yield (mmu.l_out.segerr)
-        l_invalid = yield (mmu.l_out.invalid)
-        if (l_done or l_err or l_badtree or
-            l_permerr or l_rc_err or l_segerr or l_invalid):
+        done = yield (ldst.done)
+        if done:
             break
         yield
-    yield mmu.l_in.valid.eq(0)
-    print ("********    errs?",
-            l_err, l_badtree, l_permerr, l_rc_err, l_segerr, l_invalid)
+    yield ldst.instr_fault.eq(0)
     yield
     yield
     yield

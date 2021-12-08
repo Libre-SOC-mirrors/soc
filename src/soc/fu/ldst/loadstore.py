@@ -77,8 +77,8 @@ class LoadStore1(PortInterfaceBase):
         self.d_in = self.dcache.d_out      # out from dcache is in for LoadStore
         self.i_out  = self.icache.i_in     # in to icache is out for LoadStore
         self.i_in = self.icache.i_out      # out from icache is in for LoadStore
-        self.m_out  = LoadStore1ToMMUType() # out *to* MMU
-        self.m_in = MMUToLoadStore1Type()   # in *from* MMU
+        self.m_out  = LoadStore1ToMMUType("m_out") # out *to* MMU
+        self.m_in = MMUToLoadStore1Type("m_in")   # in *from* MMU
         self.req = LDSTRequest(name="ldst_req")
 
         # TODO, convert dcache wb_in/wb_out to "standard" nmigen Wishbone bus
@@ -98,6 +98,7 @@ class LoadStore1(PortInterfaceBase):
         self.tlbie         = Signal()
         self.dcbz          = Signal()
         self.addr          = Signal(64)
+        self.maddr          = Signal(64)
         self.store_data    = Signal(64)
         self.load_data     = Signal(64)
         self.load_data_delay = Signal(64)
@@ -111,8 +112,7 @@ class LoadStore1(PortInterfaceBase):
         self.virt_mode     = Signal()
         self.priv_mode     = Signal()
         self.state        = Signal(State)
-        self.iside         = Signal() # request instruction-side load
-        self.instr_fault   = Signal()
+        self.instr_fault   = Signal()  # indicator to request i-cache MMU lookup
         self.align_intr    = Signal()
         self.busy          = Signal()
         self.wait_dcache   = Signal()
@@ -130,6 +130,10 @@ class LoadStore1(PortInterfaceBase):
         # ONLY access these read-only, do NOT attempt to change
         self.dsisr          = Signal(32)
         self.dar            = Signal(64)
+
+    # when external_busy set, do not allow PortInterface to proceed
+    def external_busy(self, m):
+        return self.instr_fault
 
     def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz):
         m.d.comb += self.req.load.eq(0) # store operation
@@ -199,7 +203,7 @@ class LoadStore1(PortInterfaceBase):
         exception = exc.happened
         mmureq = Signal()
 
-        # copy of address, but gets over-ridden for OP_FETCH_FAILED
+        # copy of address, but gets over-ridden for instr_fault
         maddr = Signal(64)
         m.d.comb += maddr.eq(self.addr)
 
@@ -213,12 +217,17 @@ class LoadStore1(PortInterfaceBase):
         # fsm skeleton
         with m.Switch(self.state):
             with m.Case(State.IDLE):
-                with m.If(self.d_validblip & ~exc.happened):
+                with m.If((self.d_validblip | self.instr_fault) &
+                          ~exc.happened):
                     comb += self.busy.eq(1)
                     sync += self.state.eq(State.ACK_WAIT)
                     sync += ldst_r.eq(self.req) # copy of LDSTRequest on "blip"
 #                   sync += Display("validblip self.req.virt_mode=%i",
 #                   self.req.virt_mode)
+                    with m.If(self.instr_fault):
+                        comb += mmureq.eq(1)
+                        comb += maddr.eq(self.maddr)
+                        sync += self.state.eq(State.MMU_LOOKUP)
                 with m.Else():
                     sync += ldst_r.eq(0)
 
@@ -270,6 +279,7 @@ class LoadStore1(PortInterfaceBase):
                         sync += ldst_r.eq(0)
                     with m.Else():
                         sync += self.state.eq(State.IDLE)
+                        comb += self.done.eq(1)
 
                 with m.If(m_in.err):
                     # MMU RADIX exception thrown. XXX
@@ -381,8 +391,9 @@ class LoadStore1(PortInterfaceBase):
 
         # Update outputs to MMU
         m.d.comb += m_out.valid.eq(mmureq)
-        m.d.comb += m_out.iside.eq(self.iside)
+        m.d.comb += m_out.iside.eq(self.instr_fault)
         m.d.comb += m_out.load.eq(ldst_r.load)
+        m.d.comb += m_out.priv.eq(self.priv_mode)
         # m_out.priv <= r.priv_mode; TODO
         m.d.comb += m_out.tlbie.eq(self.tlbie)
         # m_out.mtspr <= mmu_mtspr; # TODO
