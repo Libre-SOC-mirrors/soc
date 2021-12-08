@@ -387,8 +387,109 @@ def _test_loadstore1(dut, mem):
 
     wbget.stop = True
 
+
 def _test_loadstore1_ifetch_invalid(dut, mem):
-    ## TODO
+    mmu = dut.submodules.mmu
+    ldst = dut.submodules.ldst
+    pi = ldst.pi
+    icache = dut.submodules.ldst.icache
+    wbget.stop = False
+
+    print("=== test loadstore instruction (invalid) ===")
+
+    i_in = icache.i_in
+    i_out  = icache.i_out
+    i_m_in = icache.m_in
+
+    # first virtual memory test
+
+    print ("set process table")
+    yield mmu.rin.prtbl.eq(0x1000000) # set process table
+    yield
+
+    # set address to zero, update mem[0] to 01234
+    addr = 8
+    expected_insn = 0x1234
+    mem[addr] = expected_insn
+
+    yield i_in.priv_mode.eq(1)
+    yield i_in.req.eq(0)
+    yield i_in.nia.eq(addr)
+    yield i_in.stop_mark.eq(0)
+    yield i_m_in.tlbld.eq(0)
+    yield i_m_in.tlbie.eq(0)
+    yield i_m_in.addr.eq(0)
+    yield i_m_in.pte.eq(0)
+    yield
+    yield
+    yield
+
+    # some more cycles for gtkwave debugging
+    yield
+    yield
+    yield
+
+    wbget.stop = True
+    return
+    # TODO: implement rest
+
+    # miss, stalls for a bit
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(addr)
+    yield
+    valid = yield i_out.valid
+    while not valid:
+        yield
+        valid = yield i_out.valid
+    yield i_in.req.eq(0)
+
+    nia   = yield i_out.nia
+    insn  = yield i_out.insn
+    yield
+    yield
+
+    print ("fetched %x from addr %x" % (insn, nia))
+    assert insn == expected_insn
+
+    print("=== test loadstore instruction (virtual) ===")
+
+    # look up i-cache expecting it to fail
+
+    # set address to 0x10200, update mem[] to 5678
+    virt_addr = 0x10200
+    real_addr = virt_addr
+    expected_insn = 0x5678
+    mem[real_addr] = expected_insn
+
+    yield i_in.priv_mode.eq(1)
+    yield i_in.virt_mode.eq(1)
+    yield i_in.req.eq(0)
+    yield i_in.nia.eq(virt_addr)
+    yield i_in.stop_mark.eq(0)
+    yield i_m_in.tlbld.eq(0)
+    yield i_m_in.tlbie.eq(0)
+    yield i_m_in.addr.eq(0)
+    yield i_m_in.pte.eq(0)
+    yield
+    yield
+    yield
+
+    # miss, stalls for a bit
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(virt_addr)
+    yield
+    valid = yield i_out.valid
+    failed = yield i_out.fetch_failed
+    while not valid and not failed:
+        yield
+        valid = yield i_out.valid
+        failed = yield i_out.fetch_failed
+    yield i_in.req.eq(0)
+
+    print ("failed?", "yes" if failed else "no")
+    assert failed == 1
+    yield
+    yield
 
 
 def test_loadstore1_ifetch():
@@ -463,7 +564,7 @@ def test_loadstore1_ifetch_invalid():
 
 
 if __name__ == '__main__':
-    test_loadstore1()
-    test_loadstore1_invalid()
-    test_loadstore1_ifetch()
-    #TODO:test_loadstore1_ifetch_invalid()
+    #test_loadstore1()
+    #test_loadstore1_invalid()
+    #test_loadstore1_ifetch()
+    test_loadstore1_ifetch_invalid()
