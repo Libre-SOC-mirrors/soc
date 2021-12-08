@@ -321,7 +321,14 @@ class PortInterfaceBase(Elaboratable):
             comb += busy_l.r.eq(1)
 
         # busy latch outputs to interface
-        comb += pi.busy_o.eq(busy_l.q)
+        if hasattr(self, "external_busy"):
+            # when there is an extra (external) busy, include that here.
+            # this is used e.g. in LoadStore1 when an instruction fault
+            # is being processed (instr_fault) and stops Load/Store requests
+            # from being made until it's done
+            comb += pi.busy_o.eq(busy_l.q | self.external_busy(m))
+        else:
+            comb += pi.busy_o.eq(busy_l.q)
 
         return m
 
