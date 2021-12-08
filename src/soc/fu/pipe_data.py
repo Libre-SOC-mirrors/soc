@@ -85,4 +85,5 @@ class CommonPipeSpec:
 
 
 def get_pspec_draft_bitmanip(pspec):
-    return getattr(pspec, "draft_bitmanip", False)
+    # use `is True` to account for Mock absurdities
+    return getattr(pspec, "draft_bitmanip", False) is True
