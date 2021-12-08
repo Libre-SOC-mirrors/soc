@@ -384,6 +384,19 @@ def _test_loadstore1(dut, mem):
 
     wbget.stop = True
 
+def _test_loadstore1_ifetch_invalid(dut, mem):
+    mmu = dut.submodules.mmu
+    pi = dut.submodules.ldst.pi
+    ldst = dut.submodules.ldst # to get at DAR (NOT part of PortInterface)
+    wbget.stop = False
+
+    yield mmu.rin.prtbl.eq(0x1000000) # set process table
+    yield
+
+    # TODO
+
+    wbget.stop = True
+
 
 def test_loadstore1_ifetch():
 
@@ -436,8 +449,24 @@ def test_loadstore1_invalid():
     with sim.write_vcd('test_loadstore1_invalid.vcd'):
         sim.run()
 
+def test_loadstore1_ifetch_invalid():
+
+    m, cmpi = setup_mmu()
+
+    mem = {}
+
+    # nmigen Simulation
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    sim.add_sync_process(wrap(_test_loadstore1_ifetch_invalid(m, mem)))
+    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    with sim.write_vcd('test_loadstore1_invalid.vcd'):
+        sim.run()
+
 
 if __name__ == '__main__':
     test_loadstore1()
     test_loadstore1_invalid()
     test_loadstore1_ifetch()
+    test_loadstore1_ifetch_invalid()
