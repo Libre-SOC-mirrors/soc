@@ -8,7 +8,8 @@ from random import randint, seed
 from nmigen.sim import Simulator, Delay, Settle
 from nmutil.util import wrap
 
-from soc.config.test.test_pi2ls import pi_ld, pi_st, pi_ldst, wait_busy
+from soc.config.test.test_pi2ls import (pi_ld, pi_st, pi_ldst, wait_busy,
+                                        get_exception_info)
 #from soc.config.test.test_pi2ls import pi_st_debug
 from soc.config.test.test_loadstore import TestMemPspec
 from soc.config.loadstore import ConfigMemoryPortInterface
@@ -191,9 +192,11 @@ def _test_loadstore1_ifetch(dut, mem):
     yield ldst.instr_fault.eq(0)
     while True:
         done = yield (ldst.done)
-        if done:
+        exc_info = yield from get_exception_info(pi.exc_o)
+        if done or exc_info.happened:
             break
         yield
+    assert exc_info.happened == 0 # assert just before doing the fault set zero
     yield ldst.instr_fault.eq(0)
     yield
     yield
