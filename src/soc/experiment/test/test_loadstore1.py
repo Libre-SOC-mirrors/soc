@@ -546,7 +546,9 @@ def test_loadstore1_invalid():
 def test_loadstore1_ifetch_invalid():
     m, cmpi = setup_mmu()
 
-    mem = {}
+    # this is a specially-arranged page table which has the permissions
+    # barred for execute on the leaf node (EAA=0x2 instead of EAA=0x3)
+    mem = pagetables.test2
 
     # nmigen Simulation
     sim = Simulator(m)
