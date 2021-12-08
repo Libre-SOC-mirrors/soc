@@ -85,5 +85,12 @@ class CommonPipeSpec:
 
 
 def get_pspec_draft_bitmanip(pspec):
+    """ True if the draft bitmanip instructions are enabled in the provided
+    pspec. The instructions enabled by this are draft instructions -- they are
+    not official OpenPower instructions, they are intended to be eventually
+    submitted to the OpenPower ISA WG.
+
+    https://libre-soc.org/openpower/sv/bitmanip/
+    """
     # use `is True` to account for Mock absurdities
     return getattr(pspec, "draft_bitmanip", False) is True
