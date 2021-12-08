@@ -187,8 +187,8 @@ def _test_loadstore1_ifetch(dut, mem):
     yield ldst.instr_fault.eq(1)
     yield ldst.maddr.eq(virt_addr)
     #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=1)
-    #yield ldst.iside.eq(0)
     yield
+    yield ldst.instr_fault.eq(0)
     while True:
         done = yield (ldst.done)
         if done:

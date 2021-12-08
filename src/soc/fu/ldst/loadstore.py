@@ -111,8 +111,9 @@ class LoadStore1(PortInterfaceBase):
         self.nc            = Signal()              # non-cacheable access
         self.virt_mode     = Signal()
         self.priv_mode     = Signal()
-        self.state        = Signal(State)
+        self.state         = Signal(State)
         self.instr_fault   = Signal()  # indicator to request i-cache MMU lookup
+        self.r_instr_fault  = Signal() # accessed in external_busy
         self.align_intr    = Signal()
         self.busy          = Signal()
         self.wait_dcache   = Signal()
@@ -133,7 +134,7 @@ class LoadStore1(PortInterfaceBase):
 
     # when external_busy set, do not allow PortInterface to proceed
     def external_busy(self, m):
-        return self.instr_fault
+        return self.instr_fault | self.r_instr_fault
 
     def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz):
         m.d.comb += self.req.load.eq(0) # store operation
@@ -226,6 +227,7 @@ class LoadStore1(PortInterfaceBase):
 #                   self.req.virt_mode)
                     with m.If(self.instr_fault):
                         comb += mmureq.eq(1)
+                        sync += self.r_instr_fault.eq(1)
                         comb += maddr.eq(self.maddr)
                         sync += self.state.eq(State.MMU_LOOKUP)
                 with m.Else():
@@ -269,7 +271,7 @@ class LoadStore1(PortInterfaceBase):
             with m.Case(State.MMU_LOOKUP):
                 comb += self.busy.eq(~exception)
                 with m.If(m_in.done):
-                    with m.If(~self.instr_fault):
+                    with m.If(~self.r_instr_fault):
                         sync += Display("MMU_LOOKUP, done %x -> %x",
                                         self.addr, d_out.addr)
                         # retry the request now that the MMU has
@@ -279,6 +281,7 @@ class LoadStore1(PortInterfaceBase):
                         sync += ldst_r.eq(0)
                     with m.Else():
                         sync += self.state.eq(State.IDLE)
+                        sync += self.r_instr_fault.eq(0)
                         comb += self.done.eq(1)
 
                 with m.If(m_in.err):
@@ -315,7 +318,7 @@ class LoadStore1(PortInterfaceBase):
             with m.If(self.align_intr):
                 sync += Display("alignment error: addr in DAR %x", self.addr)
                 sync += self.dar.eq(self.addr)
-            with m.Elif(~self.instr_fault):
+            with m.Elif(~self.r_instr_fault):
                 sync += Display("not instr fault, addr in DAR %x", self.addr)
                 sync += self.dar.eq(self.addr)
 
@@ -330,7 +333,7 @@ class LoadStore1(PortInterfaceBase):
         comb += self.align_intr.eq(self.req.align_intr)
         comb += exc.invalid.eq(m_in.invalid)
         comb += exc.alignment.eq(self.align_intr)
-        comb += exc.instr_fault.eq(self.instr_fault)
+        comb += exc.instr_fault.eq(self.r_instr_fault)
         # badtree, perm_error, rc_error, segment_fault
         comb += exc.badtree.eq(m_in.badtree)
         comb += exc.perm_error.eq(m_in.perm_error)
