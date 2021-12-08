@@ -13,7 +13,7 @@ class CompMMUOpSubset(CompOpSubsetBase):
         layout = (('insn_type', MicrOp),
                   ('fn_unit', Function),
                   ('insn', 32),
-                  ('cia', 64), # for instruction fault (MMU PTE lookup)
+                  ('nia', 64), # for instruction fault (MMU PTE lookup)
                   ('zero_a', 1),
                   )
         super().__init__(layout, name=name)

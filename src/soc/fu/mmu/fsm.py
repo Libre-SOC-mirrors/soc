@@ -26,6 +26,7 @@ from soc.experiment.mem_types import MMUToLoadStore1Type
 from soc.fu.ldst.loadstore import LoadStore1, TestSRAMLoadStore1
 from nmutil.util import Display
 
+
 class FSMMMUStage(ControlBase):
     """FSM MMU
 
@@ -86,9 +87,10 @@ class FSMMMUStage(ControlBase):
         comb += ldst.m_in.eq(l_out)
 
         i_data, o_data = self.p.i_data, self.n.o_data
-        a_i, b_i, o, spr1_o = i_data.ra, i_data.rb, o_data.o, o_data.spr1
         op = i_data.ctx.op
-        spr1_i = i_data.spr1
+        nia_i = op.nia
+        a_i, b_i, spr1_i = i_data.ra, i_data.rb, i_data.spr1
+        o, spr1_o = o_data.o, o_data.spr1
 
         # busy/done signals
         busy = Signal()
@@ -204,6 +206,24 @@ class FSMMMUStage(ControlBase):
                     comb += l_in.addr.eq(b_i)  # incoming operand (RB)
                     comb += done.eq(l_out.done) # zzzz
                     comb += self.debug0.eq(2)
+
+                ##########
+                # OP_FETCH_FAILED
+                ##########
+
+                with m.Case(MicrOp.OP_FETCH_FAILED):
+                    comb += Display("MMUTEST: OP_FETCH_FAILED: @%x", nia_i)
+                    # trigger an instruction fetch failed MMU event.
+                    # PowerDecoder2 drops svstate.pc into NIA for us
+                    # really, this should be direct communication with the
+                    # MMU, rather than going through LoadStore1.  but, doing
+                    # so allows for the opportunity to prevent LoadStore1
+                    # from accepting any other LD/ST requests.
+                    comb += valid.eq(1)   # start "pulse"
+                    comb += ldst.instr_fault.eq(blip)
+                    comb += ldst.maddr.eq(nia_i)
+                    comb += done.eq(ldst.done) # zzzz
+                    comb += self.debug0.eq(3)
 
                 ############
                 # OP_ILLEGAL
