@@ -150,7 +150,7 @@ def _test_loadstore1_ifetch(dut, mem):
     expected_insn = 0x5678
     mem[real_addr] = expected_insn
 
-    yield i_in.priv_mode.eq(1)
+    yield i_in.priv_mode.eq(0)
     yield i_in.virt_mode.eq(1)
     yield i_in.req.eq(0)
     yield i_in.nia.eq(virt_addr)
@@ -184,7 +184,7 @@ def _test_loadstore1_ifetch(dut, mem):
 
     virt_addr = 0x10200
 
-    yield ldst.priv_mode.eq(1)
+    yield ldst.priv_mode.eq(0)
     yield ldst.instr_fault.eq(1)
     yield ldst.maddr.eq(virt_addr)
     #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=1)
@@ -208,7 +208,7 @@ def _test_loadstore1_ifetch(dut, mem):
     real_addr = virt_addr
     expected_insn = 0x5678
 
-    yield i_in.priv_mode.eq(1)
+    yield i_in.priv_mode.eq(0)
     yield i_in.virt_mode.eq(1)
     yield i_in.req.eq(0)
     yield i_in.nia.eq(virt_addr)
