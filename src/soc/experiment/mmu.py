@@ -32,6 +32,29 @@ from soc.experiment.mem_types import (LoadStore1ToMMUType,
                                  DCacheToMMUType,
                                  MMUToICacheType)
 
+# Radix Tree Page Table Entry Record, TODO put this somewhere sensible
+# v3.0C Book III p1016 section 7.7.10.2
+class RTPTE(RecordObject):
+    def __init__(self, name=None):
+        super().__init__(name=name)
+        self.eaa   = Signal(4)  # Encoded Access Auth bits 60:63 LSB0 0:3
+        self.att   = Signal(2)  # Attributes          bits 58:59 LSB0 4:5
+        self.rs1   = Signal(1)  # Reserved            bit  57    LSB0 6
+        self.c     = Signal(1)  # Change              bit  56    LSB0 7
+        self.r     = Signal(1)  # Reference           bit  55    LSB0 8
+        self.sw    = Signal(3)  # SW bits 1:3         bits 52:54 LSB0 9:11
+        self.rpn   = Signal(45) # Real Page Number    bits 7:51  LSB0 12:56
+        self.rs2   = Signal(4)  # Reserved            bit  3:6   LSB0 57-60
+        self.sw0   = Signal(1)  # SW bit 0            bit  2     LSB0 61
+        self.leaf  = Signal(1)  # leaf                bit  1     LSB0 62
+        self.valid = Signal(1)  # valid               bit  0     LSB0 63
+
+# and these... which of course are turned round to LSB0 order.
+# TODO: sigh. use botchify and put them in openpower.consts
+EAA_PRIV = 3 # bit 0 (in MSB0) set ==> problem-state banned (priv=1 only)
+EAA_RD   = 2 # bit 1 (in MSB0) set ==> loads are permitted
+EAA_WR   = 1 # bit 2 (in MSB0) set ==> load and stores permitted
+EAA_EXE  = 0 # bit 3 (in MSB0) set ==> execute permitted
 
 # for debugging
 display_invalid = True
@@ -224,11 +247,14 @@ class MMU(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
 
+        rpte = RTPTE(name="radix_rpte")
+
         perm_ok = Signal()
         rc_ok = Signal()
         mbits = Signal(6)
-        valid = Signal()
-        leaf = Signal()
+        valid = rpte.valid
+        eaa = rpte.eaa
+        leaf = rpte.leaf
         badtree = Signal()
 
         comb += Display("RDW %016x done %d "
@@ -237,27 +263,24 @@ class MMU(Elaboratable):
                         data, d_in.done, perm_ok, rc_ok,
                         mbits, r.shift, valid, leaf, badtree)
 
-        # set pde
+        # set pde and interpret as Radix Tree Page Table Entry (leaf=1 case)
         comb += v.pde.eq(data)
+        comb += rpte.eq(data)
 
-        # test valid bit
-        comb += valid.eq(data[63]) # valid=data[63]
-        comb += leaf.eq(data[62]) # valid=data[63]
-
-        comb += v.pde.eq(data)
         # valid & leaf
         with m.If(valid):
             with m.If(leaf):
                 # check permissions and RC bits
-                with m.If(r.priv | ~data[3]):
+                with m.If(r.priv | ~eaa[EAA_PRIV]):
                     with m.If(~r.iside):
-                        comb += perm_ok.eq(data[1] | (data[2] & ~r.store))
+                        comb += perm_ok.eq(eaa[EAA_WR] | 
+                                          (eaa[EAA_RD] & ~r.store))
                     with m.Else():
                         # no IAMR, so no KUEP support for now
                         # deny execute permission if cache inhibited
-                        comb += perm_ok.eq(data[0] & ~data[5])
+                        comb += perm_ok.eq(eaa[EAA_EXE] & ~rpte.att[1])
 
-                comb += rc_ok.eq(data[8] & (data[7] | ~r.store))
+                comb += rc_ok.eq(rpte.r & (rpte.c | ~r.store))
                 with m.If(perm_ok & rc_ok):
                     comb += v.state.eq(State.RADIX_LOAD_TLB)
                 with m.Else():
@@ -483,9 +506,11 @@ class MMU(Elaboratable):
         comb += pg16.eq(masked(r.pgbase[3:19], addrsh, mask))
         comb += pgtb_adr.eq(Cat(C(0, 3), pg16, r.pgbase[19:56]))
 
-        # calculate Page Table Entry
+        # calculate Page Table Entry from Real Page Number (leaf=1, RTPTE)
+        rpte = RTPTE(name="rpte")
+        comb += rpte.eq(r.pde)
         pd44 = Signal(44, reset_less=True)
-        comb += pd44.eq(masked(r.pde[12:56], r.addr[12:56], finalmask))
+        comb += pd44.eq(masked(rpte.rpn, r.addr[12:56], finalmask))
         comb += pte.eq(Cat(r.pde[0:12], pd44))
 
         # update registers
