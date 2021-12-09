@@ -424,20 +424,12 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
     yield
     yield
 
-    # some more cycles for gtkwave debugging
-    yield
-    yield
-    yield
-
-    wbget.stop = True
-    return
-    # TODO: implement rest
-
     # miss, stalls for a bit
     yield i_in.req.eq(1)
     yield i_in.nia.eq(addr)
     yield
     valid = yield i_out.valid
+    nia   = yield i_out.nia
     while not valid:
         yield
         valid = yield i_out.valid
@@ -445,6 +437,7 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
 
     nia   = yield i_out.nia
     insn  = yield i_out.insn
+
     yield
     yield
 
@@ -490,6 +483,8 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
     assert failed == 1
     yield
     yield
+
+    wbget.stop = True
 
 
 def test_loadstore1_ifetch():
@@ -566,7 +561,8 @@ def test_loadstore1_ifetch_invalid():
 
 
 if __name__ == '__main__':
-    #test_loadstore1()
-    #test_loadstore1_invalid()
-    #test_loadstore1_ifetch()
+    test_loadstore1()
+    test_loadstore1_invalid()
+    test_loadstore1_ifetch()
     test_loadstore1_ifetch_invalid()
+
