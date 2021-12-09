@@ -73,7 +73,7 @@ def check_fsm_outputs(fsm, pdecode2, sim, code):
 
 class MMUIlangCase(TestAccumulatorBase):
     # def case_ilang(self):
-    #    pspec = SPRPipeSpec(id_wid=2)
+    #    pspec = SPRPipeSpec(id_wid=2, parent_pspec=None)
     #    alu = SPRBasePipe(pspec)
     #    vl = rtlil.convert(alu, ports=alu.ports())
     #    with open("trap_pipeline.il", "w") as f:
@@ -220,7 +220,7 @@ class TestRunner(unittest.TestCase):
 
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(pdecode)
 
-        pipe_spec = MMUPipeSpec(id_wid=2)
+        pipe_spec = MMUPipeSpec(id_wid=2, parent_pspec=None)
         ldst = LoadStore1(pspec)
         fsm = FSMMMUStage(pipe_spec)
         fsm.set_ldst_interface(ldst)

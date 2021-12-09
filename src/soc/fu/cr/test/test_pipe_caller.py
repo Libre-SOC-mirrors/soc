@@ -24,7 +24,7 @@ from openpower.test.cr.cr_cases import CRTestCase
 class CRIlangCase(TestAccumulatorBase):
 
     def case_ilang(self):
-        pspec = CRPipeSpec(id_wid=2)
+        pspec = CRPipeSpec(id_wid=2, parent_pspec=None)
         alu = CRBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("cr_pipeline.il", "w") as f:
@@ -144,7 +144,7 @@ class TestRunner(unittest.TestCase):
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(None, opkls, fn_name)
         pdecode = pdecode2.dec
 
-        pspec = CRPipeSpec(id_wid=2)
+        pspec = CRPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.alu = alu = CRBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

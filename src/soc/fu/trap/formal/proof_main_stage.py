@@ -37,7 +37,7 @@ class Driver(Elaboratable):
         comb = m.d.comb
 
         rec = CompTrapOpSubset()
-        pspec = TrapPipeSpec(id_wid=2)
+        pspec = TrapPipeSpec(id_wid=2, parent_pspec=None)
 
         m.submodules.dut = dut = TrapMainStage(pspec)
 

@@ -50,7 +50,7 @@ def get_cu_inputs(dec2, sim):
 class BranchAllCases(BranchTestCase):
 
     def case_ilang(self):
-        pspec = BranchPipeSpec(id_wid=2)
+        pspec = BranchPipeSpec(id_wid=2, parent_pspec=None)
         alu = BranchBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("branch_pipeline.il", "w") as f:
@@ -70,7 +70,7 @@ class TestRunner(unittest.TestCase):
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(None, opkls, fn_name)
         pdecode = pdecode2.dec
 
-        pspec = BranchPipeSpec(id_wid=2)
+        pspec = BranchPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.branch = branch = BranchBasePipe(pspec)
 
         comb += branch.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

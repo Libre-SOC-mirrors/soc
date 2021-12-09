@@ -66,7 +66,7 @@ def set_alu_inputs(alu, dec2, sim):
 class TrapIlangCase(TestAccumulatorBase):
 
     def case_ilang(self):
-        pspec = TrapPipeSpec(id_wid=2)
+        pspec = TrapPipeSpec(id_wid=2, parent_pspec=None)
         alu = TrapBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("trap_pipeline.il", "w") as f:
@@ -87,7 +87,7 @@ class TestRunner(unittest.TestCase):
 
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(pdecode)
 
-        pspec = TrapPipeSpec(id_wid=2)
+        pspec = TrapPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.alu = alu = TrapBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

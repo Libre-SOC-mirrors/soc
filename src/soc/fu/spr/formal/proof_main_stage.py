@@ -48,7 +48,7 @@ class Driver(Elaboratable):
             width = p.width
             comb += p.eq(AnyConst(width))
 
-        pspec = SPRPipeSpec(id_wid=2)
+        pspec = SPRPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.dut = dut = SPRMainStage(pspec)
 
         # frequently used aliases

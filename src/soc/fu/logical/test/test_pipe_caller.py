@@ -51,7 +51,7 @@ def set_alu_inputs(alu, dec2, sim):
 class LogicalIlangCase(TestAccumulatorBase):
 
     def case_ilang(self):
-        pspec = LogicalPipeSpec(id_wid=2)
+        pspec = LogicalPipeSpec(id_wid=2, parent_pspec=None)
         alu = LogicalBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("logical_pipeline.il", "w") as f:
@@ -116,7 +116,7 @@ class TestRunner(FHDLTestCase):
 
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(pdecode)
 
-        pspec = LogicalPipeSpec(id_wid=2)
+        pspec = LogicalPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.alu = alu = LogicalBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

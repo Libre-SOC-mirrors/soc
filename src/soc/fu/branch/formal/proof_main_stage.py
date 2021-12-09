@@ -39,7 +39,7 @@ class Driver(Elaboratable):
             recwidth += width
             comb += p.eq(AnyConst(width))
 
-        pspec = BranchPipeSpec(id_wid=2)
+        pspec = BranchPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.dut = dut = BranchMainStage(pspec)
 
         # convenience aliases

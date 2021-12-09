@@ -70,7 +70,7 @@ def set_alu_inputs(alu, dec2, sim):
 class ShiftRotIlangCase(TestAccumulatorBase):
 
     def case_ilang(self):
-        pspec = ShiftRotPipeSpec(id_wid=2)
+        pspec = ShiftRotPipeSpec(id_wid=2, parent_pspec=None)
         pspec.draft_bitmanip = True
         alu = ShiftRotBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
@@ -137,7 +137,7 @@ class TestRunner(unittest.TestCase):
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(None, opkls, fn_name)
         pdecode = pdecode2.dec
 
-        pspec = ShiftRotPipeSpec(id_wid=2)
+        pspec = ShiftRotPipeSpec(id_wid=2, parent_pspec=None)
         pspec.draft_bitmanip = True
         m.submodules.alu = alu = ShiftRotBasePipe(pspec)
 

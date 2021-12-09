@@ -163,7 +163,8 @@ class DivTestHelper(unittest.TestCase):
 
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(pdecode)
 
-        pspec = DivPipeSpec(id_wid=2, div_pipe_kind=div_pipe_kind)
+        pspec = DivPipeSpec(
+            id_wid=2, div_pipe_kind=div_pipe_kind, parent_pspec=None)
         m.submodules.alu = alu = DivBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

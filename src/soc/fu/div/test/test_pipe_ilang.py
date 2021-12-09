@@ -6,7 +6,8 @@ from soc.fu.div.pipeline import DivBasePipe
 
 class TestPipeIlang(unittest.TestCase):
     def write_ilang(self, div_pipe_kind):
-        pspec = DivPipeSpec(id_wid=2, div_pipe_kind=div_pipe_kind)
+        pspec = DivPipeSpec(
+            id_wid=2, div_pipe_kind=div_pipe_kind, parent_pspec=None)
         alu = DivBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open(f"div_pipeline_{div_pipe_kind.name}.il", "w") as f:

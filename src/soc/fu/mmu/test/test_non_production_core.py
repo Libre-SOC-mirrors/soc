@@ -50,7 +50,7 @@ class MMUTestCase(TestAccumulatorBase):
                       initial_regs, initial_sprs)
 
     # def case_ilang(self):
-    #    pspec = SPRPipeSpec(id_wid=2)
+    #    pspec = SPRPipeSpec(id_wid=2, parent_pspec=None)
     #    alu = SPRBasePipe(pspec)
     #    vl = rtlil.convert(alu, ports=alu.ports())
     #    with open("trap_pipeline.il", "w") as f:

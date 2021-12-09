@@ -54,7 +54,7 @@ class Driver(Elaboratable):
         comb += rec.is_signed.eq(AnyConst(rec.is_signed.width))
         comb += rec.insn.eq(AnyConst(rec.insn.width))
 
-        pspec = ShiftRotPipeSpec(id_wid=2)
+        pspec = ShiftRotPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.dut = dut = ShiftRotMainStage(pspec)
 
         # convenience variables

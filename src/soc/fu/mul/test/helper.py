@@ -146,7 +146,7 @@ class MulTestHelper(unittest.TestCase):
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(None, opkls, fn_name)
         pdecode = pdecode2.dec
 
-        pspec = MulPipeSpec(id_wid=2)
+        pspec = MulPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.alu = alu = MulBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

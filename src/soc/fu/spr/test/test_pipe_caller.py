@@ -61,7 +61,7 @@ def set_alu_inputs(alu, dec2, sim):
 
 class SPRIlangCase(TestAccumulatorBase):
     def case_ilang(self):
-        pspec = SPRPipeSpec(id_wid=2)
+        pspec = SPRPipeSpec(id_wid=2, parent_pspec=None)
         alu = SPRBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("trap_pipeline.il", "w") as f:
@@ -139,7 +139,7 @@ class TestRunner(unittest.TestCase):
 
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(pdecode)
 
-        pspec = SPRPipeSpec(id_wid=2)
+        pspec = SPRPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.alu = alu = SPRBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

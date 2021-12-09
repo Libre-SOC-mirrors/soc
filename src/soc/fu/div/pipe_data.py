@@ -129,8 +129,8 @@ class DivPipeKind(enum.Enum):
 
 
 class DivPipeSpec(CommonPipeSpec):
-    def __init__(self, id_wid, div_pipe_kind):
-        super().__init__(id_wid=id_wid)
+    def __init__(self, id_wid, parent_pspec, div_pipe_kind):
+        super().__init__(id_wid=id_wid, parent_pspec=parent_pspec)
         self.div_pipe_kind = div_pipe_kind
         self.core_config = div_pipe_kind.config.core_config
 
@@ -139,18 +139,24 @@ class DivPipeSpec(CommonPipeSpec):
 
 
 class DivPipeSpecDivPipeCore(DivPipeSpec):
-    def __init__(self, id_wid):
-        super().__init__(id_wid=id_wid, div_pipe_kind=DivPipeKind.DivPipeCore)
+    def __init__(self, id_wid, parent_pspec):
+        super().__init__(id_wid=id_wid,
+                         parent_pspec=parent_pspec,
+                         div_pipe_kind=DivPipeKind.DivPipeCore)
 
 
 class DivPipeSpecFSMDivCore(DivPipeSpec):
-    def __init__(self, id_wid):
-        super().__init__(id_wid=id_wid, div_pipe_kind=DivPipeKind.FSMDivCore)
+    def __init__(self, id_wid, parent_pspec):
+        super().__init__(id_wid=id_wid,
+                         parent_pspec=parent_pspec,
+                         div_pipe_kind=DivPipeKind.FSMDivCore)
 
 
 class DivPipeSpecSimOnly(DivPipeSpec):
-    def __init__(self, id_wid):
-        super().__init__(id_wid=id_wid, div_pipe_kind=DivPipeKind.SimOnly)
+    def __init__(self, id_wid, parent_pspec):
+        super().__init__(id_wid=id_wid,
+                         parent_pspec=parent_pspec,
+                         div_pipe_kind=DivPipeKind.SimOnly)
 
 
 class CoreBaseData(DivInputData):

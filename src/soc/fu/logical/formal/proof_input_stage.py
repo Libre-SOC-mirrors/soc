@@ -32,7 +32,7 @@ class Driver(Elaboratable):
             recwidth += width
             comb += p.eq(AnyConst(width))
 
-        pspec = ALUPipeSpec(id_wid=2)
+        pspec = ALUPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.dut = dut = ALUInputStage(pspec)
 
         a = Signal(64)

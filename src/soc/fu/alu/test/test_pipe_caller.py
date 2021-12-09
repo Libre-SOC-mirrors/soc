@@ -51,7 +51,7 @@ def set_alu_inputs(alu, dec2, sim):
 class ALUIAllCases(ALUTestCase):
 
     def case_ilang(self):
-        pspec = ALUPipeSpec(id_wid=2)
+        pspec = ALUPipeSpec(id_wid=2, parent_pspec=None)
         alu = ALUBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("alu_pipeline.il", "w") as f:
@@ -124,7 +124,7 @@ class TestRunner(unittest.TestCase):
             pdecode, opkls, fn_name)
         pdecode = pdecode2.dec
 
-        pspec = ALUPipeSpec(id_wid=2)
+        pspec = ALUPipeSpec(id_wid=2, parent_pspec=None)
         m.submodules.alu = alu = ALUBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)

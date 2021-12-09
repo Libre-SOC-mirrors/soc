@@ -115,9 +115,10 @@ class FunctionUnitBaseSingle(MultiCompUnit):
     to actually read (and write) the correct register number
     """
 
-    def __init__(self, speckls, pipekls, idx):
+    def __init__(self, speckls, pipekls, idx, parent_pspec):
         alu_name = "alu_%s%d" % (self.fnunit.name.lower(), idx)
-        pspec = speckls(id_wid=2)                # spec (NNNPipeSpec instance)
+        # spec (NNNPipeSpec instance)
+        pspec = speckls(id_wid=2, parent_pspec=parent_pspec)
         opsubset = pspec.opsubsetkls             # get the operand subset class
         regspec = pspec.regspec                  # get the regspec
         alu = pipekls(pspec)                     # create actual NNNBasePipe
@@ -154,9 +155,11 @@ class FunctionUnitBaseMulti(ReservationStations2):
     ideal (it could be a lot neater) but works for now.
     """
 
-    def __init__(self, speckls, pipekls, num_rows):
+    def __init__(self, speckls, pipekls, num_rows, parent_pspec):
         id_wid = num_rows.bit_length()
-        pspec = speckls(id_wid=id_wid)           # spec (NNNPipeSpec instance)
+
+        # spec (NNNPipeSpec instance)
+        pspec = speckls(id_wid=id_wid, parent_pspec=parent_pspec)
         opsubset = pspec.opsubsetkls             # get the operand subset class
         regspec = pspec.regspec                  # get the regspec
         alu = pipekls(pspec)                # create actual NNNBasePipe
@@ -191,83 +194,83 @@ class FunctionUnitBaseMulti(ReservationStations2):
 class ALUFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.ALU
 
-    def __init__(self, num_rses):
-        super().__init__(ALUPipeSpec, ALUBasePipe, num_rses)
+    def __init__(self, num_rses, parent_pspec):
+        super().__init__(ALUPipeSpec, ALUBasePipe, num_rses, parent_pspec)
 
 
 # class LogicalFunctionUnit(FunctionUnitBaseSingle):
 class LogicalFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.LOGICAL
 
-    def __init__(self, idx):
-        super().__init__(LogicalPipeSpec, LogicalBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(LogicalPipeSpec, LogicalBasePipe, idx, parent_pspec)
 
 
 # class CRFunctionUnit(FunctionUnitBaseSingle):
 class CRFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.CR
 
-    def __init__(self, idx):
-        super().__init__(CRPipeSpec, CRBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(CRPipeSpec, CRBasePipe, idx, parent_pspec)
 
 
 # class BranchFunctionUnit(FunctionUnitBaseSingle):
 class BranchFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.BRANCH
 
-    def __init__(self, idx):
-        super().__init__(BranchPipeSpec, BranchBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(BranchPipeSpec, BranchBasePipe, idx, parent_pspec)
 
 
 # class ShiftRotFunctionUnit(FunctionUnitBaseSingle):
 class ShiftRotFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.SHIFT_ROT
 
-    def __init__(self, idx):
-        super().__init__(ShiftRotPipeSpec, ShiftRotBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(ShiftRotPipeSpec, ShiftRotBasePipe, idx, parent_pspec)
 
 
 class DivFSMFunctionUnit(FunctionUnitBaseSingle):
     fnunit = Function.DIV
 
-    def __init__(self, idx):
-        super().__init__(DivPipeSpecFSMDivCore, DivBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(DivPipeSpecFSMDivCore, DivBasePipe, idx, parent_pspec)
 
 
 class MMUFSMFunctionUnit(FunctionUnitBaseSingle):
     fnunit = Function.MMU
 
-    def __init__(self, idx):
-        super().__init__(MMUPipeSpec, FSMMMUStage, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(MMUPipeSpec, FSMMMUStage, idx, parent_pspec)
 
 
 class DivPipeFunctionUnit(FunctionUnitBaseSingle):
     fnunit = Function.DIV
 
-    def __init__(self, idx):
-        super().__init__(DivPipeSpecDivPipeCore, DivBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(DivPipeSpecDivPipeCore, DivBasePipe, idx, parent_pspec)
 
 
 # class MulFunctionUnit(FunctionUnitBaseSingle):
 class MulFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.MUL
 
-    def __init__(self, idx):
-        super().__init__(MulPipeSpec, MulBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(MulPipeSpec, MulBasePipe, idx, parent_pspec)
 
 
 class TrapFunctionUnit(FunctionUnitBaseSingle):
     fnunit = Function.TRAP
 
-    def __init__(self, idx):
-        super().__init__(TrapPipeSpec, TrapBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(TrapPipeSpec, TrapBasePipe, idx, parent_pspec)
 
 
 class SPRFunctionUnit(FunctionUnitBaseSingle):
     fnunit = Function.SPR
 
-    def __init__(self, idx):
-        super().__init__(SPRPipeSpec, SPRBasePipe, idx)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(SPRPipeSpec, SPRBasePipe, idx, parent_pspec)
 
 
 # special-case: LD/ST conforms to the CompUnit API but is not a pipeline
@@ -275,9 +278,10 @@ class SPRFunctionUnit(FunctionUnitBaseSingle):
 class LDSTFunctionUnit(LDSTCompUnit):
     fnunit = Function.LDST
 
-    def __init__(self, pi, awid, idx):
+    def __init__(self, pi, awid, idx, parent_pspec):
         alu_name = "ldst_%s%d" % (self.fnunit.name.lower(), idx)
-        pspec = LDSTPipeSpec(id_wid=2)           # spec (NNNPipeSpec instance)
+        # spec (NNNPipeSpec instance)
+        pspec = LDSTPipeSpec(id_wid=2, parent_pspec=parent_pspec)
         opsubset = pspec.opsubsetkls             # get the operand subset class
         regspec = pspec.regspec                  # get the regspec
         self.opsubsetkls = opsubset
@@ -336,13 +340,14 @@ class AllFunctionUnits(Elaboratable):
         for name, qty in units.items():
             kls = alus[name]
             if issubclass(kls, FunctionUnitBaseMulti):
-                fu = kls(qty)  # create just the one ALU but many "fronts"
+                # create just the one ALU but many "fronts"
+                fu = kls(qty, parent_pspec=pspec)
                 self.actual_alus[name] = fu  # to be made a module of AllFUs
                 for i in range(qty):
                     self.fus["%s%d" % (name, i)] = fu.cu[i]
             else:
                 for i in range(qty):
-                    self.fus["%s%d" % (name, i)] = kls(i)
+                    self.fus["%s%d" % (name, i)] = kls(i, parent_pspec=pspec)
 
         # debug print for MMU ALU
         if microwatt_mmu:
@@ -354,7 +359,7 @@ class AllFunctionUnits(Elaboratable):
             return
         print("pilist", pilist)
         for i, pi in enumerate(pilist):
-            self.fus["ldst%d" % (i)] = LDSTFunctionUnit(pi, addrwid, i)
+            self.fus["ldst%d" % (i)] = LDSTFunctionUnit(pi, addrwid, i, pspec)
 
         # extract exceptions from any FunctionUnits for easy access
         self.excs = {}

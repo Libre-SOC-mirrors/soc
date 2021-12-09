@@ -139,7 +139,7 @@ class TestLDSTCompUnitRegSpecMMUFSM(LDSTCompUnit):
 
         self.mmu = MMU()
 
-        pipe_spec = MMUPipeSpec(id_wid=2)
+        pipe_spec = MMUPipeSpec(id_wid=2, parent_pspec=None)
         self.fsm = FSMMMUStage(pipe_spec)
 
         self.fsm.set_ldst_interface(ldst)

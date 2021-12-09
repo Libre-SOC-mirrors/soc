@@ -84,7 +84,7 @@ class Driver(Elaboratable):
 
         # set up the mul stages.  do not add them to m.submodules, this
         # is handled by StageChain.setup().
-        pspec = MulPipeSpec(id_wid=2)
+        pspec = MulPipeSpec(id_wid=2, parent_pspec=None)
         pipe1 = MulMainStage1(pspec)
         pipe2 = MulMainStage2(pspec)
         pipe3 = MulMainStage3(pspec)

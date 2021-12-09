@@ -218,8 +218,8 @@ class ALUFunctionUnit(FunctionUnitBaseSingle):
     # class ALUFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.ALU
 
-    def __init__(self, idx):
-        super().__init__(ALUPipeSpec, ALU, 1)
+    def __init__(self, idx, parent_pspec):
+        super().__init__(ALUPipeSpec, ALU, 1, parent_pspec)
 
 
 class ALU(Elaboratable):
