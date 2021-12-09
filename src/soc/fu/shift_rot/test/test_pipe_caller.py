@@ -17,6 +17,7 @@ from nmigen import Module, Signal
 from nmutil.sim_tmp_alternative import Simulator, Settle
 
 from openpower.test.shift_rot.shift_rot_cases import ShiftRotTestCase
+from openpower.test.bitmanip.bitmanip_cases import BitManipTestCase
 
 
 def get_cu_inputs(dec2, sim):
@@ -193,6 +194,7 @@ if __name__ == "__main__":
     unittest.main(exit=False)
     suite = unittest.TestSuite()
     suite.addTest(TestRunner(ShiftRotTestCase().test_data))
+    suite.addTest(TestRunner(BitManipTestCase().test_data))
     suite.addTest(TestRunner(ShiftRotIlangCase().test_data))
 
     runner = unittest.TextTestRunner()
