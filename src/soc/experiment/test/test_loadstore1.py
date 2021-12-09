@@ -22,6 +22,7 @@ from nmigen.compat.sim import run_simulation
 from random import random
 from openpower.test.wb_get import wb_get
 from openpower.test import wb_get as wbget
+from openpower.exceptions import LDSTExceptionTuple
 
 
 def setup_mmu():
@@ -253,6 +254,8 @@ def _test_loadstore1_ifetch(dut, mem):
     yield i_in.req.eq(0)
     nia   = yield i_out.nia
     insn  = yield i_out.insn
+
+    yield from debug(dut, "test done")
     yield
     yield
 
@@ -423,9 +426,11 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
     # first virtual memory test
 
     print ("set process table")
+    yield from debug(dut, "set prtbl")
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
 
+    yield from debug(dut, "real mem instruction")
     # set address to zero, update mem[0] to 01234
     addr = 8
     expected_insn = 0x1234
@@ -464,6 +469,7 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
     assert insn == expected_insn
 
     print("=== test loadstore instruction (virtual) ===")
+    yield from debug(dut, "virtual instr req")
 
     # look up i-cache expecting it to fail
 
@@ -505,6 +511,7 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
 
     print("=== test invalid loadstore instruction (instruction fault) ===")
 
+    yield from debug(dut, "instr fault (perm err expected)")
     virt_addr = 0x10200
 
     yield ldst.priv_mode.eq(0)
@@ -520,6 +527,26 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
             break
         yield
     assert exc_info.happened == 1 # different here as expected
+
+    # TODO: work out what kind of exception occurred and check it's
+    # the right one.  we *expect* it to be a permissions error because
+    # the RPTE leaf node in pagetables.test2 is marked as "non-executable"
+    # but we also expect instr_fault to be set because it is an instruction
+    # (iside) lookup
+    print ("   MMU lookup exception type?")
+    for fname in LDSTExceptionTuple._fields:
+        print ("   fname %20s %d" % (fname, getattr(exc_info, fname)))
+
+    # ok now printed them out and visually inspected: check them with asserts
+    assert exc_info.instr_fault == 1 # instruction fault (yes!)
+    assert exc_info.perm_error == 1 # permissions (yes!)
+    assert exc_info.rc_error == 0
+    assert exc_info.alignment == 0
+    assert exc_info.invalid == 0
+    assert exc_info.segment_fault == 0
+    assert exc_info.rc_error == 0
+
+    yield from debug(dut, "test done")
     yield ldst.instr_fault.eq(0)
     yield
     yield
