@@ -21,3 +21,6 @@ class ConfigFetchUnit:
         fukls = fudict[pspec.imem_ifacetype]
         self.fu = fukls(pspec)
 
+    def wb_bus(self):
+        return self.fu.ibus
+

@@ -65,6 +65,7 @@ class FSMMMUStage(ControlBase):
         # incoming PortInterface
         self.ldst = ldst
         self.dcache = self.ldst.dcache
+        self.icache = self.ldst.icache
         self.pi = self.ldst.pi
 
     def elaborate(self, platform):
