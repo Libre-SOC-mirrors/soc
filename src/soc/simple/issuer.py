@@ -693,6 +693,13 @@ class TestIssuerInternal(Elaboratable):
         # note if an exception happened.  in a pipelined or OoO design
         # this needs to be accompanied by "shadowing" (or stalling)
         exc_happened = self.core.o.exc_happened
+        # also note instruction fetch failed
+        if hasattr(core, "icache"):
+            fetch_failed = core.icache.i_out.fetch_failed
+        else:
+            fetch_failed = Const(0, 1)
+        # set to zero initially
+        sync += pdecode2.instr_fault.eq(0)
 
         with m.FSM(name="issue_fsm"):
 
@@ -847,6 +854,9 @@ class TestIssuerInternal(Elaboratable):
                 # after decoding, reset any previous exception condition,
                 # allowing it to be set again during the next execution
                 sync += pdecode2.ldst_exc.eq(0)
+
+                # update (highest priority) instruction fault
+                sync += pdecode2.instr_fault.eq(fetch_failed)
 
                 m.next = "INSN_EXECUTE"  # move to "execute"
 
