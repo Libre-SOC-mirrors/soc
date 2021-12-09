@@ -56,12 +56,25 @@ def setup_mmu():
     comb += l_in.eq(ldst.m_out)
     comb += ldst.m_in.eq(l_out)
 
+    # add a debug status Signal: use "msg.str = "blah"
+    # then toggle with yield msg.eq(0); yield msg.eq(1)
+    debug_status = Signal(8, decoder=lambda _ : debug_status.str)
+    m.debug_status = debug_status
+    debug_status.str = ''
+
     return m, cmpi
 
 
 test_exceptions = True
 test_dcbz = True
 test_random = True
+
+
+def debug(dut, msg):
+    print ("set debug message", msg)
+    dut.debug_status.str = msg # set the message
+    yield dut.debug_status.eq(0) # trigger an update
+    yield dut.debug_status.eq(1)
 
 
 def _test_loadstore1_ifetch(dut, mem):
@@ -102,9 +115,11 @@ def _test_loadstore1_ifetch(dut, mem):
     # first virtual memory test
 
     print ("set process table")
+    yield from debug(dut, "set prtble")
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
 
+    yield from debug(dut, "real mem instruction")
     # set address to zero, update mem[0] to 01234
     addr = 8
     expected_insn = 0x1234
@@ -144,6 +159,7 @@ def _test_loadstore1_ifetch(dut, mem):
 
     # look up i-cache expecting it to fail
 
+    yield from debug(dut, "virtual instr req")
     # set address to 0x10200, update mem[] to 5678
     virt_addr = 0x10200
     real_addr = virt_addr
@@ -182,6 +198,8 @@ def _test_loadstore1_ifetch(dut, mem):
 
     print("=== test loadstore instruction (instruction fault) ===")
 
+    yield from debug(dut, "instr fault")
+
     virt_addr = 0x10200
 
     yield ldst.priv_mode.eq(0)
@@ -203,6 +221,7 @@ def _test_loadstore1_ifetch(dut, mem):
     yield
 
     print("=== test loadstore instruction (try instruction again) ===")
+    yield from debug(dut, "instr virt retry")
     # set address to 0x10200, update mem[] to 5678
     virt_addr = 0x10200
     real_addr = virt_addr
@@ -525,7 +544,8 @@ def test_loadstore1_ifetch():
     # this shouuuld work.... cross-fingers...
     sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
     sim.add_sync_process(wrap(wb_get(icache.bus, mem)))
-    with sim.write_vcd('test_loadstore1_ifetch.vcd'):
+    with sim.write_vcd('test_loadstore1_ifetch.vcd',
+                      traces=[m.debug_status]): # include extra debug
         sim.run()
 
 
@@ -577,7 +597,8 @@ def test_loadstore1_ifetch_invalid():
     # this shouuuld work.... cross-fingers...
     sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
     sim.add_sync_process(wrap(wb_get(icache.bus, mem)))
-    with sim.write_vcd('test_loadstore1_ifetch_invalid.vcd'):
+    with sim.write_vcd('test_loadstore1_ifetch_invalid.vcd',
+                      traces=[m.debug_status]): # include extra debug
         sim.run()
 
 
