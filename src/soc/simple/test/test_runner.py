@@ -120,6 +120,7 @@ class HDLRunner(StateRunner):
     """HDLRunner:  Implements methods for the setup, preparation, and
     running of tests using nmigen HDL simulation.
     """
+
     def __init__(self, dut, m, pspec):
         super().__init__("hdl", HDLRunner)
 
@@ -130,7 +131,7 @@ class HDLRunner(StateRunner):
         #hard_reset = Signal(reset_less=True)
         self.issuer = TestIssuerInternal(pspec)
         # use DMI RESET command instead, this does actually work though
-        #issuer = ResetInserter({'coresync': hard_reset,
+        # issuer = ResetInserter({'coresync': hard_reset,
         #                        'sync': hard_reset})(issuer)
         m.submodules.issuer = self.issuer
         self.dmi = self.issuer.dbg.dmi
@@ -152,7 +153,7 @@ class HDLRunner(StateRunner):
         yield
 
     def setup_during_test(self):
-        yield from set_dmi(self.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
+        yield from set_dmi(self.dmi, DBGCore.CTRL, 1 << DBGCtrl.STOP)
         yield
 
     def run_test(self, instructions):
@@ -201,9 +202,9 @@ class HDLRunner(StateRunner):
                 # start the core
                 yield
                 yield from set_dmi(dmi, DBGCore.CTRL,
-                                1<<DBGCtrl.START)
-                yield self.issuer.pc_i.ok.eq(0) # no change PC after this
-                yield self.issuer.svstate_i.ok.eq(0) # ditto
+                                   1 << DBGCtrl.START)
+                yield self.issuer.pc_i.ok.eq(0)  # no change PC after this
+                yield self.issuer.svstate_i.ok.eq(0)  # ditto
                 yield
                 yield
 
@@ -227,13 +228,13 @@ class HDLRunner(StateRunner):
             if index < len(instructions):
                 # Get HDL mem and state
                 state = yield from TestState("hdl", core, self.dut,
-                                            code)
+                                             code)
                 hdl_states.append(state)
 
             if index >= len(instructions):
-                print ("index over, send dmi stop")
+                print("index over, send dmi stop")
                 # stop at end
-                yield from set_dmi(dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
+                yield from set_dmi(dmi, DBGCore.CTRL, 1 << DBGCtrl.STOP)
                 yield
                 yield
 
@@ -252,13 +253,13 @@ class HDLRunner(StateRunner):
         if self.dut.allow_overlap:
             # get last state, at end of run
             state = yield from TestState("hdl", core, self.dut,
-                                        code)
+                                         code)
             hdl_states.append(state)
 
         return hdl_states
 
     def end_test(self):
-        yield from set_dmi(self.dmi, DBGCore.CTRL, 1<<DBGCtrl.STOP)
+        yield from set_dmi(self.dmi, DBGCore.CTRL, 1 << DBGCtrl.STOP)
         yield
         yield
 
@@ -282,21 +283,20 @@ class HDLRunner(StateRunner):
             value = yield from get_dmi(self.dmi, DBGCore.GSPR_DATA)
 
             print("after test %s reg %2d value %x" %
-            (self.test.name, int_reg, value))
+                  (self.test.name, int_reg, value))
 
         # pull a reset
-        yield from set_dmi(self.dmi, DBGCore.CTRL, 1<<DBGCtrl.RESET)
+        yield from set_dmi(self.dmi, DBGCore.CTRL, 1 << DBGCtrl.RESET)
         yield
 
 
 class TestRunner(TestRunnerBase):
     def __init__(self, tst_data, microwatt_mmu=False, rom=None,
-                        svp64=True, run_hdl=True, run_sim=True,
-                        allow_overlap=False):
+                 svp64=True, run_hdl=True, run_sim=True,
+                 allow_overlap=False):
         if run_hdl:
             run_hdl = HDLRunner
         super().__init__(tst_data, microwatt_mmu=microwatt_mmu,
-                        rom=rom,
-                        svp64=svp64, run_hdl=run_hdl, run_sim=run_sim,
-                        allow_overlap=allow_overlap)
-
+                         rom=rom,
+                         svp64=svp64, run_hdl=run_hdl, run_sim=run_sim,
+                         allow_overlap=allow_overlap)

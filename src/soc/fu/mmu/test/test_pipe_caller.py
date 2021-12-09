@@ -31,6 +31,7 @@ import power_instruction_analyzer as pia
 
 debughang = 1
 
+
 def set_fsm_inputs(alu, dec2, sim):
     # TODO: see https://bugs.libre-soc.org/show_bug.cgi?id=305#c43
     # detect the immediate here (with m.If(self.i.ctx.op.imm_data.imm_ok))
@@ -45,16 +46,16 @@ def set_fsm_inputs(alu, dec2, sim):
     # yield from ALUHelpers.set_spr_spr1(alu, dec2, inp)
 
     overflow = None
-    a=None
-    b=None
+    a = None
+    b = None
     # TODO
     if 'xer_so' in inp:
         print("xer_so::::::::::::::::::::::::::::::::::::::::::::::::")
         so = inp['xer_so']
         print(so)
         overflow = pia.OverflowFlags(so=bool(so),
-                                      ov=False,
-                                      ov32=False)
+                                     ov=False,
+                                     ov32=False)
     if 'ra' in inp:
         a = inp['ra']
     if 'rb' in inp:
@@ -65,11 +66,13 @@ def set_fsm_inputs(alu, dec2, sim):
 
 def check_fsm_outputs(fsm, pdecode2, sim, code):
     # check that MMUOutputData is correct
-    return None #TODO
+    return None  # TODO
 
-#incomplete test - connect fsm inputs first
+# incomplete test - connect fsm inputs first
+
+
 class MMUIlangCase(TestAccumulatorBase):
-    #def case_ilang(self):
+    # def case_ilang(self):
     #    pspec = SPRPipeSpec(id_wid=2)
     #    alu = SPRBasePipe(pspec)
     #    vl = rtlil.convert(alu, ports=alu.ports())
@@ -82,7 +85,7 @@ class TestRunner(unittest.TestCase):
     def __init__(self, test_data):
         super().__init__("run_all")
         self.test_data = test_data
-        #hack here -- all unit tests are affected
+        # hack here -- all unit tests are affected
         self.run_all()
 
     def check_fsm_outputs(self, alu, dec2, sim, code, pia_res):
@@ -98,26 +101,25 @@ class TestRunner(unittest.TestCase):
         sim_o = {}
         res = {}
 
-        #MMUOutputData does not have xer
+        # MMUOutputData does not have xer
 
         yield from ALUHelpers.get_cr_a(res, alu, dec2)
-        #yield from ALUHelpers.get_xer_ov(res, alu, dec2)
+        # yield from ALUHelpers.get_xer_ov(res, alu, dec2)
         yield from ALUHelpers.get_int_o(res, alu, dec2)
-        #yield from ALUHelpers.get_xer_so(res, alu, dec2)
-
+        # yield from ALUHelpers.get_xer_so(res, alu, dec2)
 
         print("res output", res)
 
         yield from ALUHelpers.get_sim_int_o(sim_o, sim, dec2)
         yield from ALUHelpers.get_wr_sim_cr_a(sim_o, sim, dec2)
-        #yield from ALUHelpers.get_sim_xer_ov(sim_o, sim, dec2)
-        #yield from ALUHelpers.get_sim_xer_so(sim_o, sim, dec2)
+        # yield from ALUHelpers.get_sim_xer_ov(sim_o, sim, dec2)
+        # yield from ALUHelpers.get_sim_xer_so(sim_o, sim, dec2)
 
         print("sim output", sim_o)
 
         print("power-instruction-analyzer result:")
         print(pia_res)
-        #if pia_res is not None:
+        # if pia_res is not None:
         #    with self.subTest(check="pia", sim_o=sim_o, pia_res=str(pia_res)):
         #        pia_o = pia_res_to_output(pia_res)
         #        ALUHelpers.check_int_o(self, res, pia_o, code)
@@ -126,15 +128,15 @@ class TestRunner(unittest.TestCase):
         #        #ALUHelpers.check_xer_so(self, res, pia_o, code)
 
         with self.subTest(check="sim", sim_o=sim_o, pia_res=str(pia_res)):
-            #ALUHelpers.check_int_o(self, res, sim_o, code) # mmu is not an alu
+            # ALUHelpers.check_int_o(self, res, sim_o, code) # mmu is not an alu
             ALUHelpers.check_cr_a(self, res, sim_o, code)
             #ALUHelpers.check_xer_ov(self, res, sim_o, code)
             #ALUHelpers.check_xer_so(self, res, sim_o, code)
 
-        #oe = yield dec2.e.do.oe.oe
-        #oe_ok = yield dec2.e.do.oe.ok
+        # oe = yield dec2.e.do.oe.oe
+        # oe_ok = yield dec2.e.do.oe.ok
         #print("oe, oe_ok", oe, oe_ok)
-        #if not oe or not oe_ok:
+        # if not oe or not oe_ok:
         #    # if OE not enabled, XER SO and OV must not be activated
         #    so_ok = yield alu.n.o_data.xer_so.ok
         #    ov_ok = yield alu.n.o_data.xer_ov.ok
@@ -181,7 +183,7 @@ class TestRunner(unittest.TestCase):
             print("dec2 spr/fast in", fast_out, spr_out)
 
             fn_unit = yield pdecode2.e.do.fn_unit
-            #FIXME this fails -- self.assertEqual(fn_unit, Function.SPR.value)
+            # FIXME this fails -- self.assertEqual(fn_unit, Function.SPR.value)
             pia_res = yield from set_fsm_inputs(fsm, pdecode2, sim)
             yield
             opname = code.split(' ')[0]
@@ -191,14 +193,15 @@ class TestRunner(unittest.TestCase):
             index = pc//4
             print("pc after %08x" % (pc))
 
-            vld = yield fsm.n.o_valid #fsm
+            vld = yield fsm.n.o_valid  # fsm
             while not vld:
                 yield
                 if debughang:
                     print("not valid -- hang")
                     return
                 vld = yield fsm.n.o_valid
-                if debughang==2: vld=1
+                if debughang == 2:
+                    vld = 1
             yield
 
             yield from self.check_fsm_outputs(fsm, pdecode2, sim, code, pia_res)
@@ -224,7 +227,7 @@ class TestRunner(unittest.TestCase):
         m.submodules.fsm = fsm
         m.submodules.ldst = ldst
 
-        #FIXME connect fsm inputs
+        # FIXME connect fsm inputs
 
         comb += fsm.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)
         comb += fsm.p.i_valid.eq(1)
@@ -246,6 +249,7 @@ class TestRunner(unittest.TestCase):
         with sim.write_vcd("alu_simulator.vcd", "simulator.gtkw",
                            traces=[]):
             sim.run()
+
 
 if __name__ == "__main__":
     unittest.main(exit=False)

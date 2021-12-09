@@ -78,8 +78,8 @@ class TestRunner(unittest.TestCase):
         if whole_reg_ok:
             full_cr = yield alu.n.o_data.full_cr.data & full_cr_mask
             expected_cr = simulator.cr.value
-            print("CR whole: expected %x, actual: %x mask: %x" % \
-                (expected_cr, full_cr, full_cr_mask))
+            print("CR whole: expected %x, actual: %x mask: %x" %
+                  (expected_cr, full_cr, full_cr_mask))
             # HACK: only look at the bits that we expected to change
             self.assertEqual(expected_cr & full_cr_mask, full_cr, code)
         elif cr_en:

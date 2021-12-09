@@ -55,8 +55,8 @@ if __name__ == "__main__":
                    'logical', 'alu',
                    'branch', 'div', 'mul', 'hazard']
 
-    print ("SVP64 test mode enabled", svp64, "overlap",
-                                      allow_overlap, "testing", testing)
+    print("SVP64 test mode enabled", svp64, "overlap",
+          allow_overlap, "testing", testing)
 
     unittest.main(exit=False)
     suite = unittest.TestSuite()
@@ -76,7 +76,7 @@ if __name__ == "__main__":
              'alu': ALUTestCase().test_data,
              'branch': BranchTestCase().test_data,
              'spr': SPRTestCase().test_data
-            }
+             }
 
     # walk through all tests, those requested get added
     for tname, data in tests.items():

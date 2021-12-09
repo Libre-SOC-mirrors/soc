@@ -42,7 +42,7 @@ def set_alu_inputs(alu, dec2, sim):
     # and place it into i_data.b
 
     inp = yield from get_cu_inputs(dec2, sim)
-    print ("set alu inputs", inp)
+    print("set alu inputs", inp)
     yield from ALUHelpers.set_int_ra(alu, dec2, inp)
     yield from ALUHelpers.set_int_rb(alu, dec2, inp)
     yield from ALUHelpers.set_xer_so(alu, dec2, inp)
@@ -63,7 +63,7 @@ class TestRunner(FHDLTestCase):
         super().__init__("run_all")
         self.test_data = test_data
 
-    def execute(self, alu,instruction, pdecode2, test):
+    def execute(self, alu, instruction, pdecode2, test):
         print(test.name)
         program = test.program
         self.subTest(test.name)

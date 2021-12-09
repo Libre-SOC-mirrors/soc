@@ -31,10 +31,10 @@ from openpower.decoder.power_decoder2 import PowerDecode2, SVP64PrefixDecoder
 from openpower.decoder.decode2execute1 import IssuerDecode2ToOperand
 from openpower.decoder.decode2execute1 import Data
 from openpower.decoder.power_enums import (MicrOp, SVP64PredInt, SVP64PredCR,
-                                     SVP64PredMode)
+                                           SVP64PredMode)
 from openpower.state import CoreState
 from openpower.consts import (CR, SVP64CROffs)
-from soc.experiment.testmem import TestMemory # test only for instructions
+from soc.experiment.testmem import TestMemory  # test only for instructions
 from soc.regfile.regfiles import StateRegs, FastRegs
 from soc.simple.core import NonProductionCore
 from soc.config.test.test_loadstore import TestMemPspec
@@ -52,6 +52,7 @@ from openpower.sv.svstate import SVSTATERec
 
 from nmutil.util import rising_edge
 
+
 def get_insn(f_instr_o, pc):
     if f_instr_o.width == 32:
         return f_instr_o
@@ -60,6 +61,8 @@ def get_insn(f_instr_o, pc):
         return f_instr_o.word_select(pc[2], 32)
 
 # gets state input or reads from state regfile
+
+
 def state_get(m, core_rst, state_i, name, regfile, regnum):
     comb = m.d.comb
     sync = m.d.sync
@@ -73,7 +76,7 @@ def state_get(m, core_rst, state_i, name, regfile, regnum):
             comb += res.eq(state_i.data)
         with m.Else():
             # otherwise read StateRegs regfile for PC...
-            comb += regfile.ren.eq(1<<regnum)
+            comb += regfile.ren.eq(1 << regnum)
         # ... but on a 1-clock delay
         with m.If(res_ok_delay):
             comb += res.eq(regfile.o_data)
@@ -163,8 +166,8 @@ def get_predcr(m, mask, name):
 # because imem is only ever accessed inside the FetchFSM.
 class FetchFSM(ControlBase):
     def __init__(self, allow_overlap, svp64_en, imem, core_rst,
-                       pdecode2, cur_state,
-                       dbg, core, svstate, nia, is_svp64_mode):
+                 pdecode2, cur_state,
+                 dbg, core, svstate, nia, is_svp64_mode):
         self.allow_overlap = allow_overlap
         self.svp64_en = svp64_en
         self.imem = imem
@@ -217,13 +220,13 @@ class FetchFSM(ControlBase):
         sync = m.d.sync
         pdecode2 = self.pdecode2
         cur_state = self.cur_state
-        dec_opcode_o = pdecode2.dec.raw_opcode_in # raw opcode
+        dec_opcode_o = pdecode2.dec.raw_opcode_in  # raw opcode
 
         msr_read = Signal(reset=1)
 
         # don't read msr every cycle
         staterf = self.core.regs.rf['state']
-        state_r_msr = staterf.r_ports['msr'] # MSR rd
+        state_r_msr = staterf.r_ports['msr']  # MSR rd
 
         comb += state_r_msr.ren.eq(0)
 
@@ -242,7 +245,7 @@ class FetchFSM(ControlBase):
                     comb += self.imem.a_i_valid.eq(1)
                     comb += self.imem.f_i_valid.eq(1)
                     sync += cur_state.pc.eq(pc)
-                    sync += cur_state.svstate.eq(svstate) # and svstate
+                    sync += cur_state.svstate.eq(svstate)  # and svstate
 
                     # initiate read of MSR. arrives one clock later
                     comb += state_r_msr.ren.eq(1 << StateRegs.MSR)
@@ -262,9 +265,9 @@ class FetchFSM(ControlBase):
                 with m.Else():
                     # one cycle later, msr/sv read arrives.  valid only once.
                     with m.If(~msr_read):
-                        sync += msr_read.eq(1) # yeah don't read it again
+                        sync += msr_read.eq(1)  # yeah don't read it again
                         sync += cur_state.msr.eq(state_r_msr.o_data)
-                    with m.If(self.imem.f_busy_o): # zzz...
+                    with m.If(self.imem.f_busy_o):  # zzz...
                         # busy: stay in wait-read
                         comb += self.imem.a_i_valid.eq(1)
                         comb += self.imem.f_i_valid.eq(1)
@@ -348,6 +351,7 @@ class TestIssuerInternal(Elaboratable):
     and code clarity is.  optimisations (which almost 100% interfere with
     easy understanding) come later.
     """
+
     def __init__(self, pspec):
 
         # test is SVP64 is to be enabled
@@ -355,18 +359,18 @@ class TestIssuerInternal(Elaboratable):
 
         # and if regfiles are reduced
         self.regreduce_en = (hasattr(pspec, "regreduce") and
-                                            (pspec.regreduce == True))
+                             (pspec.regreduce == True))
 
         # and if overlap requested
         self.allow_overlap = (hasattr(pspec, "allow_overlap") and
-                                            (pspec.allow_overlap == True))
+                              (pspec.allow_overlap == True))
 
         # JTAG interface.  add this right at the start because if it's
         # added it *modifies* the pspec, by adding enable/disable signals
         # for parts of the rest of the core
         self.jtag_en = hasattr(pspec, "debug") and pspec.debug == 'jtag'
-        self.dbg_domain = "sync" # sigh "dbgsunc" too problematic
-        #self.dbg_domain = "dbgsync" # domain for DMI/JTAG clock
+        self.dbg_domain = "sync"  # sigh "dbgsunc" too problematic
+        # self.dbg_domain = "dbgsync" # domain for DMI/JTAG clock
         if self.jtag_en:
             # XXX MUST keep this up-to-date with litex, and
             # soc-cocotb-sim, and err.. all needs sorting out, argh
@@ -375,7 +379,7 @@ class TestIssuerInternal(Elaboratable):
                       'eint', 'gpio', 'mspi0',
                       # 'mspi1', - disabled for now
                       # 'pwm', 'sd0', - disabled for now
-                       'sdr']
+                      'sdr']
             self.jtag = JTAG(get_pinspecs(subset=subset),
                              domain=self.dbg_domain)
             # add signals to pspec to enable/disable icache and dcache
@@ -396,7 +400,7 @@ class TestIssuerInternal(Elaboratable):
             self.sram4k = []
             for i in range(4):
                 self.sram4k.append(SPBlock512W64B8W(name="sram4k_%d" % i,
-                                                    #features={'err'}
+                                                    # features={'err'}
                                                     ))
 
         # add interrupt controller?
@@ -418,7 +422,7 @@ class TestIssuerInternal(Elaboratable):
 
         # instruction decoder.  goes into Trap Record
         #pdecode = create_pdecode()
-        self.cur_state = CoreState("cur") # current state (MSR/PC/SVSTATE)
+        self.cur_state = CoreState("cur")  # current state (MSR/PC/SVSTATE)
         self.pdecode2 = PowerDecode2(None, state=self.cur_state,
                                      opkls=IssuerDecode2ToOperand,
                                      svp64_en=self.svp64_en,
@@ -426,7 +430,7 @@ class TestIssuerInternal(Elaboratable):
         pdecode = self.pdecode2.dec
 
         if self.svp64_en:
-            self.svp64 = SVP64PrefixDecoder() # for decoding SVP64 prefix
+            self.svp64 = SVP64PrefixDecoder()  # for decoding SVP64 prefix
 
         # Test Instruction memory
         self.imem = ConfigFetchUnit(pspec).fu
@@ -436,31 +440,31 @@ class TestIssuerInternal(Elaboratable):
 
         # instruction go/monitor
         self.pc_o = Signal(64, reset_less=True)
-        self.pc_i = Data(64, "pc_i") # set "ok" to indicate "please change me"
-        self.svstate_i = Data(64, "svstate_i") # ditto
-        self.core_bigendian_i = Signal() # TODO: set based on MSR.LE
+        self.pc_i = Data(64, "pc_i")  # set "ok" to indicate "please change me"
+        self.svstate_i = Data(64, "svstate_i")  # ditto
+        self.core_bigendian_i = Signal()  # TODO: set based on MSR.LE
         self.busy_o = Signal(reset_less=True)
         self.memerr_o = Signal(reset_less=True)
 
         # STATE regfile read /write ports for PC, MSR, SVSTATE
         staterf = self.core.regs.rf['state']
-        self.state_r_pc = staterf.r_ports['cia'] # PC rd
-        self.state_w_pc = staterf.w_ports['d_wr1'] # PC wr
-        self.state_r_sv = staterf.r_ports['sv'] # SVSTATE rd
-        self.state_w_sv = staterf.w_ports['sv'] # SVSTATE wr
+        self.state_r_pc = staterf.r_ports['cia']  # PC rd
+        self.state_w_pc = staterf.w_ports['d_wr1']  # PC wr
+        self.state_r_sv = staterf.r_ports['sv']  # SVSTATE rd
+        self.state_w_sv = staterf.w_ports['sv']  # SVSTATE wr
 
         # DMI interface access
         intrf = self.core.regs.rf['int']
         crrf = self.core.regs.rf['cr']
         xerrf = self.core.regs.rf['xer']
-        self.int_r = intrf.r_ports['dmi'] # INT read
-        self.cr_r = crrf.r_ports['full_cr_dbg'] # CR read
-        self.xer_r = xerrf.r_ports['full_xer'] # XER read
+        self.int_r = intrf.r_ports['dmi']  # INT read
+        self.cr_r = crrf.r_ports['full_cr_dbg']  # CR read
+        self.xer_r = xerrf.r_ports['full_xer']  # XER read
 
         if self.svp64_en:
             # for predication
-            self.int_pred = intrf.r_ports['pred'] # INT predicate read
-            self.cr_pred = crrf.r_ports['cr_pred'] # CR predicate read
+            self.int_pred = intrf.r_ports['pred']  # INT predicate read
+            self.cr_pred = crrf.r_ports['cr_pred']  # CR predicate read
 
         # hack method of keeping an eye on whether branch/trap set the PC
         self.state_nia = self.core.regs.rf['state'].w_ports['nia']
@@ -496,7 +500,7 @@ class TestIssuerInternal(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
         pdecode2 = self.pdecode2
-        rm_dec = pdecode2.rm_dec # SVP64RMModeDecode
+        rm_dec = pdecode2.rm_dec  # SVP64RMModeDecode
         predmode = rm_dec.predmode
         srcpred, dstpred = rm_dec.srcpred, rm_dec.dstpred
         cr_pred, int_pred = self.cr_pred, self.int_pred   # read regfiles
@@ -623,8 +627,10 @@ class TestIssuerInternal(Elaboratable):
                     scr_bit = Signal()
                     dcr_bit = Signal()
                     comb += cr_field.eq(cr_pred.o_data)
-                    comb += scr_bit.eq(cr_field.bit_select(sidx, 1) ^ scrinvert)
-                    comb += dcr_bit.eq(cr_field.bit_select(didx, 1) ^ dcrinvert)
+                    comb += scr_bit.eq(cr_field.bit_select(sidx, 1)
+                                       ^ scrinvert)
+                    comb += dcr_bit.eq(cr_field.bit_select(didx, 1)
+                                       ^ dcrinvert)
                     # set the corresponding mask bit
                     bit_to_set = Signal.like(self.srcmask)
                     comb += bit_to_set.eq(1 << cur_cr_idx)
@@ -669,10 +675,10 @@ class TestIssuerInternal(Elaboratable):
         cur_state = self.cur_state
 
         # temporaries
-        dec_opcode_i = pdecode2.dec.raw_opcode_in # raw opcode
+        dec_opcode_i = pdecode2.dec.raw_opcode_in  # raw opcode
 
         # for updating svstate (things like srcstep etc.)
-        update_svstate = Signal() # set this (below) if updating
+        update_svstate = Signal()  # set this (below) if updating
         new_svstate = SVSTATERec("new_svstate")
         comb += new_svstate.eq(cur_state.svstate)
 
@@ -697,7 +703,7 @@ class TestIssuerInternal(Elaboratable):
                 # wait on "core stop" release, before next fetch
                 # need to do this here, in case we are in a VL==0 loop
                 with m.If(~dbg.core_stop_o & ~core_rst):
-                    comb += fetch_pc_i_valid.eq(1) # tell fetch to start
+                    comb += fetch_pc_i_valid.eq(1)  # tell fetch to start
                     with m.If(fetch_pc_o_ready):   # fetch acknowledged us
                         m.next = "INSN_WAIT"
                 with m.Else():
@@ -749,8 +755,8 @@ class TestIssuerInternal(Elaboratable):
                     m.next = "MASK_WAIT"
 
             with m.State("MASK_WAIT"):
-                comb += pred_mask_i_ready.eq(1) # ready to receive the masks
-                with m.If(pred_mask_o_valid): # predication masks are ready
+                comb += pred_mask_i_ready.eq(1)  # ready to receive the masks
+                with m.If(pred_mask_o_valid):  # predication masks are ready
                     m.next = "PRED_SKIP"
 
             # skip zeros in predicate
@@ -846,7 +852,7 @@ class TestIssuerInternal(Elaboratable):
 
             # handshake with execution FSM, move to "wait" once acknowledged
             with m.State("INSN_EXECUTE"):
-                comb += exec_insn_i_valid.eq(1) # trigger execute
+                comb += exec_insn_i_valid.eq(1)  # trigger execute
                 with m.If(exec_insn_o_ready):   # execute acknowledged us
                     m.next = "EXECUTE_WAIT"
 
@@ -931,9 +937,9 @@ class TestIssuerInternal(Elaboratable):
 
         # check if svstate needs updating: if so, write it to State Regfile
         with m.If(update_svstate):
-            comb += self.state_w_sv.wen.eq(1<<StateRegs.SVSTATE)
+            comb += self.state_w_sv.wen.eq(1 << StateRegs.SVSTATE)
             comb += self.state_w_sv.i_data.eq(new_svstate)
-            sync += cur_state.svstate.eq(new_svstate) # for next clock
+            sync += cur_state.svstate.eq(new_svstate)  # for next clock
 
     def execute_fsm(self, m, core, pc_changed, sv_changed,
                     exec_insn_i_valid, exec_insn_o_ready,
@@ -951,7 +957,7 @@ class TestIssuerInternal(Elaboratable):
         pdecode2 = self.pdecode2
 
         # temporaries
-        core_busy_o = core.n.o_data.busy_o # core is busy
+        core_busy_o = core.n.o_data.busy_o  # core is busy
         core_ivalid_i = core.p.i_valid              # instruction is valid
 
         with m.FSM(name="exec_fsm"):
@@ -963,17 +969,17 @@ class TestIssuerInternal(Elaboratable):
                     comb += core_ivalid_i.eq(1)  # instruction is valid/issued
                     sync += sv_changed.eq(0)
                     sync += pc_changed.eq(0)
-                    with m.If(core.p.o_ready): # only move if accepted
+                    with m.If(core.p.o_ready):  # only move if accepted
                         m.next = "INSN_ACTIVE"  # move to "wait completion"
 
             # instruction started: must wait till it finishes
             with m.State("INSN_ACTIVE"):
                 # note changes to PC and SVSTATE
-                with m.If(self.state_nia.wen & (1<<StateRegs.SVSTATE)):
+                with m.If(self.state_nia.wen & (1 << StateRegs.SVSTATE)):
                     sync += sv_changed.eq(1)
-                with m.If(self.state_nia.wen & (1<<StateRegs.PC)):
+                with m.If(self.state_nia.wen & (1 << StateRegs.PC)):
                     sync += pc_changed.eq(1)
-                with m.If(~core_busy_o): # instruction done!
+                with m.If(~core_busy_o):  # instruction done!
                     comb += exec_pc_o_valid.eq(1)
                     with m.If(exec_pc_i_ready):
                         # when finished, indicate "done".
@@ -1022,7 +1028,7 @@ class TestIssuerInternal(Elaboratable):
             m.submodules.xics_icp = icp = csd(self.xics_icp)
             m.submodules.xics_ics = ics = csd(self.xics_ics)
             comb += icp.ics_i.eq(ics.icp_o)           # connect ICS to ICP
-            sync += cur_state.eint.eq(icp.core_irq_o) # connect ICP to core
+            sync += cur_state.eint.eq(icp.core_irq_o)  # connect ICP to core
 
         # GPIO test peripheral
         if self.gpio:
@@ -1031,7 +1037,7 @@ class TestIssuerInternal(Elaboratable):
         # connect one GPIO output to ICS bit 15 (like in microwatt soc.vhdl)
         # XXX causes litex ECP5 test to get wrong idea about input and output
         # (but works with verilator sim *sigh*)
-        #if self.gpio and self.xics:
+        # if self.gpio and self.xics:
         #   comb += self.int_level_i[15].eq(simple_gpio.gpio_o[0])
 
         # instruction decoder
@@ -1045,7 +1051,7 @@ class TestIssuerInternal(Elaboratable):
         intrf = self.core.regs.rf['int']
 
         # clock delay power-on reset
-        cd_por  = ClockDomain(reset_less=True)
+        cd_por = ClockDomain(reset_less=True)
         cd_sync = ClockDomain()
         core_sync = ClockDomain("coresync")
         m.domains += cd_por, cd_sync, core_sync
@@ -1070,7 +1076,7 @@ class TestIssuerInternal(Elaboratable):
             comb += dbg_rst.eq(ResetSignal())
 
         # busy/halted signals from core
-        core_busy_o = ~core.p.o_ready | core.n.o_data.busy_o # core is busy
+        core_busy_o = ~core.p.o_ready | core.n.o_data.busy_o  # core is busy
         comb += self.busy_o.eq(core_busy_o)
         comb += pdecode2.dec.bigendian.eq(self.core_bigendian_i)
 
@@ -1078,8 +1084,9 @@ class TestIssuerInternal(Elaboratable):
         l0 = core.l0
         ldst = core.fus.fus['ldst0']
         st_go_edge = rising_edge(m, ldst.st.rel_o)
-        m.d.comb += ldst.ad.go_i.eq(ldst.ad.rel_o) # link addr-go direct to rel
-        m.d.comb += ldst.st.go_i.eq(st_go_edge) # link store-go to rising rel
+        # link addr-go direct to rel
+        m.d.comb += ldst.ad.go_i.eq(ldst.ad.rel_o)
+        m.d.comb += ldst.st.go_i.eq(st_go_edge)  # link store-go to rising rel
 
     def elaborate(self, platform):
         m = Module()
@@ -1100,17 +1107,17 @@ class TestIssuerInternal(Elaboratable):
 
         # PC and instruction from I-Memory
         comb += self.pc_o.eq(cur_state.pc)
-        pc_changed = Signal() # note write to PC
-        sv_changed = Signal() # note write to SVSTATE
+        pc_changed = Signal()  # note write to PC
+        sv_changed = Signal()  # note write to SVSTATE
 
         # indicate to outside world if any FU is still executing
-        comb += self.any_busy.eq(core.n.o_data.any_busy_o) # any FU executing
+        comb += self.any_busy.eq(core.n.o_data.any_busy_o)  # any FU executing
 
         # read state either from incoming override or from regfile
         # TODO: really should be doing MSR in the same way
         pc = state_get(m, core_rst, self.pc_i,
-                            "pc",                  # read PC
-                            self.state_r_pc, StateRegs.PC)
+                       "pc",                  # read PC
+                       self.state_r_pc, StateRegs.PC)
         svstate = state_get(m, core_rst, self.svstate_i,
                             "svstate",   # read SVSTATE
                             self.state_r_sv, StateRegs.SVSTATE)
@@ -1139,8 +1146,8 @@ class TestIssuerInternal(Elaboratable):
         # these are the handshake signals between each
 
         # fetch FSM can run as soon as the PC is valid
-        fetch_pc_i_valid = Signal() # Execute tells Fetch "start next read"
-        fetch_pc_o_ready = Signal() # Fetch Tells SVSTATE "proceed"
+        fetch_pc_i_valid = Signal()  # Execute tells Fetch "start next read"
+        fetch_pc_o_ready = Signal()  # Fetch Tells SVSTATE "proceed"
 
         # fetch FSM hands over the instruction to be decoded / issued
         fetch_insn_o_valid = Signal()
@@ -1173,8 +1180,8 @@ class TestIssuerInternal(Elaboratable):
 
         # set up Fetch FSM
         fetch = FetchFSM(self.allow_overlap, self.svp64_en,
-                        self.imem, core_rst, pdecode2, cur_state,
-                       dbg, core, svstate, nia, is_svp64_mode)
+                         self.imem, core_rst, pdecode2, cur_state,
+                         dbg, core, svstate, nia, is_svp64_mode)
         m.submodules.fetch = fetch
         # connect up in/out data to existing Signals
         comb += fetch.p.i_data.pc.eq(pc)
@@ -1223,15 +1230,15 @@ class TestIssuerInternal(Elaboratable):
         dmi, d_reg, d_cr, d_xer, = dbg.dmi, dbg.d_gpr, dbg.d_cr, dbg.d_xer
         intrf = self.core.regs.rf['int']
 
-        with m.If(d_reg.req): # request for regfile access being made
+        with m.If(d_reg.req):  # request for regfile access being made
             # TODO: error-check this
             # XXX should this be combinatorial?  sync better?
             if intrf.unary:
-                comb += self.int_r.ren.eq(1<<d_reg.addr)
+                comb += self.int_r.ren.eq(1 << d_reg.addr)
             else:
                 comb += self.int_r.addr.eq(d_reg.addr)
                 comb += self.int_r.ren.eq(1)
-        d_reg_delay  = Signal()
+        d_reg_delay = Signal()
         sync += d_reg_delay.eq(d_reg.req)
         with m.If(d_reg_delay):
             # data arrives one clock later
@@ -1239,9 +1246,9 @@ class TestIssuerInternal(Elaboratable):
             comb += d_reg.ack.eq(1)
 
         # sigh same thing for CR debug
-        with m.If(d_cr.req): # request for regfile access being made
-            comb += self.cr_r.ren.eq(0b11111111) # enable all
-        d_cr_delay  = Signal()
+        with m.If(d_cr.req):  # request for regfile access being made
+            comb += self.cr_r.ren.eq(0b11111111)  # enable all
+        d_cr_delay = Signal()
         sync += d_cr_delay.eq(d_cr.req)
         with m.If(d_cr_delay):
             # data arrives one clock later
@@ -1249,9 +1256,9 @@ class TestIssuerInternal(Elaboratable):
             comb += d_cr.ack.eq(1)
 
         # aaand XER...
-        with m.If(d_xer.req): # request for regfile access being made
-            comb += self.xer_r.ren.eq(0b111111) # enable all
-        d_xer_delay  = Signal()
+        with m.If(d_xer.req):  # request for regfile access being made
+            comb += self.xer_r.ren.eq(0b111111)  # enable all
+        d_xer_delay = Signal()
         sync += d_xer_delay.eq(d_xer.req)
         with m.If(d_xer_delay):
             # data arrives one clock later
@@ -1271,8 +1278,8 @@ class TestIssuerInternal(Elaboratable):
 
         comb, sync = m.d.comb, m.d.sync
         fast_rf = self.core.regs.rf['fast']
-        fast_r_dectb = fast_rf.r_ports['issue'] # DEC/TB
-        fast_w_dectb = fast_rf.w_ports['issue'] # DEC/TB
+        fast_r_dectb = fast_rf.r_ports['issue']  # DEC/TB
+        fast_w_dectb = fast_rf.w_ports['issue']  # DEC/TB
 
         with m.FSM() as fsm:
 
@@ -1290,7 +1297,7 @@ class TestIssuerInternal(Elaboratable):
                 comb += fast_w_dectb.addr.eq(FastRegs.DEC)
                 comb += fast_w_dectb.wen.eq(1)
                 comb += fast_w_dectb.i_data.eq(new_dec)
-                sync += spr_dec.eq(new_dec) # copy into cur_state for decoder
+                sync += spr_dec.eq(new_dec)  # copy into cur_state for decoder
                 m.next = "TB_READ"
 
             # initiates read of current TB
@@ -1325,7 +1332,7 @@ class TestIssuerInternal(Elaboratable):
     def external_ports(self):
         ports = self.pc_i.ports()
         ports += [self.pc_o, self.memerr_o, self.core_bigendian_i, self.busy_o,
-                ]
+                  ]
 
         if self.jtag_en:
             ports += list(self.jtag.external_ports())
@@ -1366,7 +1373,7 @@ class TestIssuer(Elaboratable):
             self.pll_test_o = Signal(reset_less=True)
             self.pll_vco_o = Signal(reset_less=True)
             self.clk_sel_i = Signal(2, reset_less=True)
-            self.ref_clk =  ClockSignal() # can't rename it but that's ok
+            self.ref_clk = ClockSignal()  # can't rename it but that's ok
             self.pllclk_clk = ClockSignal("pllclk")
 
     def elaborate(self, platform):
@@ -1428,7 +1435,7 @@ class TestIssuer(Elaboratable):
 
     def ports(self):
         return list(self.ti.ports()) + list(self.pll.ports()) + \
-               [ClockSignal(), ResetSignal()]
+            [ClockSignal(), ResetSignal()]
 
     def external_ports(self):
         ports = self.ti.external_ports()
@@ -1450,7 +1457,7 @@ if __name__ == '__main__':
              'div': 1,
              'mul': 1,
              'shiftrot': 1
-            }
+             }
     pspec = TestMemPspec(ldst_ifacetype='bare_wb',
                          imem_ifacetype='bare_wb',
                          addr_wid=48,

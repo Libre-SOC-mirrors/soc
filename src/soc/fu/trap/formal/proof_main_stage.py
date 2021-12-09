@@ -202,7 +202,7 @@ class Driver(Elaboratable):
             ###################
 
             with m.Case(MicrOp.OP_MTMSRD):
-                msr_od = msr_o.data # another "shortener"
+                msr_od = msr_o.data  # another "shortener"
 
                 with m.If(L == 0):
                     # if (MSR[29:31] != 0b010) | (SRR1[29:31] != 0b000) then
@@ -216,7 +216,7 @@ class Driver(Elaboratable):
                     # MSR[48] <- (RS)[48] | (RS)[49]
                     # MSR[58] <- (RS)[58] | (RS)[49]
                     # MSR[59] <- (RS)[59] | (RS)[49]
-                    PR = field(rs, 49) # alias/copy of SRR1 PR field
+                    PR = field(rs, 49)  # alias/copy of SRR1 PR field
                     comb += [
                         Assert(field(msr_od, 48) == field(rs, 48) | PR),
                         Assert(field(msr_od, 58) == field(rs, 58) | PR),
@@ -263,7 +263,7 @@ class Driver(Elaboratable):
             # RFID.  v3.0B p955
             ###################
             with m.Case(MicrOp.OP_RFID):
-                msr_od = msr_o.data # another "shortener"
+                msr_od = msr_o.data  # another "shortener"
                 comb += [
                     Assert(msr_o.ok),
                     Assert(nia_o.ok),
@@ -280,7 +280,7 @@ class Driver(Elaboratable):
 
                 # if (MSR[29:31] != 0b010) | (SRR1[29:31] != 0b000) then
                 #     MSR[29:31] <- SRR1[29:31]
-                with m.If((field(msr_i , 29, 31) != 0b010) |
+                with m.If((field(msr_i, 29, 31) != 0b010) |
                           (field(srr1_i, 29, 31) != 0b000)):
                     comb += Assert(F(msr_od, 29, 31) == F(srr1_i, 29, 31))
                 with m.Else():
@@ -290,7 +290,7 @@ class Driver(Elaboratable):
                 # MSR[48] <- (RS)[48] | (RS)[49]
                 # MSR[58] <- (RS)[58] | (RS)[49]
                 # MSR[59] <- (RS)[59] | (RS)[49]
-                PR = field(srr1_i, 49) # alias/copy of SRR1 PR field
+                PR = field(srr1_i, 49)  # alias/copy of SRR1 PR field
                 comb += [
                     Assert(field(msr_od, 48) == field(srr1_i, 48) | PR),
                     Assert(field(msr_od, 58) == field(srr1_i, 58) | PR),
@@ -373,4 +373,3 @@ class TrapMainStageTestCase(FHDLTestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

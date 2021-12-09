@@ -188,10 +188,13 @@ class DummyALU(Elaboratable):
 #####################
 
 # input (and output) for logical initial stage (common input)
+
+
 class ALUInputData(FUBaseData):
-    regspec = [('INT', 'a', '0:63'), # RA
-               ('INT', 'b', '0:63'), # RB/immediate
+    regspec = [('INT', 'a', '0:63'),  # RA
+               ('INT', 'b', '0:63'),  # RB/immediate
                ]
+
     def __init__(self, pspec):
         super().__init__(pspec, False)
 
@@ -200,6 +203,7 @@ class ALUInputData(FUBaseData):
 class ALUOutputData(FUBaseData):
     regspec = [('INT', 'o', '0:63'),        # RT
                ]
+
     def __init__(self, pspec):
         super().__init__(pspec, True)
 
@@ -211,7 +215,7 @@ class ALUPipeSpec(CommonPipeSpec):
 
 
 class ALUFunctionUnit(FunctionUnitBaseSingle):
-#class ALUFunctionUnit(FunctionUnitBaseMulti):
+    # class ALUFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.ALU
 
     def __init__(self, idx):

@@ -29,16 +29,17 @@ from soc.config.loadstore import ConfigMemoryPortInterface
 from soc.experiment.test import pagetables
 from soc.experiment.test.test_wishbone import wb_get
 
-#new unit added to this test case
+# new unit added to this test case
 from soc.fu.mmu.pipe_data import MMUPipeSpec
 from soc.fu.mmu.fsm import FSMMMUStage
 
-#for sending instructions to the FSM
+# for sending instructions to the FSM
 from openpower.consts import MSR
 from openpower.decoder.power_fields import DecodeFields
 from openpower.decoder.power_fieldsn import SignalBitRange
 from openpower.decoder.power_decoder2 import decode_spr_num
 from openpower.decoder.power_enums import MicrOp
+
 
 def test_TLBIE(dut):
     yield dut.fsm.p.i_data.ctx.op.eq(MicrOp.OP_TLBIE)
@@ -51,20 +52,20 @@ def test_TLBIE(dut):
     yield
     yield Display("OP_TLBIE test done")
 
+
 def ldst_sim(dut):
-    yield dut.mmu.rin.prtbl.eq(0x1000000) # set process table
+    yield dut.mmu.rin.prtbl.eq(0x1000000)  # set process table
     addr = 0x100e0
-    data = 0xFF #just a single byte for this test
+    data = 0xFF  # just a single byte for this test
     #data = 0xf553b658ba7e1f51
 
     yield from store(dut, addr, 0, data, 0)
     yield
     ld_data, data_ok, ld_addr = yield from load(dut, addr, 0, 0)
-    print(data,data_ok,ld_addr)
-    assert(ld_data==data)
+    print(data, data_ok, ld_addr)
+    assert(ld_data == data)
     yield
     yield from test_TLBIE(dut)
-
 
     """
     -- not testing dzbz here --
@@ -81,7 +82,7 @@ def ldst_sim(dut):
     print("dzbz test passed")
     """
 
-    dut.stop = True # stop simulation
+    dut.stop = True  # stop simulation
 
 ########################################
 
@@ -112,7 +113,7 @@ def test_scoreboard_mmu():
                          reg_wid=64,
                          units=units)
 
-    dut = TestLDSTCompUnit(16,pspec)
+    dut = TestLDSTCompUnit(16, pspec)
     vl = rtlil.convertMMUFSM(dut, ports=dut.ports())
     with open("test_ldst_comp_mmu1.il", "w") as f:
         f.write(vl)
@@ -120,6 +121,8 @@ def test_scoreboard_mmu():
     run_simulation(dut, ldst_sim(dut), vcd_name='test_ldst_comp.vcd')
 
 ########################################
+
+
 class TestLDSTCompUnitRegSpecMMUFSM(LDSTCompUnit):
 
     def __init__(self, pspec):
@@ -154,10 +157,11 @@ class TestLDSTCompUnitRegSpecMMUFSM(LDSTCompUnit):
         # link mmu and dcache together
         dcache = self.l0.dcache
         mmu = self.mmu
-        m.d.comb += dcache.m_in.eq(mmu.d_out) # MMUToDCacheType
-        m.d.comb += mmu.d_in.eq(dcache.m_out) # DCacheToMMUType
+        m.d.comb += dcache.m_in.eq(mmu.d_out)  # MMUToDCacheType
+        m.d.comb += mmu.d_in.eq(dcache.m_out)  # DCacheToMMUType
 
         return m
+
 
 def test_scoreboard_regspec_mmufsm():
 
@@ -181,7 +185,7 @@ def test_scoreboard_regspec_mmufsm():
     dut.mem = pagetables.test1
     dut.stop = False
 
-    sim.add_sync_process(wrap(ldst_sim(dut))) # rename ?
+    sim.add_sync_process(wrap(ldst_sim(dut)))  # rename ?
     sim.add_sync_process(wrap(wb_get(dut)))
     with sim.write_vcd('test_scoreboard_regspec_mmufsm.vcd'):
         sim.run()
@@ -189,4 +193,4 @@ def test_scoreboard_regspec_mmufsm():
 
 if __name__ == '__main__':
     test_scoreboard_regspec_mmufsm()
-    #only one test for now -- test_scoreboard_mmu()
+    # only one test for now -- test_scoreboard_mmu()

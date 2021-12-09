@@ -19,7 +19,7 @@ class SPRMainStage(PipeModBase):
         super().__init__(pspec, "spr_main")
         # test if regfiles are reduced
         self.regreduce_en = (hasattr(pspec, "regreduce") and
-                                            (pspec.regreduce == True))
+                             (pspec.regreduce == True))
 
         self.fields = DecodeFields(SignalBitRange, [self.i.ctx.op.insn])
         self.fields.create_specs()
@@ -91,7 +91,7 @@ class SPRMainStage(PipeModBase):
                             # bits 0:31 and 35:43 are treated as reserved
                             # and return 0s when read using mfxer
                             comb += o[32:64].eq(0)       # MBS0 bits 0-31
-                            comb += o[63-43:64-35].eq(0) # MSB0 bits 35-43
+                            comb += o[63-43:64-35].eq(0)  # MSB0 bits 35-43
                             # sticky
                             comb += o[63-XER_bits['SO']].eq(so_i)
                             # overflow

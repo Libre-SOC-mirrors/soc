@@ -36,7 +36,7 @@ class Driver(Elaboratable):
         rec = CompSROpSubset()
         # Setup random inputs for dut.op.  do them explicitly so that
         # we can see which ones cause failures in the debug report
-        #for p in rec.ports():
+        # for p in rec.ports():
         #    comb += p.eq(AnyConst(p.width))
         comb += rec.insn_type.eq(AnyConst(rec.insn_type.width))
         comb += rec.fn_unit.eq(AnyConst(rec.fn_unit.width))
@@ -54,7 +54,6 @@ class Driver(Elaboratable):
         comb += rec.is_signed.eq(AnyConst(rec.is_signed.width))
         comb += rec.insn.eq(AnyConst(rec.insn.width))
 
-
         pspec = ShiftRotPipeSpec(id_wid=2)
         m.submodules.dut = dut = ShiftRotMainStage(pspec)
 
@@ -66,7 +65,7 @@ class Driver(Elaboratable):
         carry_in32 = dut.i.xer_ca[1]
         carry_out = dut.o.xer_ca
         o = dut.o.o.data
-        print ("fields", rec.fields)
+        print("fields", rec.fields)
         itype = rec.insn_type
 
         # instruction fields
@@ -199,20 +198,21 @@ class Driver(Elaboratable):
                 comb += sh.eq(b[0:6])
 
                 exp_shl = Signal(64, reset_less=True,
-                                    name='A_SHIFTED_LEFT_BY_SH_FOR_RLC')
+                                 name='A_SHIFTED_LEFT_BY_SH_FOR_RLC')
                 comb += exp_shl.eq((ainp << sh) & 0xFFFFFFFF)
 
                 exp_shr = Signal(64, reset_less=True,
-                                    name='A_SHIFTED_RIGHT_FOR_RLC')
+                                 name='A_SHIFTED_RIGHT_FOR_RLC')
                 comb += exp_shr.eq((ainp >> (32 - sh)) & 0xFFFFFFFF)
 
                 exp_rot = Signal(64, reset_less=True,
-                                    name='A_ROTATED_LEFT_FOR_RLC')
+                                 name='A_ROTATED_LEFT_FOR_RLC')
                 comb += exp_rot.eq(exp_shl | exp_shr)
 
-                exp_ol = Signal(32, reset_less=True, name='EXPECTED_OL_FOR_RLC')
+                exp_ol = Signal(32, reset_less=True,
+                                name='EXPECTED_OL_FOR_RLC')
                 comb += exp_ol.eq(field((exp_rot & mrl) | (ainp & ~mrl),
-                                    32, 63))
+                                        32, 63))
 
                 act_ol = Signal(32, reset_less=True, name='ACTUAL_OL_FOR_RLC')
                 comb += act_ol.eq(field(o, 32, 63))
@@ -225,11 +225,11 @@ class Driver(Elaboratable):
 
 #               comb += Assume(mr == 0xFFFFFFFF)
 #               comb += Assume(ml == 0xFFFFFFFF)
-                #with m.If(rec.is_32bit):
+                # with m.If(rec.is_32bit):
                 #    comb += Assert(act_ol == exp_ol)
                 #    comb += Assert(field(o, 0, 31) == 0)
 
-            #TODO
+            # TODO
             with m.Case(MicrOp.OP_RLCR):
                 pass
             with m.Case(MicrOp.OP_RLCL):
@@ -248,6 +248,7 @@ class ALUTestCase(FHDLTestCase):
         module = Driver()
         self.assertFormal(module, mode="bmc", depth=2)
         self.assertFormal(module, mode="cover", depth=2)
+
     def test_ilang(self):
         dut = Driver()
         vl = rtlil.convert(dut, ports=[])

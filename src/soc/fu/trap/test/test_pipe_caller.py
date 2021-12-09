@@ -107,7 +107,8 @@ class TestRunner(unittest.TestCase):
                               test.mem, test.msr,
                               bigendian=bigendian)
                     gen = program.generate_instructions()
-                    instructions = list(zip(gen, program.assembly.splitlines()))
+                    instructions = list(
+                        zip(gen, program.assembly.splitlines()))
 
                     msr = sim.msr.value
                     pc = sim.pc.CIA.value

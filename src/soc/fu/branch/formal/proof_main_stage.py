@@ -202,6 +202,7 @@ class LogicalTestCase(FHDLTestCase):
     def test_formal(self):
         module = Driver()
         self.assertFormal(module, mode="bmc", depth=2)
+
     def test_ilang(self):
         dut = Driver()
         vl = rtlil.convert(dut, ports=[])

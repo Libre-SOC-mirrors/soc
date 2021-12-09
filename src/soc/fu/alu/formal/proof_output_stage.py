@@ -103,11 +103,13 @@ class Driver(Elaboratable):
 
         return m
 
+
 class GTCombinerTestCase(FHDLTestCase):
     def test_formal(self):
         module = Driver()
         self.assertFormal(module, mode="bmc", depth=4)
         self.assertFormal(module, mode="cover", depth=4)
+
     def test_ilang(self):
         dut = Driver()
         vl = rtlil.convert(dut, ports=[])

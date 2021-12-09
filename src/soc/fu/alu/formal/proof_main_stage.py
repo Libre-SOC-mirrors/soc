@@ -44,13 +44,13 @@ class Driver(Elaboratable):
         a = dut.i.a
         b = dut.i.b
         ca_in = dut.i.xer_ca[0]   # CA carry in
-        ca32_in = dut.i.xer_ca[1] # CA32 carry in 32
+        ca32_in = dut.i.xer_ca[1]  # CA32 carry in 32
         so_in = dut.i.xer_so      # SO sticky overflow
 
         ca_o = dut.o.xer_ca.data[0]   # CA carry out
-        ca32_o = dut.o.xer_ca.data[1] # CA32 carry out32
+        ca32_o = dut.o.xer_ca.data[1]  # CA32 carry out32
         ov_o = dut.o.xer_ov.data[0]   # OV overflow
-        ov32_o = dut.o.xer_ov.data[1] # OV32 overflow32
+        ov32_o = dut.o.xer_ov.data[1]  # OV32 overflow32
         o = dut.o.o.data
 
         # setup random inputs
@@ -143,6 +143,7 @@ class ALUTestCase(FHDLTestCase):
         module = Driver()
         self.assertFormal(module, mode="bmc", depth=2)
         self.assertFormal(module, mode="cover", depth=2)
+
     def test_ilang(self):
         dut = Driver()
         vl = rtlil.convert(dut, ports=[])

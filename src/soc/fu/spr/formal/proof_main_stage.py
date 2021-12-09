@@ -24,6 +24,8 @@ from openpower.decoder.power_fields import DecodeFields
 from openpower.decoder.power_fieldsn import SignalBitRange
 
 # use POWER numbering. sigh.
+
+
 def xer_bit(name):
     return 63-XER_bits[name]
 
@@ -52,10 +54,10 @@ class Driver(Elaboratable):
         # frequently used aliases
         a = dut.i.a
         ca_in = dut.i.xer_ca[0]   # CA carry in
-        ca32_in = dut.i.xer_ca[1] # CA32 carry in 32
+        ca32_in = dut.i.xer_ca[1]  # CA32 carry in 32
         so_in = dut.i.xer_so      # SO sticky overflow
         ov_in = dut.i.xer_ov[0]   # XER OV in
-        ov32_in = dut.i.xer_ov[1] # XER OV32 in
+        ov32_in = dut.i.xer_ov[1]  # XER OV32 in
         o = dut.o.o
 
         # setup random inputs
@@ -71,8 +73,8 @@ class Driver(Elaboratable):
         comb += dut.i.ctx.op.eq(rec)
 
         # check that the operation (op) is passed through (and muxid)
-        comb += Assert(dut.o.ctx.op == dut.i.ctx.op )
-        comb += Assert(dut.o.ctx.muxid == dut.i.ctx.muxid )
+        comb += Assert(dut.o.ctx.op == dut.i.ctx.op)
+        comb += Assert(dut.o.ctx.muxid == dut.i.ctx.muxid)
 
         # MTSPR
         fields = DecodeFields(SignalBitRange, [dut.i.ctx.op.insn])

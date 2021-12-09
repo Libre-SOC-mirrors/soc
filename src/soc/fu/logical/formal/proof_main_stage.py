@@ -60,7 +60,7 @@ class Driver(Elaboratable):
         # setup random inputs
         comb += [a.eq(AnyConst(64)),
                  b.eq(AnyConst(64)),
-                 #carry_in.eq(AnyConst(0b11)),
+                 # carry_in.eq(AnyConst(0b11)),
                  ]
 
         comb += dut.i.ctx.op.eq(rec)
@@ -78,7 +78,7 @@ class Driver(Elaboratable):
         comb += a_signed_32.eq(a[0:32])
 
         o_ok = Signal()
-        comb += o_ok.eq(1) # will be set to zero if no op takes place
+        comb += o_ok.eq(1)  # will be set to zero if no op takes place
 
         # main assertion of arithmetic operations
         with m.Switch(rec.insn_type):
@@ -125,10 +125,10 @@ class Driver(Elaboratable):
                         comb += peo.eq(32)
                     with m.Else():
                         comb += peo.eq(pe32.o)
-                    with m.If(XO[-1]): # cnttzw
+                    with m.If(XO[-1]):  # cnttzw
                         comb += pe32.i.eq(a[0:32])
                         comb += Assert(o == peo)
-                    with m.Else(): # cntlzw
+                    with m.Else():  # cntlzw
                         comb += pe32.i.eq(a[0:32][::-1])
                         comb += Assert(o == peo)
                 with m.Else():
@@ -138,10 +138,10 @@ class Driver(Elaboratable):
                         comb += peo64.eq(64)
                     with m.Else():
                         comb += peo64.eq(pe64.o)
-                    with m.If(XO[-1]): # cnttzd
+                    with m.If(XO[-1]):  # cnttzd
                         comb += pe64.i.eq(a[0:64])
                         comb += Assert(o == peo64)
-                    with m.Else(): # cntlzd
+                    with m.Else():  # cntlzd
                         comb += pe64.i.eq(a[0:64][::-1])
                         comb += Assert(o == peo64)
 
@@ -180,6 +180,7 @@ class LogicalTestCase(FHDLTestCase):
         module = Driver()
         self.assertFormal(module, mode="bmc", depth=2)
         self.assertFormal(module, mode="cover", depth=2)
+
     def test_ilang(self):
         dut = Driver()
         vl = rtlil.convert(dut, ports=[])

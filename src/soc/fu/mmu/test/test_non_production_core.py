@@ -30,25 +30,26 @@ from soc.simple.test.test_core import (setup_regs, check_regs,
 
 debughang = 2
 
+
 class MMUTestCase(TestAccumulatorBase):
     # MMU handles MTSPR, MFSPR, DCBZ and TLBIE.
     # other instructions here -> must be load/store
 
     def case_mfspr_after_invalid_load(self):
-        lst = [ # TODO -- set SPR on both sinulator and port interface
-                "mfspr 1, 18", # DSISR to reg 1
-                "mfspr 2, 19", # DAR to reg 2
-                # TODO -- verify returned sprvals
-              ]
+        lst = [  # TODO -- set SPR on both sinulator and port interface
+            "mfspr 1, 18",  # DSISR to reg 1
+            "mfspr 2, 19",  # DAR to reg 2
+            # TODO -- verify returned sprvals
+        ]
 
         initial_regs = [0] * 32
 
-        #THOSE are currently broken -- initial_sprs = {'DSISR': 0x12345678, 'DAR': 0x87654321}
+        # THOSE are currently broken -- initial_sprs = {'DSISR': 0x12345678, 'DAR': 0x87654321}
         initial_sprs = {}
         self.add_case(Program(lst, bigendian),
                       initial_regs, initial_sprs)
 
-    #def case_ilang(self):
+    # def case_ilang(self):
     #    pspec = SPRPipeSpec(id_wid=2)
     #    alu = SPRBasePipe(pspec)
     #    vl = rtlil.convert(alu, ports=alu.ports())
@@ -105,9 +106,11 @@ class TestRunner(unittest.TestCase):
             vld = yield fsm.n.o_valid
             while not vld:
                 yield
-                if debughang:  print("not valid -- hang")
+                if debughang:
+                    print("not valid -- hang")
                 vld = yield fsm.n.o_valid
-                if debughang==2: vld=1
+                if debughang == 2:
+                    vld = 1
             yield
 
     def run_all(self):
@@ -126,10 +129,10 @@ class TestRunner(unittest.TestCase):
                              reg_wid=64)
 
         m.submodules.core = core = NonProductionCore(pspec
-                                     # XXX NO absolutely do not do this.
-                                     # all options must go into the pspec
-                                     #, microwatt_mmu=True
-                                                        )
+                                                     # XXX NO absolutely do not do this.
+                                                     # all options must go into the pspec
+                                                     # , microwatt_mmu=True
+                                                     )
 
         comb += pdecode2.dec.raw_opcode_in.eq(instruction)
         sim = Simulator(m)
@@ -148,6 +151,7 @@ class TestRunner(unittest.TestCase):
         with sim.write_vcd("mmu_ldst_simulator.vcd", "mmu_ldst_simulator.gtkw",
                            traces=[]):
             sim.run()
+
 
 if __name__ == "__main__":
     unittest.main(exit=False)

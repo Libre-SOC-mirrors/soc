@@ -185,7 +185,9 @@ class FunctionUnitBaseMulti(ReservationStations2):
 ######################################################################
 ###### actual Function Units: these are "single" stage pipelines #####
 
-#class ALUFunctionUnit(FunctionUnitBaseSingle):
+# class ALUFunctionUnit(FunctionUnitBaseSingle):
+
+
 class ALUFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.ALU
 
@@ -193,7 +195,7 @@ class ALUFunctionUnit(FunctionUnitBaseMulti):
         super().__init__(ALUPipeSpec, ALUBasePipe, num_rses)
 
 
-#class LogicalFunctionUnit(FunctionUnitBaseSingle):
+# class LogicalFunctionUnit(FunctionUnitBaseSingle):
 class LogicalFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.LOGICAL
 
@@ -201,7 +203,7 @@ class LogicalFunctionUnit(FunctionUnitBaseMulti):
         super().__init__(LogicalPipeSpec, LogicalBasePipe, idx)
 
 
-#class CRFunctionUnit(FunctionUnitBaseSingle):
+# class CRFunctionUnit(FunctionUnitBaseSingle):
 class CRFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.CR
 
@@ -209,7 +211,7 @@ class CRFunctionUnit(FunctionUnitBaseMulti):
         super().__init__(CRPipeSpec, CRBasePipe, idx)
 
 
-#class BranchFunctionUnit(FunctionUnitBaseSingle):
+# class BranchFunctionUnit(FunctionUnitBaseSingle):
 class BranchFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.BRANCH
 
@@ -217,7 +219,7 @@ class BranchFunctionUnit(FunctionUnitBaseMulti):
         super().__init__(BranchPipeSpec, BranchBasePipe, idx)
 
 
-#class ShiftRotFunctionUnit(FunctionUnitBaseSingle):
+# class ShiftRotFunctionUnit(FunctionUnitBaseSingle):
 class ShiftRotFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.SHIFT_ROT
 
@@ -246,7 +248,7 @@ class DivPipeFunctionUnit(FunctionUnitBaseSingle):
         super().__init__(DivPipeSpecDivPipeCore, DivBasePipe, idx)
 
 
-#class MulFunctionUnit(FunctionUnitBaseSingle):
+# class MulFunctionUnit(FunctionUnitBaseSingle):
 class MulFunctionUnit(FunctionUnitBaseMulti):
     fnunit = Function.MUL
 
@@ -334,8 +336,8 @@ class AllFunctionUnits(Elaboratable):
         for name, qty in units.items():
             kls = alus[name]
             if issubclass(kls, FunctionUnitBaseMulti):
-                fu = kls(qty) # create just the one ALU but many "fronts"
-                self.actual_alus[name] = fu # to be made a module of AllFUs
+                fu = kls(qty)  # create just the one ALU but many "fronts"
+                self.actual_alus[name] = fu  # to be made a module of AllFUs
                 for i in range(qty):
                     self.fus["%s%d" % (name, i)] = fu.cu[i]
             else:
@@ -350,7 +352,7 @@ class AllFunctionUnits(Elaboratable):
         # if any PortInterfaces, we want LDST Units.
         if pilist is None:
             return
-        print ("pilist", pilist)
+        print("pilist", pilist)
         for i, pi in enumerate(pilist):
             self.fus["ldst%d" % (i)] = LDSTFunctionUnit(pi, addrwid, i)
 
@@ -358,7 +360,7 @@ class AllFunctionUnits(Elaboratable):
         self.excs = {}
         for name, alu in self.fus.items():
             if hasattr(alu, "exc_o"):
-                print ("FU exceptions", name, type(alu.exc_o), alu.exc_o)
+                print("FU exceptions", name, type(alu.exc_o), alu.exc_o)
                 self.excs[name] = alu.exc_o
 
     def get_exc(self, name):

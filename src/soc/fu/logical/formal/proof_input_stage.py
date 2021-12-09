@@ -41,7 +41,7 @@ class Driver(Elaboratable):
                  dut.i.b.eq(b),
                  a.eq(AnyConst(64)),
                  b.eq(AnyConst(64))]
-                      
+
         comb += dut.i.ctx.op.eq(rec)
 
         # Assert that op gets copied from the input to output
@@ -70,6 +70,7 @@ class GTCombinerTestCase(FHDLTestCase):
         module = Driver()
         self.assertFormal(module, mode="bmc", depth=4)
         self.assertFormal(module, mode="cover", depth=4)
+
     def test_ilang(self):
         dut = Driver()
         vl = rtlil.convert(dut, ports=[])

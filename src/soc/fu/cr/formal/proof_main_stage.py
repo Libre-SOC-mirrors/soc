@@ -85,7 +85,6 @@ class Driver(Elaboratable):
                 # into cr_a
                 comb += dut.i.cr_a.eq(cr_input_arr[bc])
 
-
             # For OP_CROP, we need to input the corresponding CR
             # registers for BA, BB, and BT
             with m.Case(MicrOp.OP_CROP):
@@ -172,7 +171,7 @@ class Driver(Elaboratable):
                             comb += Assert(o[4*i:4*i+4] == cr[4*i:4*i+4])
                         with m.Else():
                             comb += Assert(o[4*i:4*i+4] == 0)
-                with m.Else(): # mfcrf
+                with m.Else():  # mfcrf
                     comb += Assert(o == cr)
                 comb += o_ok.eq(1)
 
@@ -237,7 +236,7 @@ class Driver(Elaboratable):
 
             with m.Case(MicrOp.OP_SETB):
                 with m.If(cr_arr[4*bfa]):
-                    comb += Assert(o == ((1<<64)-1))
+                    comb += Assert(o == ((1 << 64)-1))
                 with m.Elif(cr_arr[4*bfa+1]):
                     comb += Assert(o == 1)
                 with m.Else():
@@ -256,6 +255,7 @@ class CRTestCase(FHDLTestCase):
     def test_formal(self):
         module = Driver()
         self.assertFormal(module, mode="bmc", depth=2)
+
     def test_ilang(self):
         dut = Driver()
         vl = rtlil.convert(dut, ports=[])

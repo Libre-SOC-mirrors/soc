@@ -89,13 +89,14 @@ class Driver(Elaboratable):
         pipe2 = MulMainStage2(pspec)
         pipe3 = MulMainStage3(pspec)
 
-        class Dummy: pass
-        dut = Dummy() # make a class into which dut.i and dut.o can be dropped
+        class Dummy:
+            pass
+        dut = Dummy()  # make a class into which dut.i and dut.o can be dropped
         dut.i = pipe1.ispec()
-        chain = [pipe1, pipe2, pipe3] # chain of 3 mul stages
+        chain = [pipe1, pipe2, pipe3]  # chain of 3 mul stages
 
-        StageChain(chain).setup(m, dut.i) # input linked here, through chain
-        dut.o = chain[-1].o # output is the last thing in the chain...
+        StageChain(chain).setup(m, dut.i)  # input linked here, through chain
+        dut.o = chain[-1].o  # output is the last thing in the chain...
 
         # convenience variables
         a = dut.i.ra
@@ -145,7 +146,7 @@ class Driver(Elaboratable):
         # setup random inputs
         comb += [a.eq(AnyConst(64)),
                  b.eq(AnyConst(64)),
-                ]
+                 ]
 
         comb += dut.i.ctx.op.eq(rec)
 
@@ -169,7 +170,7 @@ class Driver(Elaboratable):
             ###### HI-32 #####
 
             with m.Case(MicrOp.OP_MUL_H32):
-                comb += Assume(rec.is_32bit) # OP_MUL_H32 is a 32-bit op
+                comb += Assume(rec.is_32bit)  # OP_MUL_H32 is a 32-bit op
 
                 exp_prod = Signal(64)
                 expected_o = Signal.like(exp_prod)
@@ -186,7 +187,7 @@ class Driver(Elaboratable):
                     # differ, we negate the product.  This implies that
                     # the product is calculated from the absolute values
                     # of the inputs.
-                    prod = Signal.like(exp_prod) # intermediate product
+                    prod = Signal.like(exp_prod)  # intermediate product
                     comb += prod.eq(abs32_a * abs32_b)
                     comb += exp_prod.eq(Mux(ab32_sne, -prod, prod))
                     comb += expected_o.eq(Repl(exp_prod[32:64], 2))
@@ -210,7 +211,7 @@ class Driver(Elaboratable):
                     # differ, we negate the product.  This implies that
                     # the product is calculated from the absolute values
                     # of the inputs.
-                    prod = Signal.like(exp_prod) # intermediate product
+                    prod = Signal.like(exp_prod)  # intermediate product
                     comb += prod.eq(abs64_a * abs64_b)
                     comb += exp_prod.eq(Mux(ab64_sne, -prod, prod))
                     comb += Assert(o[0:64] == exp_prod[64:128])
@@ -285,6 +286,7 @@ class MulTestCase(FHDLTestCase):
         module = Driver()
         self.assertFormal(module, mode="bmc", depth=2)
         self.assertFormal(module, mode="cover", depth=2)
+
     def test_ilang(self):
         dut = Driver()
         vl = rtlil.convert(dut, ports=[])

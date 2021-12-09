@@ -60,7 +60,7 @@ class ALUIAllCases(ALUTestCase):
 
 class TestRunner(unittest.TestCase):
 
-    def execute(self, alu,instruction, pdecode2, test):
+    def execute(self, alu, instruction, pdecode2, test):
         program = test.program
         sim = ISA(pdecode2, test.regs, test.sprs, test.cr,
                   test.mem, test.msr,
@@ -88,7 +88,7 @@ class TestRunner(unittest.TestCase):
             fn_unit = yield pdecode2.e.do.fn_unit
             asmcode = yield pdecode2.e.asmcode
             dec_asmcode = yield pdecode2.dec.op.asmcode
-            print ("asmcode", asmcode, dec_asmcode)
+            print("asmcode", asmcode, dec_asmcode)
             self.assertEqual(fn_unit, Function.ALU.value)
             yield from set_alu_inputs(alu, pdecode2, sim)
 
@@ -120,7 +120,8 @@ class TestRunner(unittest.TestCase):
         opkls = ALUPipeSpec.opsubsetkls
 
         pdecode = create_pdecode()
-        m.submodules.pdecode2 = pdecode2 = PowerDecode2(pdecode, opkls, fn_name)
+        m.submodules.pdecode2 = pdecode2 = PowerDecode2(
+            pdecode, opkls, fn_name)
         pdecode = pdecode2.dec
 
         pspec = ALUPipeSpec(id_wid=2)
