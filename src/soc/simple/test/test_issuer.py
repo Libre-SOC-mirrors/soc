@@ -36,7 +36,7 @@ from openpower.simulator.test_helloworld_sim import HelloTestCases
 
 if __name__ == "__main__":
     svp64 = True
-    if sys.argv[1] == 'nosvp64':
+    if len(sys.argv) > 1 and sys.argv[1] == 'nosvp64':
         svp64 = False
         del sys.argv[1]
 
@@ -47,8 +47,10 @@ if __name__ == "__main__":
         del sys.argv[1]
 
     # allow list of testing to be selected by command-line
-    testing = sys.argv[1:]
-    sys.argv = sys.argv[:1]
+    testing = []
+    for i in reversed(range(1, len(sys.argv))):
+        if not sys.argv[i].startswith('-'):
+            testing.append(sys.argv.pop(i))
 
     if not testing:
         testing = ['general', 'ldst', 'cr', 'shiftrot', 'shiftrot2',
