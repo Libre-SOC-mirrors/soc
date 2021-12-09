@@ -57,7 +57,7 @@ class SPRMainStage(PipeModBase):
                 with m.Switch(spr):
                     # fast SPRs first
                     with m.Case(SPR.CTR, SPR.LR, SPR.TAR, SPR.SRR0,
-                                SPR.SRR1, SPR.XER, SPR.DEC):
+                                SPR.SRR1, SPR.XER, SPR.DEC, SPR.TB):
                         comb += fast1_o.data.eq(a_i)
                         comb += fast1_o.ok.eq(1)
                         # XER is constructed
