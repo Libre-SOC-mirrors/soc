@@ -55,6 +55,7 @@ class Driver(Elaboratable):
         comb += rec.insn.eq(AnyConst(rec.insn.width))
 
         pspec = ShiftRotPipeSpec(id_wid=2, parent_pspec=None)
+        pspec.draft_bitmanip = True
         m.submodules.dut = dut = ShiftRotMainStage(pspec)
 
         # convenience variables
@@ -234,6 +235,13 @@ class Driver(Elaboratable):
                 pass
             with m.Case(MicrOp.OP_RLCL):
                 pass
+            with m.Case(MicrOp.OP_TERNLOG):
+                lut = dut.fields.FormTLI.TLI[:]
+                for i in range(64):
+                    idx = Cat(dut.i.rb[i], dut.i.ra[i], dut.i.rc[i])
+                    for j in range(8):
+                        with m.If(j == idx):
+                            comb += Assert(dut.o.o.data[i] == lut[j])
             with m.Default():
                 comb += o_ok.eq(0)
 
