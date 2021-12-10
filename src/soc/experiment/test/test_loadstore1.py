@@ -68,6 +68,10 @@ def setup_mmu():
 
 def icache_read(dut,addr,priv,virt):
 
+    icache = dut.submodules.ldst.icache
+    i_in = icache.i_in
+    i_out  = icache.i_out
+
     yield i_in.priv_mode.eq(priv)
     yield i_in.virt_mode.eq(virt)
     yield i_in.req.eq(1)
@@ -165,7 +169,11 @@ def _test_loadstore1_ifetch(dut, mem):
     yield
     yield
 
-    # miss, stalls for a bit
+    # miss, stalls for a bit -- this one is different here
+    ##nia, insn, valid, failed = yield from icache_read(dut,addr,0,0)
+    ##assert(valid==0)
+    ##assert(failed==1)
+
     yield i_in.req.eq(1)
     yield i_in.nia.eq(addr)
     yield
@@ -269,6 +277,7 @@ def _test_loadstore1_ifetch(dut, mem):
     yield
 
     # miss, stalls for a bit
+    """
     yield i_in.req.eq(1)
     yield i_in.nia.eq(virt_addr)
     yield
@@ -281,6 +290,10 @@ def _test_loadstore1_ifetch(dut, mem):
     yield i_in.req.eq(0)
     nia   = yield i_out.nia
     insn  = yield i_out.insn
+    """
+
+    ## part 4
+    nia, insn, valid, failed = yield from icache_read(dut,virt_addr,0,1)
 
     yield from debug(dut, "test done")
     yield
