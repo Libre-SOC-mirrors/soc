@@ -40,12 +40,12 @@ class Driver(Elaboratable):
         #    comb += p.eq(AnyConst(p.width))
         comb += rec.insn_type.eq(AnyConst(rec.insn_type.width))
         comb += rec.fn_unit.eq(AnyConst(rec.fn_unit.width))
-        comb += rec.imm_data.imm.eq(AnyConst(rec.imm_data.imm.width))
-        comb += rec.imm_data.imm_ok.eq(AnyConst(rec.imm_data.imm_ok.width))
+        comb += rec.imm_data.data.eq(AnyConst(rec.imm_data.data.width))
+        comb += rec.imm_data.ok.eq(AnyConst(rec.imm_data.ok.width))
         comb += rec.rc.rc.eq(AnyConst(rec.rc.rc.width))
-        comb += rec.rc.rc_ok.eq(AnyConst(rec.rc.rc_ok.width))
+        comb += rec.rc.ok.eq(AnyConst(rec.rc.ok.width))
         comb += rec.oe.oe.eq(AnyConst(rec.oe.oe.width))
-        comb += rec.oe.oe_ok.eq(AnyConst(rec.oe.oe_ok.width))
+        comb += rec.oe.ok.eq(AnyConst(rec.oe.ok.width))
         comb += rec.write_cr0.eq(AnyConst(rec.write_cr0.width))
         comb += rec.input_carry.eq(AnyConst(rec.input_carry.width))
         comb += rec.output_carry.eq(AnyConst(rec.output_carry.width))
@@ -99,9 +99,9 @@ class Driver(Elaboratable):
         # clear left?
         with m.If((itype == MicrOp.OP_RLC) | (itype == MicrOp.OP_RLCL)):
             with m.If(rec.is_32bit):
-                comb += mb.eq(m_fields.MB)
+                comb += mb.eq(m_fields.MB[:])
             with m.Else():
-                comb += mb.eq(md_fields.mb)
+                comb += mb.eq(md_fields.mb[:])
         with m.Else():
             with m.If(rec.is_32bit):
                 comb += mb.eq(b[0:6])
@@ -116,9 +116,9 @@ class Driver(Elaboratable):
         # clear right?
         with m.If((itype == MicrOp.OP_RLC) | (itype == MicrOp.OP_RLCR)):
             with m.If(rec.is_32bit):
-                comb += me.eq(m_fields.ME)
+                comb += me.eq(m_fields.ME[:])
             with m.Else():
-                comb += me.eq(md_fields.me)
+                comb += me.eq(md_fields.me[:])
         with m.Else():
             with m.If(rec.is_32bit):
                 comb += me.eq(b[0:6])
