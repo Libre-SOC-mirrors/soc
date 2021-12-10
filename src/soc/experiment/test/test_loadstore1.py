@@ -66,6 +66,33 @@ def setup_mmu():
     return m, cmpi
 
 
+def icache_read(dut,addr,priv,virt):
+
+    yield i_in.priv_mode.eq(priv)
+    yield i_in.virt_mode.eq(virt)
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(addr)
+    yield i_in.stop_mark.eq(0)
+
+    yield i_in.req.eq(1)
+    yield i_in.nia.eq(addr)
+    yield
+    valid = yield i_out.valid
+    failed = yield i_out.fetch_failed
+    while not valid and not failed:
+        yield
+        valid = yield i_out.valid
+        failed = yield i_out.fetch_failed
+    yield i_in.req.eq(0)
+
+    nia   = yield i_out.nia
+    insn  = yield i_out.insn
+    yield
+    yield
+
+    return nia, insn, valid, failed
+
+
 test_exceptions = True
 test_dcbz = True
 test_random = True
