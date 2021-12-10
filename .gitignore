@@ -10,7 +10,7 @@ Waveforms
 *.il
 **/*.gtkw
 .eggs
-
+formal_test_temp
 .vscode/*
 build
 gen
