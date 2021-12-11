@@ -18,6 +18,7 @@ class ConfigFetchUnit:
                    'bare_wb': BareFetchUnit,
                    #'test_cache_wb': TestCacheFetchUnit
                   }
+        self.pspec = pspec
         if self.pspec.imem_ifacetype in ['mmu_cache_wb', 'test_mmu_cache_wb']:
             self.fu = self.lsmem.lsi.icache # ICache already FetchUnitInterface
             # tell I-Cache to connect up to its FetchUnitInterface
