@@ -183,6 +183,13 @@ def _test_loadstore1_ifetch_iface(dut, mem):
 
     wbget.stop = True
 
+def _test_loadstore1_ifetch_multi(dut, mem):
+    yield from debug(dut, "TODO")
+    yield
+    yield
+    yield
+    # TODO fetch instructions from multiple addresses
+    # should cope with some addresses being invalid
 
 def _test_loadstore1_ifetch(dut, mem):
     """test_loadstore1_ifetch
@@ -767,7 +774,26 @@ def test_loadstore1_ifetch_invalid():
                       traces=[m.debug_status]): # include extra debug
         sim.run()
 
+def test_loadstore1_ifetch_multi():
+    m, cmpi = setup_mmu()
 
+    # this is a specially-arranged page table which has the permissions
+    # barred for execute on the leaf node (EAA=0x2 instead of EAA=0x3)
+    mem = pagetables.test1
+
+    # nmigen Simulation
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    icache = m.submodules.ldst.icache
+    sim.add_sync_process(wrap(_test_loadstore1_ifetch_multi(m, mem)))
+    # add two wb_get processes onto the *same* memory dictionary.
+    # this shouuuld work.... cross-fingers...
+    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get(icache.bus, mem)))
+    with sim.write_vcd('test_loadstore1_ifetch_multi.vcd',
+                      traces=[m.debug_status]): # include extra debug
+        sim.run()
 
 if __name__ == '__main__':
     test_loadstore1()
@@ -775,4 +801,5 @@ if __name__ == '__main__':
     test_loadstore1_ifetch()
     test_loadstore1_fetch_unit_iface()
     test_loadstore1_ifetch_invalid()
+    test_loadstore1_ifetch_multi()
 
