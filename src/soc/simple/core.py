@@ -147,7 +147,7 @@ class NonProductionCore(ControlBase):
         # only include mmu if enabled in pspec
         self.fus = AllFunctionUnits(pspec, pilist=[pi])
 
-        # link LoadStore1 into MMU and make L1 I-Cache easy to get at
+        # link LoadStore1 into MMU
         mmu = self.fus.get_fu('mmu0')
         ldst0 = self.fus.get_fu('ldst0')
         print ("core pspec", pspec.ldst_ifacetype)
@@ -156,7 +156,6 @@ class NonProductionCore(ControlBase):
             lsi = l0.cmpi.lsmem.lsi # a LoadStore1 Interface object
             print ("core lsmem.lsi", lsi)
             mmu.alu.set_ldst_interface(lsi)
-            self.icache = lsi.icache
 
         # register files (yes plural)
         self.regs = RegFiles(pspec, make_hazard_vecs=self.make_hazard_vecs)

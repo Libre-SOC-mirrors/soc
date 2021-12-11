@@ -20,6 +20,8 @@ class ConfigFetchUnit:
                   }
         if self.pspec.imem_ifacetype in ['mmu_cache_wb', 'test_mmu_cache_wb']:
             self.fu = self.lsmem.lsi.icache # ICache already FetchUnitInterface
+            # tell I-Cache to connect up to its FetchUnitInterface
+            self.fu.use_fetch_interface()
             return
 
         fukls = fudict[pspec.imem_ifacetype]

@@ -49,6 +49,8 @@ from soc.experiment.wb_types import (WB_ADDR_BITS, WB_DATA_BITS,
                                      )
 
 from nmigen_soc.wishbone.bus import Interface
+from soc.minerva.units.fetch import FetchUnitInterface
+
 
 # for test
 from soc.bus.sram import SRAM
@@ -305,9 +307,10 @@ class RegInternal(RecordObject):
         self.fetch_failed = Signal()
 
 
-class ICache(Elaboratable):
+class ICache(FetchUnitInterface, Elaboratable):
     """64 bit direct mapped icache. All instructions are 4B aligned."""
-    def __init__(self):
+    def __init__(self, pspec):
+        FetchUnitInterface.__init__(self, pspec)
         self.i_in           = Fetch1ToICacheType(name="i_in")
         self.i_out          = ICacheToDecode1Type(name="i_out")
 
@@ -328,6 +331,11 @@ class ICache(Elaboratable):
 
         self.log_out        = Signal(54)
 
+        # use FetchUnitInterface, helps keep some unit tests running
+        self.use_fetch_iface = False
+
+    def use_fetch_interface(self):
+        self.use_fetch_iface = True
 
     # Generate a cache RAM for each way
     def rams(self, m, r, cache_out_row, use_previous,
@@ -852,6 +860,37 @@ class ICache(Elaboratable):
         #self.icache_log(m, log_out, req_hit_way, ra_valid, access_ok,
         #                req_is_miss, req_is_hit, lway, wstate, r)
 
+        # don't connect up to FetchUnitInterface so that some unit tests
+        # can continue to operate
+        if not self.use_fetch_iface:
+            return m
+
+        # connect to FetchUnitInterface. FetchUnitInterface is undocumented
+        # so needs checking and iterative revising
+        i_in, bus, i_out = self.i_in, self.bus, self.i_out
+        comb += i_in.req.eq(self.a_i_valid)
+        comb += i_in.nia.eq(self.a_pc_i)
+        comb += self.stall_in.eq(self.a_stall_i)
+        comb += self.f_fetch_err_o.eq(i_out.fetch_failed)
+        comb += self.f_badaddr_o.eq(i_out.nia)
+        comb += self.f_instr_o.eq(i_out.insn)
+        comb += self.f_busy_o.eq(i_out.valid) # probably
+
+        # TODO, connect dcache wb_in/wb_out to "standard" nmigen Wishbone bus
+        ibus = self.ibus
+        comb += ibus.adr.eq(self.bus.adr)
+        comb += ibus.dat_w.eq(self.bus.dat_w)
+        comb += ibus.sel.eq(self.bus.sel)
+        comb += ibus.cyc.eq(self.bus.cyc)
+        comb += ibus.stb.eq(self.bus.stb)
+        comb += ibus.we.eq(self.bus.we)
+
+        comb += self.bus.dat_r.eq(ibus.dat_r)
+        comb += self.bus.ack.eq(ibus.ack)
+        if hasattr(ibus, "stall"):
+            comb += self.bus.stall.eq(ibus.stall)
+
+
         return m
 
 
@@ -942,37 +981,47 @@ def icache_sim(dut):
 
 
 def test_icache(mem):
-     dut    = ICache()
+    from soc.config.test.test_loadstore import TestMemPspec
+    pspec = TestMemPspec(addr_wid=32,
+                         mask_wid=8,
+                         reg_wid=64,
+                         )
+    dut    = ICache(pspec)
 
-     memory = Memory(width=64, depth=512, init=mem)
-     sram   = SRAM(memory=memory, granularity=8)
+    memory = Memory(width=64, depth=512, init=mem)
+    sram   = SRAM(memory=memory, granularity=8)
 
-     m      = Module()
+    m      = Module()
 
-     m.submodules.icache = dut
-     m.submodules.sram   = sram
+    m.submodules.icache = dut
+    m.submodules.sram   = sram
 
-     m.d.comb += sram.bus.cyc.eq(dut.bus.cyc)
-     m.d.comb += sram.bus.stb.eq(dut.bus.stb)
-     m.d.comb += sram.bus.we.eq(dut.bus.we)
-     m.d.comb += sram.bus.sel.eq(dut.bus.sel)
-     m.d.comb += sram.bus.adr.eq(dut.bus.adr)
-     m.d.comb += sram.bus.dat_w.eq(dut.bus.dat_w)
+    m.d.comb += sram.bus.cyc.eq(dut.bus.cyc)
+    m.d.comb += sram.bus.stb.eq(dut.bus.stb)
+    m.d.comb += sram.bus.we.eq(dut.bus.we)
+    m.d.comb += sram.bus.sel.eq(dut.bus.sel)
+    m.d.comb += sram.bus.adr.eq(dut.bus.adr)
+    m.d.comb += sram.bus.dat_w.eq(dut.bus.dat_w)
 
-     m.d.comb += dut.bus.ack.eq(sram.bus.ack)
-     m.d.comb += dut.bus.dat_r.eq(sram.bus.dat_r)
+    m.d.comb += dut.bus.ack.eq(sram.bus.ack)
+    m.d.comb += dut.bus.dat_r.eq(sram.bus.dat_r)
 
-     # nmigen Simulation
-     sim = Simulator(m)
-     sim.add_clock(1e-6)
+    # nmigen Simulation
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
 
-     sim.add_sync_process(wrap(icache_sim(dut)))
-     with sim.write_vcd('test_icache.vcd'):
+    sim.add_sync_process(wrap(icache_sim(dut)))
+    with sim.write_vcd('test_icache.vcd'):
          sim.run()
 
 
 if __name__ == '__main__':
-    dut = ICache()
+    from soc.config.test.test_loadstore import TestMemPspec
+    pspec = TestMemPspec(addr_wid=64,
+                         mask_wid=8,
+                         reg_wid=64,
+                         )
+    dut = ICache(pspec)
     vl = rtlil.convert(dut, ports=[])
     with open("test_icache.il", "w") as f:
         f.write(vl)
