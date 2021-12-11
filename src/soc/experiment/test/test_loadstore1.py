@@ -109,6 +109,81 @@ def debug(dut, msg):
     yield dut.debug_status.eq(1)
 
 
+def _test_loadstore1_ifetch_iface(dut, mem):
+    """test_loadstore1_ifetch_iface
+
+    read in priv mode, non-virtual.  tests the FetchUnitInterface
+
+    """
+
+    mmu = dut.submodules.mmu
+    ldst = dut.submodules.ldst
+    pi = ldst.pi
+    icache = dut.submodules.ldst.icache
+    wbget.stop = False
+
+
+    print("=== test loadstore instruction (real) ===")
+
+    i_in = icache.i_in
+    i_out  = icache.i_out
+    i_m_in = icache.m_in
+
+    yield from debug(dut, "real mem instruction")
+    # set address to zero, update mem[0] to 01234
+    addr = 8
+    expected_insn = 0x1234
+    mem[addr] = expected_insn
+
+    yield i_in.priv_mode.eq(1)
+    yield i_in.req.eq(0)  # NO, must use FetchUnitInterface
+    yield i_in.nia.eq(addr)  # NO, must use FetchUnitInterface
+    yield i_in.stop_mark.eq(0)  # NO, must use FetchUnitInterface
+    yield i_m_in.tlbld.eq(0)
+    yield i_m_in.tlbie.eq(0)
+    yield i_m_in.addr.eq(0)
+    yield i_m_in.pte.eq(0)
+    yield
+    yield
+    yield
+
+    # miss, stalls for a bit -- this one is different here
+    ##nia, insn, valid, failed = yield from icache_read(dut,addr,0,0)
+    ##assert(valid==0)
+    ##assert(failed==1)
+
+    yield i_in.req.eq(1)  # NO, must use FetchUnitInterface
+    yield i_in.nia.eq(addr)  # NO, must use FetchUnitInterface
+    yield
+    valid = yield i_out.valid  # NO, must use FetchUnitInterface
+    while not valid:  # NO, must use FetchUnitInterface
+        yield  # NO, must use FetchUnitInterface
+        valid = yield i_out.valid  # NO, must use FetchUnitInterface
+    yield i_in.req.eq(0)  # NO, must use FetchUnitInterface
+
+    nia   = yield i_out.nia  # NO, must use FetchUnitInterface
+    insn  = yield i_out.insn  # NO, must use FetchUnitInterface
+    yield
+    yield
+
+    print ("fetched %x from addr %x" % (insn, nia))
+    assert insn == expected_insn
+
+    print("=== test loadstore instruction (done) ===")
+
+    yield from debug(dut, "test done")
+    yield
+    yield
+
+    print ("failed?", "yes" if failed else "no")
+    assert failed == 0
+
+    print ("fetched %x from addr %x" % (insn, nia))
+    assert insn == expected_insn
+
+    wbget.stop = True
+
+
 def _test_loadstore1_ifetch(dut, mem):
     """test_loadstore1_ifetch
 
@@ -595,6 +670,30 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
     wbget.stop = True
 
 
+def test_loadstore1_ifetch_unit_iface():
+
+    m, cmpi = setup_mmu()
+
+    mem = pagetables.test1
+
+    # nmigen Simulation
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    icache = m.submodules.ldst.icache
+    icache.use_fetch_interface() # this is the function which converts
+                                 # to FetchUnitInterface. *including*
+                                 # rewiring the Wishbone Bus to ibus
+    sim.add_sync_process(wrap(_test_loadstore1_ifetch_iface(m, mem)))
+    # add two wb_get processes onto the *same* memory dictionary.
+    # this shouuuld work.... cross-fingers...
+    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get(icache.ibus, mem))) # ibus not bus
+    with sim.write_vcd('test_loadstore1_ifetch_iface.vcd',
+                      traces=[m.debug_status]): # include extra debug
+        sim.run()
+
+
 def test_loadstore1_ifetch():
 
     m, cmpi = setup_mmu()
@@ -674,5 +773,6 @@ if __name__ == '__main__':
     test_loadstore1()
     test_loadstore1_invalid()
     test_loadstore1_ifetch()
+    test_loadstore1_fetch_unit_iface()
     test_loadstore1_ifetch_invalid()
 
