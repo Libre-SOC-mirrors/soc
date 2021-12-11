@@ -130,25 +130,25 @@ def _test_loadstore1_ifetch_iface(dut, mem):
     i_m_in = icache.m_in
 
     yield from debug(dut, "real mem instruction")
-    # set address to 0x8, update mem[0x8] to 01234
+    # set address to 0x8, update mem[0x8] to 01234 | 0x5678<<32
+    # (have to do 64-bit writes into the dictionary-memory-emulated-thing)
     addr = 8
-    expected_insn = 0x1234
-    mem[addr] = expected_insn
-    # set address to 0xc, update mem[0xc] to 5678
     addr2 = 12
     expected_insn2 = 0x5678
-    mem[addr2] = expected_insn2
+    expected_insn = 0x1234
+    mem[addr] = expected_insn | expected_insn2<<32
 
     yield i_in.priv_mode.eq(1)
-    insn = yield from read_from_addr(icache, addr)
+    insn = yield from read_from_addr(icache, addr, stall=False)
 
     nia   = yield i_out.nia  # NO, must use FetchUnitInterface
     print ("fetched %x from addr %x" % (insn, nia))
     assert insn == expected_insn
 
     print("=== test loadstore instruction (2nd, real) ===")
+    yield from debug(dut, "real mem 2nd (addr 0xc)")
 
-    insn2 = yield from read_from_addr(icache, addr2)
+    insn2 = yield from read_from_addr(icache, addr2, stall=False)
 
     nia   = yield i_out.nia  # NO, must use FetchUnitInterface
     print ("fetched %x from addr2 %x" % (insn2, nia))

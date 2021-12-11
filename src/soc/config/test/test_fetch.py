@@ -13,13 +13,14 @@ import sys
 sys.setrecursionlimit(10**6)
 
 
-def read_from_addr(dut, addr):
+def read_from_addr(dut, addr, stall=True):
     yield dut.a_pc_i.eq(addr)
     yield dut.a_i_valid.eq(1)
     yield dut.f_i_valid.eq(1)
-    yield dut.a_stall_i.eq(1)
-    yield
-    yield dut.a_stall_i.eq(0)
+    if stall:
+        yield dut.a_stall_i.eq(1)
+        yield
+        yield dut.a_stall_i.eq(0)
     yield
     yield Settle()
     while (yield dut.f_busy_o):
