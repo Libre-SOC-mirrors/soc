@@ -874,7 +874,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         comb += self.f_fetch_err_o.eq(i_out.fetch_failed)
         comb += self.f_badaddr_o.eq(i_out.nia)
         comb += self.f_instr_o.eq(i_out.insn)
-        comb += self.f_busy_o.eq(i_out.valid) # probably
+        comb += self.f_busy_o.eq(~i_out.valid) # probably
 
         # TODO, connect dcache wb_in/wb_out to "standard" nmigen Wishbone bus
         ibus = self.ibus
