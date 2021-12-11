@@ -18,6 +18,10 @@ class ConfigFetchUnit:
                    'bare_wb': BareFetchUnit,
                    #'test_cache_wb': TestCacheFetchUnit
                   }
+        if self.pspec.imem_ifacetype in ['mmu_cache_wb', 'test_mmu_cache_wb']:
+            self.fu = self.lsmem.lsi.icache # ICache already FetchUnitInterface
+            return
+
         fukls = fudict[pspec.imem_ifacetype]
         self.fu = fukls(pspec)
 
