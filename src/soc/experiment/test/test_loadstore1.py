@@ -190,6 +190,13 @@ def _test_loadstore1_ifetch_multi(dut, mem):
     yield
     # TODO fetch instructions from multiple addresses
     # should cope with some addresses being invalid
+    addrs = [0x10200,0x10204,10208,10200]
+    for addr in addrs:
+        yield from debug(dut, "TODO_fetch_from "+hex(addrs))
+        # use the new interface in this test
+        yield
+        yield
+        yield
 
 def _test_loadstore1_ifetch(dut, mem):
     """test_loadstore1_ifetch
