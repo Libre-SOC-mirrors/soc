@@ -8,6 +8,7 @@ related bugs:
 from nmigen import Module, Signal
 from nmigen.hdl.xfrm import ResetInserter
 from copy import copy
+from pprint import pprint
 
 # NOTE: to use cxxsim, export NMIGEN_SIM_MODE=cxxsim from the shell
 # Also, check out the cxxsim nmigen branch, and latest yosys from git
@@ -125,6 +126,7 @@ class HDLRunner(StateRunner):
         super().__init__("hdl", HDLRunner)
 
         self.dut = dut
+        self.pspec = pspec
         self.pc_i = Signal(32)
         self.svstate_i = Signal(64)
 
@@ -142,6 +144,7 @@ class HDLRunner(StateRunner):
 
     def prepare_for_test(self, test):
         self.test = test
+        #print ("preparing for test name", test.name)
 
         # set up bigendian (TODO: don't do this, use MSR)
         yield self.issuer.core_bigendian_i.eq(bigendian)
@@ -151,16 +154,25 @@ class HDLRunner(StateRunner):
         yield
         yield
         yield
+        #print ("end of test preparation", test.name)
 
     def setup_during_test(self):
         yield from set_dmi(self.dmi, DBGCore.CTRL, 1 << DBGCtrl.STOP)
         yield
+        #print("test setup")
 
     def run_test(self, instructions):
         """run_hdl_state - runs a TestIssuer nmigen HDL simulation
         """
 
-        imem = self.issuer.imem._get_memory()
+        #print("starting test")
+
+        if self.dut.rom is None:
+            imem = self.issuer.imem._get_memory()
+            #print("got memory", imem)
+        else:
+            print("skipping memory get due to rom")
+            pprint(self.dut.rom)
         core = self.issuer.core
         dmi = self.issuer.dbg.dmi
         pdecode2 = self.issuer.pdecode2
@@ -172,9 +184,14 @@ class HDLRunner(StateRunner):
         pc = 0  # start address
         counter = 0  # test to pause/start
 
-        yield from setup_i_memory(imem, pc, instructions)
-        yield from setup_tst_memory(l0, self.test.mem)
+        # XXX for now, when ROM (run under wb_get) is detected,
+        # skip setup of memories.  must be done a different way
+        if not self.dut.rom:
+            yield from setup_i_memory(imem, pc, instructions)
+            yield from setup_tst_memory(l0, self.test.mem)
+        #print("about to setup regs")
         yield from setup_regs(pdecode2, core, self.test)
+        #print("setup mem and regs done")
 
         # set PC and SVSTATE
         yield self.pc_i.eq(pc)
