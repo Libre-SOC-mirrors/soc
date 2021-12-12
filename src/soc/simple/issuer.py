@@ -892,7 +892,14 @@ class TestIssuerInternal(Elaboratable):
                     # nothing else needs to be done other than to note
                     # the change of PC and MSR (and, later, SVSTATE)
                     with m.If(exc_happened):
-                        sync += pdecode2.ldst_exc.eq(core.fus.get_exc("ldst0"))
+                        mmu = core.fus.get_exc("mmu0")
+                        ldst = core.fus.get_exc("ldst0")
+                        with m.If(fetch_failed):
+                            # instruction fetch: exception is from MMU
+                            sync += pdecode2.ldst_exc.eq(mmu)
+                        with m.Else():
+                            # otherwise assume it was a LDST exception
+                            sync += pdecode2.ldst_exc.eq(ldst)
 
                     with m.If(exec_pc_o_valid):
 
