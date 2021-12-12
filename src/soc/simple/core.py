@@ -198,6 +198,7 @@ class NonProductionCore(ControlBase):
                                             svp64_en=self.svp64_en,
                                             regreduce_en=self.regreduce_en)
             self.des[funame] = self.decoders[funame].do
+            print ("create decoder subset", funame, opkls, self.des[funame])
 
         # create per-Function Unit write-after-write hazard signals
         # yes, really, this should have been added in ReservationStations
@@ -422,6 +423,20 @@ class NonProductionCore(ControlBase):
                                     # is a waw hazard. decoder has to still
                                     # be asserted in order to detect that, tho
                                     comb += fu.oper_i.eq_from(do)
+                                    if funame == 'mmu0':
+                                        # URRR this is truly dreadful.
+                                        # OP_FETCH_FAILED is a "fake" op.
+                                        # no instruction creates it.  OP_TRAP
+                                        # uses the *main* decoder: this is
+                                        # a *Satellite* decoder that reacts
+                                        # on *insn_in*... not fake ops. gaah.
+                                        main_op = self.ireg.e.do
+                                        with m.If(main_op.insn_type ==
+                                                  MicrOp.OP_FETCH_FAILED):
+                                            comb += fu.oper_i.insn_type.eq(
+                                                  MicrOp.OP_FETCH_FAILED)
+                                            comb += fu.oper_i.fn_unit.eq(
+                                                  Function.MMU)
                                     # issue when valid (and no write-hazard)
                                     comb += fu.issue_i.eq(~self.waw_hazard)
                                     # instruction ok, indicate ready

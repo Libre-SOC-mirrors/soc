@@ -206,7 +206,7 @@ class FetchFSM(ControlBase):
         m = super().elaborate(platform)
 
         dbg = self.dbg
-        core = self.core,
+        core = self.core
         pc = self.i.pc
         svstate = self.svstate
         nia = self.nia
@@ -224,6 +224,12 @@ class FetchFSM(ControlBase):
 
         msr_read = Signal(reset=1)
 
+        # also note instruction fetch failed
+        if hasattr(core, "icache"):
+            fetch_failed = core.icache.i_out.fetch_failed
+        else:
+            fetch_failed = Const(0, 1)
+
         # don't read msr every cycle
         staterf = self.core.regs.rf['state']
         state_r_msr = staterf.r_ports['msr']  # MSR rd
@@ -234,9 +240,9 @@ class FetchFSM(ControlBase):
 
             # waiting (zzz)
             with m.State("IDLE"):
-                with m.If(~dbg.stopping_o):
+                with m.If(~dbg.stopping_o & ~fetch_failed):
                     comb += fetch_pc_o_ready.eq(1)
-                with m.If(fetch_pc_i_valid):
+                with m.If(fetch_pc_i_valid & ~fetch_failed):
                     # instruction allowed to go: start by reading the PC
                     # capture the PC and also drop it into Insn Memory
                     # we have joined a pair of combinatorial memory
@@ -267,13 +273,15 @@ class FetchFSM(ControlBase):
                     with m.If(~msr_read):
                         sync += msr_read.eq(1)  # yeah don't read it again
                         sync += cur_state.msr.eq(state_r_msr.o_data)
-                    with m.If(self.imem.f_busy_o):  # zzz...
-                        # busy: stay in wait-read
+                    with m.If(self.imem.f_busy_o & ~fetch_failed):  # zzz...
+                        # busy but not fetch failed: stay in wait-read
                         comb += self.imem.a_i_valid.eq(1)
                         comb += self.imem.f_i_valid.eq(1)
                     with m.Else():
-                        # not busy: instruction fetched
-                        insn = get_insn(self.imem.f_instr_o, cur_state.pc)
+                        # not busy (or fetch failed!): instruction fetched
+                        # when fetch failed, the instruction gets ignored
+                        # by the decoder
+                        insn = ~get_insn(self.imem.f_instr_o, cur_state.pc)
                         if self.svp64_en:
                             svp64 = self.svp64
                             # decode the SVP64 prefix, if any
