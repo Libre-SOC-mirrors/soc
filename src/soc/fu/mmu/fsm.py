@@ -91,11 +91,11 @@ class FSMMMUStage(ControlBase):
         op = i_data.ctx.op
         nia_i = op.nia
         a_i, b_i, spr1_i = i_data.ra, i_data.rb, i_data.spr1
-        o, spr1_o = o_data.o, o_data.spr1
+        o, exc_o, spr1_o = o_data.o, o_data.exception, o_data.spr1
 
         # busy/done signals
-        busy = Signal()
-        done = Signal()
+        busy = Signal(name="mmu_fsm_busy")
+        done = Signal(name="mmu_fsm_done")
         m.d.comb += self.n.o_valid.eq(busy & done)
         m.d.comb += self.p.o_ready.eq(~busy)
 
@@ -223,8 +223,11 @@ class FSMMMUStage(ControlBase):
                     comb += valid.eq(1)   # start "pulse"
                     comb += ldst.instr_fault.eq(blip)
                     comb += ldst.maddr.eq(nia_i)
-                    comb += done.eq(ldst.done) # zzzz
+                    comb += done.eq(mmu.d_in.done) # XXX should not access this!
                     comb += self.debug0.eq(3)
+                    # LDST unit contains exception data, which (messily)
+                    # is copied over, here.  not ideal but it will do for now
+                    comb += exc_o.eq(ldst.pi.exc_o)
 
                 ############
                 # OP_ILLEGAL
