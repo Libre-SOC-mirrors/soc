@@ -45,6 +45,7 @@ class FSMMMUStage(ControlBase):
         # set up p/n data
         self.p.i_data = MMUInputData(pspec)
         self.n.o_data = MMUOutputData(pspec)
+        self.exc_o = self.n.o_data.exception # AllFunctionUnits needs this
 
         self.mmu = MMU()
 

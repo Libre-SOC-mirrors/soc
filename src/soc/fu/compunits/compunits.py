@@ -242,6 +242,7 @@ class MMUFSMFunctionUnit(FunctionUnitBaseSingle):
 
     def __init__(self, idx, parent_pspec):
         super().__init__(MMUPipeSpec, FSMMMUStage, idx, parent_pspec)
+        self.exc_o = self.alu.exc_o # get at MMU exception
 
 
 class DivPipeFunctionUnit(FunctionUnitBaseSingle):
