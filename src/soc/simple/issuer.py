@@ -712,7 +712,9 @@ class TestIssuerInternal(Elaboratable):
             fetch_failed = Const(0, 1)
         # set to fault in decoder
         # update (highest priority) instruction fault
-        comb += pdecode2.instr_fault.eq(fetch_failed)
+        rising_fetch_failed = rising_edge(m, fetch_failed)
+        with m.If(rising_fetch_failed):
+            sync += pdecode2.instr_fault.eq(1)
 
         with m.FSM(name="issue_fsm"):
 
@@ -720,6 +722,8 @@ class TestIssuerInternal(Elaboratable):
             # at this point, there is no instruction running, that
             # could inadvertently update the PC.
             with m.State("ISSUE_START"):
+                # reset instruction fault
+                sync += pdecode2.instr_fault.eq(0)
                 # wait on "core stop" release, before next fetch
                 # need to do this here, in case we are in a VL==0 loop
                 with m.If(~dbg.core_stop_o & ~core_rst):
@@ -896,7 +900,9 @@ class TestIssuerInternal(Elaboratable):
                         ldst = core.fus.get_exc("ldst0")
                         with m.If(fetch_failed):
                             # instruction fetch: exception is from MMU
+                            # reset instr_fault (highest priority)
                             sync += pdecode2.ldst_exc.eq(mmu)
+                            sync += pdecode2.instr_fault.eq(0)
                         with m.Else():
                             # otherwise assume it was a LDST exception
                             sync += pdecode2.ldst_exc.eq(ldst)
