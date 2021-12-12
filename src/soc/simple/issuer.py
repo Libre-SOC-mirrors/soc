@@ -281,7 +281,7 @@ class FetchFSM(ControlBase):
                         # not busy (or fetch failed!): instruction fetched
                         # when fetch failed, the instruction gets ignored
                         # by the decoder
-                        insn = ~get_insn(self.imem.f_instr_o, cur_state.pc)
+                        insn = get_insn(self.imem.f_instr_o, cur_state.pc)
                         if self.svp64_en:
                             svp64 = self.svp64
                             # decode the SVP64 prefix, if any
