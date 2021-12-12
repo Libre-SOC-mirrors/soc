@@ -13,6 +13,7 @@ Links:
 from soc.fu.pipe_data import FUBaseData
 from soc.fu.mmu.mmu_input_record import CompMMUOpSubset
 from soc.fu.alu.pipe_data import CommonPipeSpec
+from openpower.exceptions import LDSTException
 
 
 class MMUInputData(FUBaseData):
@@ -32,7 +33,7 @@ class MMUOutputData(FUBaseData):
                ('SPR', 'spr1', '0:63'),     # MMU (slow)
                ]
     def __init__(self, pspec):
-        super().__init__(pspec, True)
+        super().__init__(pspec, True, LDSTException)
 
 
 class MMUPipeSpec(CommonPipeSpec):
