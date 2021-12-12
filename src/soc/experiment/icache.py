@@ -890,7 +890,6 @@ class ICache(FetchUnitInterface, Elaboratable):
         if hasattr(ibus, "stall"):
             comb += self.bus.stall.eq(ibus.stall)
 
-
         return m
 
 

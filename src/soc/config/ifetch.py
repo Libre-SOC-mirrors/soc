@@ -20,9 +20,11 @@ class ConfigFetchUnit:
                   }
         self.pspec = pspec
         if self.pspec.imem_ifacetype in ['mmu_cache_wb', 'test_mmu_cache_wb']:
-            self.fu = self.lsmem.lsi.icache # ICache already FetchUnitInterface
+            # XXX BLECH! use pspec to transfer the I-Cache which is
+            # created down inside LoadStore1!
+            self.fu = icache = pspec.icache # ICache already FetchUnitInterface
             # tell I-Cache to connect up to its FetchUnitInterface
-            self.fu.use_fetch_interface()
+            icache.use_fetch_interface()
             return
 
         fukls = fudict[pspec.imem_ifacetype]

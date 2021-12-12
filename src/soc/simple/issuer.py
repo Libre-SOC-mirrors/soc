@@ -48,7 +48,7 @@ from soc.bus.SPBlock512W64B8W import SPBlock512W64B8W
 from soc.clock.select import ClockSelect
 from soc.clock.dummypll import DummyPLL
 from openpower.sv.svstate import SVSTATERec
-
+from soc.experiment.icache import ICache
 
 from nmutil.util import rising_edge
 
@@ -433,6 +433,10 @@ class TestIssuerInternal(Elaboratable):
             self.svp64 = SVP64PrefixDecoder()  # for decoding SVP64 prefix
 
         # Test Instruction memory
+        if hasattr(core, "icache"):
+            # XXX BLECH! use pspec to transfer the I-Cache to ConfigFetchUnit
+            # truly dreadful.  needs a huge reorg.
+            pspec.icache = core.icache
         self.imem = ConfigFetchUnit(pspec).fu
 
         # DMI interface
@@ -1017,7 +1021,10 @@ class TestIssuerInternal(Elaboratable):
         dbd = DomainRenamer(self.dbg_domain)
 
         m.submodules.core = core = csd(self.core)
-        m.submodules.imem = imem = csd(self.imem)
+        # this _so_ needs sorting out.  ICache is added down inside
+        # LoadStore1 and is already a submodule of LoadStore1
+        if not isinstance(self.imem, ICache):
+            m.submodules.imem = imem = csd(self.imem)
         m.submodules.dbg = dbg = dbd(self.dbg)
         if self.jtag_en:
             m.submodules.jtag = jtag = dbd(self.jtag)

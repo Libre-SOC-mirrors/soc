@@ -156,6 +156,8 @@ class NonProductionCore(ControlBase):
             lsi = l0.cmpi.lsmem.lsi # a LoadStore1 Interface object
             print ("core lsmem.lsi", lsi)
             mmu.alu.set_ldst_interface(lsi)
+            # urr store I-Cache in core so it is easier to get at
+            self.icache = lsi.icache
 
         # register files (yes plural)
         self.regs = RegFiles(pspec, make_hazard_vecs=self.make_hazard_vecs)
