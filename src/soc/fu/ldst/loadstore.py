@@ -57,6 +57,7 @@ class LDSTRequest(RecordObject):
         self.nc            = Signal()              # non-cacheable access
         self.virt_mode     = Signal()
         self.priv_mode     = Signal()
+        self.mode_32bit    = Signal() # XXX UNUSED AT PRESENT
         self.align_intr    = Signal()
 
 
@@ -111,6 +112,7 @@ class LoadStore1(PortInterfaceBase):
         self.nc            = Signal()              # non-cacheable access
         self.virt_mode     = Signal()
         self.priv_mode     = Signal()
+        self.mode_32bit    = Signal() # XXX UNUSED AT PRESENT
         self.state         = Signal(State)
         self.instr_fault   = Signal()  # indicator to request i-cache MMU lookup
         self.r_instr_fault  = Signal() # accessed in external_busy
@@ -118,7 +120,6 @@ class LoadStore1(PortInterfaceBase):
         self.busy          = Signal()
         self.wait_dcache   = Signal()
         self.wait_mmu      = Signal()
-        #self.mode_32bit    = Signal()
         #self.intr_vec     : integer range 0 to 16#fff#;
         #self.nia           = Signal(64)
         #self.srr1          = Signal(16)
@@ -136,12 +137,13 @@ class LoadStore1(PortInterfaceBase):
     def external_busy(self, m):
         return self.instr_fault | self.r_instr_fault
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz):
+    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz):
         m.d.comb += self.req.load.eq(0) # store operation
         m.d.comb += self.req.byte_sel.eq(mask)
         m.d.comb += self.req.addr.eq(addr)
-        m.d.comb += self.req.priv_mode.eq(~msr_pr) # not-problem  ==> priv
-        m.d.comb += self.req.virt_mode.eq(msr_pr) # problem-state ==> virt
+        m.d.comb += self.req.priv_mode.eq(~msr.pr) # not-problem  ==> priv
+        m.d.comb += self.req.virt_mode.eq(msr.dr) # DR ==> virt
+        m.d.comb += self.req.mode_32bit.eq(~msr.sf) # not-sixty-four ==> 32bit
         m.d.comb += self.req.align_intr.eq(misalign)
         m.d.comb += self.req.dcbz.eq(is_dcbz)
 
@@ -152,14 +154,15 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += self.req.nc.eq(1)
         return None
 
-    def set_rd_addr(self, m, addr, mask, misalign, msr_pr):
+    def set_rd_addr(self, m, addr, mask, misalign, msr):
         m.d.comb += self.d_valid.eq(1)
         m.d.comb += self.req.load.eq(1) # load operation
         m.d.comb += self.req.byte_sel.eq(mask)
         m.d.comb += self.req.align_intr.eq(misalign)
         m.d.comb += self.req.addr.eq(addr)
-        m.d.comb += self.req.priv_mode.eq(~msr_pr) # not-problem  ==> priv
-        m.d.comb += self.req.virt_mode.eq(msr_pr) # problem-state ==> virt
+        m.d.comb += self.req.priv_mode.eq(~msr.pr) # not-problem  ==> priv
+        m.d.comb += self.req.virt_mode.eq(msr.dr) # DR ==> virt
+        m.d.comb += self.req.mode_32bit.eq(~msr.sf) # not-sixty-four ==> 32bit
         # BAD HACK! disable cacheing on LD when address is 0xCxxx_xxxx
         # this is for peripherals. same thing done in Microwatt loadstore1.vhdl
         with m.If(addr[28:] == Const(0xc, 4)):
