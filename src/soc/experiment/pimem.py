@@ -183,8 +183,8 @@ class PortInterfaceBase(Elaboratable):
     def connect_port(self, inport):
         return self.pi.connect_port(inport)
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz): pass
-    def set_rd_addr(self, m, addr, mask, misalign, msr_pr): pass
+    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz): pass
+    def set_rd_addr(self, m, addr, mask, misalign, msr): pass
     def set_wr_data(self, m, data, wen): pass
     def get_rd_data(self, m): pass
 
@@ -364,11 +364,11 @@ class TestMemoryPortInterface(PortInterfaceBase):
         # hard-code memory addressing width to 6 bits
         self.mem = TestMemory(regwid, 5, granularity=regwid//8, init=False)
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz):
+    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz):
         lsbaddr, msbaddr = self.splitaddr(addr)
         m.d.comb += self.mem.wrport.addr.eq(msbaddr)
 
-    def set_rd_addr(self, m, addr, mask, misalign, msr_pr):
+    def set_rd_addr(self, m, addr, mask, misalign, msr):
         lsbaddr, msbaddr = self.splitaddr(addr)
         m.d.comb += self.mem.rdport.addr.eq(msbaddr)
 
