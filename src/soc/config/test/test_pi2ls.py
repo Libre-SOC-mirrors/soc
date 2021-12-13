@@ -44,7 +44,7 @@ def wait_ldok(port):
         yield
 
 
-def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
+def pi_st(port1, addr, data, datalen, msr, is_dcbz=0):
 
     # have to wait until not busy
     yield from wait_busy(port1,debug="pi_st_A") # wait while busy
@@ -53,7 +53,9 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.is_dcbz_i.eq(is_dcbz)  # reset dcbz too
     yield port1.is_st_i.eq(1)  # indicate ST
     yield port1.data_len.eq(datalen)  # ST length (1/2/4/8)
-    yield port1.priv_mode.eq(~msr_pr)  # MSR PR bit (1==>virt, 0==>real)
+    yield port1.priv_mode.eq(~msr.pr)
+    yield port1.virt_mode.eq(msr.dr)
+    yield port1.mode_32bit.eq(~msr.sf)
 
     yield port1.addr.data.eq(addr)  # set address
     yield port1.addr.ok.eq(1)  # set ok
@@ -131,7 +133,7 @@ def get_exception_info(exc_o):
 
 # copy of pi_st removed
 
-def pi_ld(port1, addr, datalen, msr_pr=0):
+def pi_ld(port1, addr, datalen, msr):
 
     # have to wait until not busy
     yield from wait_busy(port1,debug="pi_ld_A") # wait while busy
@@ -139,7 +141,9 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     # set up a LD on the port.  address first:
     yield port1.is_ld_i.eq(1)  # indicate LD
     yield port1.data_len.eq(datalen)  # LD length (1/2/4/8)
-    yield port1.priv_mode.eq(~msr_pr)  # MSR PR bit (1==>virt, 0==>real)
+    yield port1.priv_mode.eq(~msr.pr)
+    yield port1.virt_mode.eq(msr.dr)
+    yield port1.mode_32bit.eq(~msr.sf)
 
     yield port1.addr.data.eq(addr)  # set address
     yield port1.addr.ok.eq(1)  # set ok
@@ -177,7 +181,7 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     return data, None, None
 
 
-def pi_ldst(arg, dut, msr_pr=0):
+def pi_ldst(arg, dut, msr):
 
     # do two half-word stores at consecutive addresses, then two loads
     addr1 = 0x04
@@ -185,10 +189,10 @@ def pi_ldst(arg, dut, msr_pr=0):
     data = 0xbeef
     data2 = 0xf00f
     #data = 0x4
-    assert(yield from pi_st(dut, addr1, data, 2, msr_pr) is None)
-    assert(yield from pi_st(dut, addr2, data2, 2, msr_pr) is None)
-    result, exc = yield from pi_ld(dut, addr1, 2, msr_pr)
-    result2, exc2 = yield from pi_ld(dut, addr2, 2, msr_pr)
+    assert(yield from pi_st(dut, addr1, data, 2, msr) is None)
+    assert(yield from pi_st(dut, addr2, data2, 2, msr) is None)
+    result, exc = yield from pi_ld(dut, addr1, 2, msr)
+    result2, exc2 = yield from pi_ld(dut, addr2, 2, msr)
     assert(exc is None)
     assert(exc2 is None)
     arg.assertEqual(data, result, "data %x != %x" % (result, data))
@@ -196,7 +200,7 @@ def pi_ldst(arg, dut, msr_pr=0):
 
     # now load both in a 32-bit load to make sure they're really consecutive
     data3 = data | (data2 << 16)
-    result3, exc3 = yield from pi_ld(dut, addr1, 4, msr_pr)
+    result3, exc3 = yield from pi_ld(dut, addr1, 4, msr)
     assert(exc3 is None)
     arg.assertEqual(data3, result3, "data3 %x != %x" % (result3, data3))
 
