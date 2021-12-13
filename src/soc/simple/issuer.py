@@ -227,8 +227,10 @@ class FetchFSM(ControlBase):
         # also note instruction fetch failed
         if hasattr(core, "icache"):
             fetch_failed = core.icache.i_out.fetch_failed
+            flush_needed = True
         else:
             fetch_failed = Const(0, 1)
+            flush_needed = False
 
         # don't read msr every cycle
         staterf = self.core.regs.rf['state']
@@ -708,8 +710,10 @@ class TestIssuerInternal(Elaboratable):
         # also note instruction fetch failed
         if hasattr(core, "icache"):
             fetch_failed = core.icache.i_out.fetch_failed
+            flush_needed = True
         else:
             fetch_failed = Const(0, 1)
+            flush_needed = False
         # set to fault in decoder
         # update (highest priority) instruction fault
         rising_fetch_failed = rising_edge(m, fetch_failed)
@@ -855,6 +859,8 @@ class TestIssuerInternal(Elaboratable):
             # to decode the instruction
             with m.State("DECODE_SV"):
                 # decode the instruction
+                with m.If(~fetch_failed):
+                    sync += pdecode2.instr_fault.eq(0)
                 sync += core.i.e.eq(pdecode2.e)
                 sync += core.i.state.eq(cur_state)
                 sync += core.i.raw_insn_i.eq(dec_opcode_i)
@@ -903,6 +909,9 @@ class TestIssuerInternal(Elaboratable):
                             # reset instr_fault (highest priority)
                             sync += pdecode2.ldst_exc.eq(mmu)
                             sync += pdecode2.instr_fault.eq(0)
+                            if flush_needed:
+                                # request the icache to stop asserting "failed"
+                                comb += core.icache.flush_in.eq(1)
                         with m.Else():
                             # otherwise assume it was a LDST exception
                             sync += pdecode2.ldst_exc.eq(ldst)
