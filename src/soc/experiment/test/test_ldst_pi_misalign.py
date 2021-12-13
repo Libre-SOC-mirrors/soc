@@ -27,6 +27,8 @@ from nmigen.compat.sim import run_simulation
 from openpower.test.wb_get import wb_get
 from openpower.test import wb_get as wbget
 
+msr_default = MSRSpec(pr=1, dr=0, sf=1) # 64 bit by default
+
 
 wbget.stop = False
 
@@ -76,21 +78,21 @@ def ldst_sim_misalign(dut):
     # load 8 bytes at aligned address
     align_addr = 0x1000
     data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
-                                          align_addr, 8, msr_pr=1)
+                                          align_addr, 8, msr=msr_default)
     print ("ldst_sim_misalign (aligned)", hex(data), exctype, exc)
     assert data == 0xdeadbeef01234567
 
     # load 4 bytes at aligned address
     align_addr = 0x1004
     data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
-                                          align_addr, 4, msr_pr=1)
+                                          align_addr, 4, msr=msr_default)
     print ("ldst_sim_misalign (aligned)", hex(data), exctype, exc)
     assert data == 0xdeadbeef
 
     # load 8 bytes at *mis*-aligned address
     misalign_addr = 0x1004
     data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
-                                          misalign_addr, 8, msr_pr=1)
+                                          misalign_addr, 8, msr=msr_default)
     print ("ldst_sim_misalign", data, exctype, exc)
     yield
     dar = yield dut.submodules.ldst.dar
