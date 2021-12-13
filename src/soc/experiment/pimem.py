@@ -228,6 +228,7 @@ class PortInterfaceBase(Elaboratable):
         pr = ~pi.priv_mode
         dr = pi.virt_mode   # not yet used
         sf = pi.mode_32bit   # not yet used
+        msr = MSRSpec(pr=pr, dr=dr, sf=sf)
 
         # detect busy "edge"
         busy_delay = Signal()
