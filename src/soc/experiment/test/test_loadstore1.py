@@ -654,7 +654,7 @@ def _test_loadstore1_ifetch_invalid(dut, mem):
     yield ldst.priv_mode.eq(0)
     yield ldst.instr_fault.eq(1)
     yield ldst.maddr.eq(virt_addr)
-    #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=1)
+    #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr=msr)
     yield
     yield ldst.instr_fault.eq(0)
     while True:
