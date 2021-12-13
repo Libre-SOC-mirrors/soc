@@ -336,7 +336,7 @@ def _test_loadstore1_ifetch(dut, mem):
     yield ldst.priv_mode.eq(0)
     yield ldst.instr_fault.eq(1)
     yield ldst.maddr.eq(virt_addr)
-    #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=1)
+    #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=0)
     yield
     yield ldst.instr_fault.eq(0)
     while True:
@@ -411,7 +411,7 @@ def _test_loadstore1_invalid(dut, mem):
     print("=== test invalid ===")
 
     addr = 0
-    msr = MSRSpec(pr=1, dr=0, sf=0)
+    msr = MSRSpec(pr=1, dr=0, sf=0) # set problem-state
     ld_data, exctype, exc = yield from pi_ld(pi, addr, 8, msr=msr)
     print("ld_data", ld_data, exctype, exc)
     assert (exctype == "slow")
@@ -436,7 +436,7 @@ def _test_loadstore1(dut, mem):
     data = 0xf553b658ba7e1f51
 
     if test_dcbz:
-        msr = MSRSpec(pr=1, dr=0, sf=0)
+        msr = MSRSpec(pr=0, dr=0, sf=0)
         yield from pi_st(pi, addr, data, 8, msr=msr)
         yield
 
@@ -816,8 +816,8 @@ def test_loadstore1_ifetch_multi():
 
 if __name__ == '__main__':
     test_loadstore1()
-    #test_loadstore1_invalid()
-    #test_loadstore1_ifetch()
-    #test_loadstore1_ifetch_invalid()
-    #test_loadstore1_ifetch_multi()
-    #test_loadstore1_ifetch_unit_iface()
+    test_loadstore1_invalid()
+    test_loadstore1_ifetch()
+    test_loadstore1_ifetch_invalid()
+    test_loadstore1_ifetch_multi()
+    test_loadstore1_ifetch_unit_iface()
