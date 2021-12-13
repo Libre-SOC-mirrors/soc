@@ -25,6 +25,7 @@ from nmigen.utils import log2_int
 from nmutil.latch import SRLatch, latchregister
 from nmutil.util import rising_edge
 from openpower.decoder.power_decoder2 import Data
+from openpower.decoder.power_enums import MSRSpec
 from soc.scoreboard.addr_match import LenExpand
 from soc.experiment.mem_types import LDSTException
 
