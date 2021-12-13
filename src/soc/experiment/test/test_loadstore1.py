@@ -166,19 +166,39 @@ def _test_loadstore1_ifetch_iface(dut, mem):
     wbget.stop = True
 
 def _test_loadstore1_ifetch_multi(dut, mem):
+    mmu = dut.submodules.mmu
+    ldst = dut.submodules.ldst
+    pi = ldst.pi
+    icache = dut.submodules.ldst.icache
+    wbget.stop = False
+
+    i_in = icache.i_in
+    i_out  = icache.i_out
+    i_m_in = icache.m_in
+
     yield from debug(dut, "TODO")
     yield
     yield
     yield
     # TODO fetch instructions from multiple addresses
     # should cope with some addresses being invalid
-    addrs = [0x10200,0x10204,10208,10200]
+    #addrs = [0x10200,0x10204,10208,10200]
+    addrs = [0,4,8,0]
+
+    mem[0x10200]=0xFF00FF00EE00EE00EE
+    mem[0]=0xFF00FF00EE00EE00EE
+
+    yield i_in.priv_mode.eq(1)
+
     for addr in addrs:
-        yield from debug(dut, "TODO_fetch_from "+hex(addr))
+        yield from debug(dut, "BROKEN_fetch_from "+hex(addr))
         # use the new interface in this test
-        yield
-        yield
-        yield
+
+        #broken: does not use wishbone yet - investigate
+        insn = yield from read_from_addr(icache, addr, stall=False)
+
+        nia   = yield i_out.nia  # NO, must use FetchUnitInterface
+        print ("fetched %x from addr %x" % (insn, nia))
 
     wbget.stop = True
 
@@ -779,6 +799,8 @@ def test_loadstore1_ifetch_multi():
     sim.add_clock(1e-6)
 
     icache = m.submodules.ldst.icache
+    icache.use_fetch_interface() # see test_loadstore1_ifetch_unit_iface():
+
     sim.add_sync_process(wrap(_test_loadstore1_ifetch_multi(m, mem)))
     # add two wb_get processes onto the *same* memory dictionary.
     # this shouuuld work.... cross-fingers...
