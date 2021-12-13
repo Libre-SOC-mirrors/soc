@@ -28,6 +28,8 @@ from soc.experiment.mmu import MMU
 
 from nmigen.compat.sim import run_simulation
 
+msr_default = MSRSpec(pr=1, dr=0, sf=1) # 64 bit by default
+
 
 wbget.stop = False
 
@@ -45,7 +47,7 @@ def mmu_lookup(dut, addr):
     mmu = dut.submodules.mmu
 
     print("pi_ld", hex(addr))
-    data, _, _ = yield from pi_ld(dut.submodules.ldst.pi, addr, 4, msr_pr=1)
+    data, _, _ = yield from pi_ld(dut.submodules.ldst.pi, addr, 4, msr=msr_default)
     print("pi_ld done, data", hex(data))
     """
     # original test code kept for reference
@@ -103,7 +105,7 @@ def ldst_sim(dut):
     data = yield from mmu_lookup(dut, addr+8)
     assert data == 0xf001a5a5
 
-    yield from pi_st(dut.submodules.ldst.pi, addr+4, 0x10015a5a, 4, msr_pr=1)
+    yield from pi_st(dut.submodules.ldst.pi, addr+4, 0x10015a5a, 4, msr=msr_default)
 
     data = yield from mmu_lookup(dut, addr+4)
     assert data == 0x10015a5a
@@ -191,7 +193,7 @@ def ldst_sim_misalign(dut):
     yield mmu.rin.prtbl.eq(0x1000000) # set process table
     yield
 
-    data, _, _ = yield from pi_ld(dut.submodules.ldst.pi, 0x1007, 8, msr_pr=1)
+    data, _, _ = yield from pi_ld(dut.submodules.ldst.pi, 0x1007, 8, msr_default)
     print ("misalign ld data", data)
 
     yield
@@ -245,7 +247,7 @@ def ldst_sim_radixmiss(dut):
     yield
 
     data, _, _ = yield from pi_ld(dut.submodules.ldst.pi,
-                                  0x10000000, 8, msr_pr=1)
+                                  0x10000000, 8, msr=msr_default)
     print ("radixmiss ld data", data)
 
     yield
@@ -259,7 +261,7 @@ def ldst_sim_dcache_regression(dut):
     yield
 
     addr = 0x10000
-    data, _, _ = yield from pi_ld(dut.submodules.ldst.pi, addr, 8, msr_pr=1)
+    data, _, _ = yield from pi_ld(dut.submodules.ldst.pi, addr, 8, msr=msr_default)
     print ("=== dcache_regression ld data", data)
     assert(data == 0xdeadbeef01234567)
 
@@ -282,10 +284,10 @@ def ldst_sim_dcache_random(dut):
         addr *= 8
         addr += 0x10000
 
-        yield from pi_st(pi, addr, data, 8, msr_pr=1)
+        yield from pi_st(pi, addr, data, 8, msr=msr_default)
         yield
 
-        ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr=msr_default)
 
         eq = (data==ld_data)
         print ("dcache_random values", hex(addr), hex(data), hex(ld_data), eq)
@@ -307,10 +309,10 @@ def ldst_sim_dcache_first(dut): # this test is likely to fail
     data = 0x8c5a3e460d71f0b4
 
     # known to fail without bugfix in src/soc/fu/ldst/loadstore.py
-    yield from pi_st(pi, addr, data, 8, msr_pr=1)
+    yield from pi_st(pi, addr, data, 8, msr=msr_default)
     yield
 
-    ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr_pr=1)
+    ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr=msr_default)
 
     print ("addr",addr)
     print ("dcache_first ld data", hex(data), hex(ld_data))
@@ -465,7 +467,7 @@ def ldst_sim_dcache_random2(dut, mem):
             print("before_pi_st")
             yield
 
-        yield from pi_st(pi, addr, data, 8, msr_pr=1)
+        yield from pi_st(pi, addr, data, 8, msr=msr_default)
         yield
 
         for i in range(0,c2):
@@ -473,7 +475,7 @@ def ldst_sim_dcache_random2(dut, mem):
             yield
 
         print("== read: wb_get")
-        ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr_pr=1)
+        ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr=msr_default)
 
         #dumpmem(mem,"/tmp/dumpmem"+str(c)+".txt")
         #c += 1
