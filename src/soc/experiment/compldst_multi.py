@@ -103,7 +103,6 @@ from openpower.decoder.power_enums import MicrOp, Function, LDSTMode
 from soc.fu.ldst.ldst_input_record import CompLDSTOpSubset
 from openpower.decoder.power_decoder2 import Data
 from openpower.consts import MSR
-from openpower.power_enums import MSRSpec
 from soc.config.test.test_loadstore import TestMemPspec
 
 # for debugging dcbz
@@ -539,10 +538,15 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         sync += pi.addr.ok.eq(alu_ok & lsd_l.q)  # "do address stuff" (once)
         comb += self.exc_o.eq(pi.exc_o)  # exception occurred
         comb += addr_ok.eq(self.pi.addr_ok_o)  # no exc, address fine
-        # connect MSR.PR for priv/virt operation
-        comb += pi.priv_mode.eq(oper_r.msr[MSR.PR])
-        comb += Display("LDSTCompUnit: oper_r.msr %x pi.msr_pr=%x",
-                                      oper_r.msr, oper_r.msr[MSR.PR])
+        # connect MSR.PR etc. for priv/virt operation
+        comb += pi.priv_mode.eq(~oper_r.msr[MSR.PR])
+        comb += pi.virt_mode.eq(oper_r.msr[MSR.DR])
+        comb += pi.mode_32bit.eq(~oper_r.msr[MSR.SF])
+        sync += Display("LDSTCompUnit: oper_r.msr %x pr=%x dr=%x sf=%x",
+                                      oper_r.msr,
+                                      oper_r.msr[MSR.PR],
+                                      oper_r.msr[MSR.DR],
+                                      oper_r.msr[MSR.SF])
 
         # byte-reverse on LD
         revnorev = Signal(64, reset_less=True)
