@@ -85,18 +85,18 @@ class TestMicrowattMemoryPortInterface(PortInterfaceBase):
         self.mmu = mmu
         self.dcache = dcache
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr_pr, is_dcbz):
+    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz):
         m.d.comb += self.dcache.d_in.addr.eq(addr)
         m.d.comb += self.mmu.l_in.addr.eq(addr)
         m.d.comb += self.mmu.l_in.load.eq(0)
-        m.d.comb += self.mmu.l_in.priv.eq(1) # TODO put msr_pr here
+        m.d.comb += self.mmu.l_in.priv.eq(~msr.pr) # TODO verify
         m.d.comb += self.mmu.l_in.valid.eq(1)
 
-    def set_rd_addr(self, m, addr, mask, misalign, msr_pr):
+    def set_rd_addr(self, m, addr, mask, misalign, msr):
         m.d.comb += self.dcache.d_in.addr.eq(addr)
         m.d.comb += self.mmu.l_in.addr.eq(addr)
         m.d.comb += self.mmu.l_in.load.eq(1)
-        m.d.comb += self.mmu.l_in.priv.eq(1) # TODO put msr_pr here
+        m.d.comb += self.mmu.l_in.priv.eq(~msr.pr) # TODO verify
         m.d.comb += self.mmu.l_in.valid.eq(1)
 
     def set_wr_data(self, m, data, wen):
