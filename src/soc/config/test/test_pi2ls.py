@@ -53,7 +53,7 @@ def pi_st(port1, addr, data, datalen, msr_pr=0, is_dcbz=0):
     yield port1.is_dcbz_i.eq(is_dcbz)  # reset dcbz too
     yield port1.is_st_i.eq(1)  # indicate ST
     yield port1.data_len.eq(datalen)  # ST length (1/2/4/8)
-    yield port1.msr_pr.eq(msr_pr)  # MSR PR bit (1==>virt, 0==>real)
+    yield port1.priv_mode.eq(~msr_pr)  # MSR PR bit (1==>virt, 0==>real)
 
     yield port1.addr.data.eq(addr)  # set address
     yield port1.addr.ok.eq(1)  # set ok
@@ -139,7 +139,7 @@ def pi_ld(port1, addr, datalen, msr_pr=0):
     # set up a LD on the port.  address first:
     yield port1.is_ld_i.eq(1)  # indicate LD
     yield port1.data_len.eq(datalen)  # LD length (1/2/4/8)
-    yield port1.msr_pr.eq(msr_pr)  # MSR PR bit (1==>virt, 0==>real)
+    yield port1.priv_mode.eq(~msr_pr)  # MSR PR bit (1==>virt, 0==>real)
 
     yield port1.addr.data.eq(addr)  # set address
     yield port1.addr.ok.eq(1)  # set ok

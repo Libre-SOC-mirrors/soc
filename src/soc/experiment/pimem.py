@@ -117,7 +117,13 @@ class PortInterface(RecordObject):
 
         # additional "modes"
         self.is_nc         = Signal()  # no cacheing
-        self.msr_pr        = Signal()  # 1==virtual, 0==privileged
+
+        #only priv_mode = not msr_pr is used currently
+        # TODO: connect signals
+        self.virt_mode  = Signal() # ctrl.msr(MSR_DR);
+        self.priv_mode  = Signal() # not ctrl.msr(MSR_PR);
+        self.mode_32bit = Signal() # not ctrl.msr(MSR_SF);
+
         self.is_dcbz_i     = Signal(reset_less=True)
 
         # mmu
@@ -139,7 +145,9 @@ class PortInterface(RecordObject):
                 self.addr.data.eq(inport.addr.data),
                 self.addr.ok.eq(inport.addr.ok),
                 self.st.eq(inport.st),
-                self.msr_pr.eq(inport.msr_pr),
+                self.virt_mode.eq(inport.virt_mode),
+                self.priv_mode.eq(inport.priv_mode),
+                self.mode_32bit.eq(inport.mode_32bit),
                 inport.ld.eq(self.ld),
                 inport.busy_o.eq(self.busy_o),
                 inport.addr_ok_o.eq(self.addr_ok_o),
@@ -212,7 +220,7 @@ class PortInterfaceBase(Elaboratable):
         pi = self.pi
         comb += lds.eq(pi.is_ld_i)  # ld-req signals
         comb += sts.eq(pi.is_st_i)  # st-req signals
-        pr = pi.msr_pr # MSR problem state: PR=1 ==> virt, PR==0 ==> priv
+        pr = ~pi.priv_mode
 
         # detect busy "edge"
         busy_delay = Signal()
