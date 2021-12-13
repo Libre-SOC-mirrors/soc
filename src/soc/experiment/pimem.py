@@ -225,8 +225,8 @@ class PortInterfaceBase(Elaboratable):
         # TODO: construct an MSRspec here and pass it over in
         # self.set_rd_addr and set_wr_addr below rather than just pr
         pr = ~pi.priv_mode
-        dr = pi.virt_mode   # not yet used
-        sf = pi.mode_32bit   # not yet used
+        dr = pi.virt_mode
+        sf = ~pi.mode_32bit
         msr = MSRSpec(pr=pr, dr=dr, sf=sf)
 
         # detect busy "edge"
