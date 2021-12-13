@@ -26,6 +26,7 @@ from soc.experiment.mmu import MMU
 from nmigen.compat.sim import run_simulation
 from openpower.test.wb_get import wb_get
 from openpower.test import wb_get as wbget
+from openpower.decoder.power_enums import MSRSpec
 
 msr_default = MSRSpec(pr=1, dr=0, sf=1) # 64 bit by default
 
