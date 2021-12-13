@@ -10,6 +10,7 @@ cache:
 variables:
     PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
     GIT_SUBMODULE_STRATEGY: recursive
+    GIT_DEPTH: 500
 
 build:
     stage: build
