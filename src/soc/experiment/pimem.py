@@ -260,7 +260,7 @@ class PortInterfaceBase(Elaboratable):
             comb += lenexp.len_i.eq(pi.data_len)
             comb += lenexp.addr_i.eq(lsbaddr)
             with m.If(pi.addr.ok & adrok_l.qn):
-                self.set_rd_addr(m, pi.addr.data, lenexp.lexp_o, misalign, pr)
+                self.set_rd_addr(m, pi.addr.data, lenexp.lexp_o, misalign, msr)
                 comb += pi.addr_ok_o.eq(1)  # acknowledge addr ok
                 sync += adrok_l.s.eq(1)       # and pull "ack" latch
 
@@ -272,7 +272,7 @@ class PortInterfaceBase(Elaboratable):
             comb += lenexp.len_i.eq(pi.data_len)
             comb += lenexp.addr_i.eq(lsbaddr)
             with m.If(pi.addr.ok):
-                self.set_wr_addr(m, pi.addr.data, lenexp.lexp_o, misalign, pr,
+                self.set_wr_addr(m, pi.addr.data, lenexp.lexp_o, misalign, msr,
                                  pi.is_dcbz_i)
                 with m.If(adrok_l.qn & self.pi.exc_o.happened==0):
                     comb += pi.addr_ok_o.eq(1)  # acknowledge addr ok
