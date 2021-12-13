@@ -22,8 +22,7 @@ from soc.experiment.test import pagetables
 from nmigen.compat.sim import run_simulation
 from openpower.test.wb_get import wb_get
 from openpower.test import wb_get as wbget
-
-
+from openpower.decoder.power_enums import MSRSpec
 
 wbget.stop = False
 
@@ -72,20 +71,22 @@ def _test_dcbz_addr_100e0(dut, mem):
     addr = 0x100e0
     data = 0xf553b658ba7e1f51
 
-    yield from pi_st(pi, addr, data, 8, msr_pr=0)
+    msr = MSRSpec(pr=1, dr=0, sf=1) # 64 bit by default
+
+    yield from pi_st(pi, addr, data, 8, msr)
     yield
 
-    ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr_pr=0)
+    ld_data, _, _ = yield from pi_ld(pi, addr, 8, msr)
     assert ld_data == 0xf553b658ba7e1f51
-    ld_data, _, _  = yield from pi_ld(pi, addr, 8, msr_pr=0)
+    ld_data, _, _  = yield from pi_ld(pi, addr, 8, msr)
     assert ld_data == 0xf553b658ba7e1f51
 
     print("do_dcbz ===============")
-    yield from pi_st(pi, addr, data, 8, msr_pr=0, is_dcbz=1)
+    yield from pi_st(pi, addr, data, 8, msr, is_dcbz=1)
     print("done_dcbz ===============")
     yield
 
-    ld_data, _, _  = yield from pi_ld(pi, addr, 8, msr_pr=0)
+    ld_data, _, _  = yield from pi_ld(pi, addr, 8, msr)
     print("ld_data after dcbz")
     print(ld_data)
     assert ld_data == 0
