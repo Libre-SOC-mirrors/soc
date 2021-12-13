@@ -336,7 +336,9 @@ def _test_loadstore1_ifetch(dut, mem):
     yield ldst.priv_mode.eq(0)
     yield ldst.instr_fault.eq(1)
     yield ldst.maddr.eq(virt_addr)
-    #ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr_pr=0)
+    # still broken -- investigate
+    # msr = MSRSpec(pr=?, dr=?, sf=0)
+    # ld_data, exctype, exc = yield from pi_ld(pi, virt_addr, 8, msr=msr)
     yield
     yield ldst.instr_fault.eq(0)
     while True:
@@ -817,7 +819,7 @@ def test_loadstore1_ifetch_multi():
 if __name__ == '__main__':
     test_loadstore1()
     test_loadstore1_invalid()
-    test_loadstore1_ifetch()
+    test_loadstore1_ifetch() #FIXME
     test_loadstore1_ifetch_invalid()
     test_loadstore1_ifetch_multi()
     test_loadstore1_ifetch_unit_iface()
