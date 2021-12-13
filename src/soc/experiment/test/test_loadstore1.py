@@ -184,8 +184,7 @@ def _test_loadstore1_ifetch_multi(dut, mem):
     yield
     # TODO fetch instructions from multiple addresses
     # should cope with some addresses being invalid
-    #addrs = [0x10200,0x10204,10208,10200]
-    addrs = [0,4,8,0]
+    addrs = [0,4,8,0,0x10200,0x10204,0x10208,0x10200]
 
     mem[0x10200]=0xFF00FF00EE00EE00EE
     mem[0]=0xFF00FF00EE00EE00EE
@@ -200,7 +199,7 @@ def _test_loadstore1_ifetch_multi(dut, mem):
         insn = yield from read_from_addr(icache, addr, stall=False)
 
         nia   = yield i_out.nia  # NO, must use FetchUnitInterface
-        print ("fetched %x from addr %x" % (insn, nia))
+        print ("TEST_MULTI: fetched %x from addr %x == %x" % (insn, nia,addr))
 
     wbget.stop = True
 
@@ -811,7 +810,7 @@ def test_loadstore1_ifetch_multi():
     # add two wb_get processes onto the *same* memory dictionary.
     # this shouuuld work.... cross-fingers...
     sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
-    sim.add_sync_process(wrap(wb_get(icache.bus, mem)))
+    sim.add_sync_process(wrap(wb_get(icache.ibus, mem))) # ibus not bus
     with sim.write_vcd('test_loadstore1_ifetch_multi.vcd',
                       traces=[m.debug_status]): # include extra debug
         sim.run()
