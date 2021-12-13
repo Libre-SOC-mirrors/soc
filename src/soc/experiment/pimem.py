@@ -32,6 +32,8 @@ from soc.experiment.mem_types import LDSTException
 from soc.experiment.testmem import TestMemory
 #from soc.scoreboard.addr_split import LDSTSplitter
 from nmutil.util import Display
+from collections import namedtuple
+MSRSpec = namedtuple("MSRSpec", ["dr", "pr", "sf"]) # used in unit tests
 
 import unittest
 
