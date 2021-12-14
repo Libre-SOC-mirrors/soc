@@ -210,21 +210,23 @@ def _test_loadstore1_ifetch_multi(dut, mem):
     for addr in virt_addrs:
         yield from debug(dut, "virt_addr "+hex(addr))
 
-        timeout = 0
-
         #TODO: use fetch interface here
         ###################################
-        yield i_in.req.eq(1)
-        yield i_in.nia.eq(addr)
+        yield i_in.priv_mode.eq(0)
+        yield i_in.virt_mode.eq(1)
+        yield i_in.req.eq(0)
+        yield i_in.stop_mark.eq(0)
+
+        yield icache.a_i_valid.eq(1)
+        yield icache.a_pc_i.eq(addr)
         yield
         valid = yield i_out.valid
         failed = yield i_out.fetch_failed
-        while not valid and not failed and timeout < 100:
+        while not valid and not failed:
             yield
             valid = yield i_out.valid
             failed = yield i_out.fetch_failed
-            timeout = timeout + 1
-        yield i_in.req.eq(0)
+        yield icache.a_i_valid.eq(0)
         ###################################
         print("TEST_MULTI: failed=",failed) # this is reported wrong
 
