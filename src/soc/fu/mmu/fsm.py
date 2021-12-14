@@ -224,7 +224,7 @@ class FSMMMUStage(ControlBase):
                     # from accepting any other LD/ST requests.
                     comb += valid.eq(1)   # start "pulse"
                     comb += ldst.instr_fault.eq(blip)
-                    comb += ldst.priv_mode.eq(msr_i[MSR.PR])
+                    comb += ldst.priv_mode.eq(~msr_i[MSR.PR])
                     comb += ldst.maddr.eq(nia_i)
                     # XXX should not access this!
                     mmu_done_delay = Signal()
