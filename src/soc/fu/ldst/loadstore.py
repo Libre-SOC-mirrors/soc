@@ -292,6 +292,7 @@ class LoadStore1(PortInterfaceBase):
                     # TODO: critical that the write here has to
                     # notify the MMU FSM of the change to dsisr
                     comb += exception.eq(1)
+                    comb += self.done.eq(1)
                     sync += Display("MMU RADIX exception thrown")
                     sync += Display("TODO: notify MMU of change to dsisr")
                     sync += self.dsisr[63 - 33].eq(m_in.invalid)

@@ -227,9 +227,7 @@ class FSMMMUStage(ControlBase):
                     comb += ldst.priv_mode.eq(~msr_i[MSR.PR])
                     comb += ldst.maddr.eq(nia_i)
                     # XXX should not access this!
-                    mmu_done_delay = Signal()
-                    sync += mmu_done_delay.eq(mmu.d_in.done)
-                    comb += done.eq(mmu_done_delay)
+                    comb += done.eq(ldst.done)
                     comb += self.debug0.eq(3)
                     # LDST unit contains exception data, which (messily)
                     # is copied over, here.  not ideal but it will do for now
