@@ -177,6 +177,11 @@ def _test_loadstore1_ifetch_multi(dut, mem):
     icache = dut.submodules.ldst.icache
     assert wbget.stop == False
 
+    print ("set process table")
+    yield from debug(dut, "set prtble")
+    yield mmu.rin.prtbl.eq(0x1000000) # set process table
+    yield
+
     i_in = icache.i_in
     i_out  = icache.i_out
     i_m_in = icache.m_in
@@ -197,7 +202,34 @@ def _test_loadstore1_ifetch_multi(dut, mem):
         print ("TEST_MULTI: fetched %x from addr %x == %x" % (insn, nia,addr))
         assert insn==0xF0+addr
 
-    # TODO: virt addrs
+    yield i_in.virt_mode.eq(1)
+
+    virt_addrs = [0x10200,0x10204,0x10208,0x10200,
+                  0x102008,0x10204,0x10200,0x10200,0x10200C]
+
+    for addr in virt_addrs:
+        yield from debug(dut, "virt_addr "+hex(addr))
+
+        timeout = 0
+
+        #TODO: use fetch interface here
+        ###################################
+        yield i_in.req.eq(1)
+        yield i_in.nia.eq(addr)
+        yield
+        valid = yield i_out.valid
+        failed = yield i_out.fetch_failed
+        while not valid and not failed and timeout < 100:
+            yield
+            valid = yield i_out.valid
+            failed = yield i_out.fetch_failed
+            timeout = timeout + 1
+        yield i_in.req.eq(0)
+        ###################################
+        print("TEST_MULTI: failed=",failed) # this is reported wrong
+
+        yield
+        yield
 
     wbget.stop = True
 
