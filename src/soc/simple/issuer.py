@@ -756,6 +756,11 @@ class TestIssuerInternal(Elaboratable):
                 with m.If(stopping):
                     # stopping: jump back to idle
                     m.next = "ISSUE_START"
+                    if flush_needed:
+                        # request the icache to stop asserting "failed"
+                        comb += core.icache.flush_in.eq(1)
+                    # stop instruction fault
+                    sync += pdecode2.instr_fault.eq(0)
                 with m.Else():
                     comb += fetch_insn_i_ready.eq(1)
                     with m.If(fetch_insn_o_valid):
@@ -967,6 +972,16 @@ class TestIssuerInternal(Elaboratable):
 
                 with m.Else():
                     comb += dbg.core_stopped_i.eq(1)
+                    if flush_needed:
+                        # request the icache to stop asserting "failed"
+                        comb += core.icache.flush_in.eq(1)
+                    # stop instruction fault
+                    sync += pdecode2.instr_fault.eq(0)
+                    if flush_needed:
+                        # request the icache to stop asserting "failed"
+                        comb += core.icache.flush_in.eq(1)
+                    # stop instruction fault
+                    sync += pdecode2.instr_fault.eq(0)
                     # while stopped, allow updating the PC and SVSTATE
                     with m.If(self.pc_i.ok):
                         comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
@@ -1002,6 +1017,11 @@ class TestIssuerInternal(Elaboratable):
         core_busy_o = core.n.o_data.busy_o  # core is busy
         core_ivalid_i = core.p.i_valid              # instruction is valid
 
+        if hasattr(core, "icache"):
+            fetch_failed = core.icache.i_out.fetch_failed
+        else:
+            fetch_failed = Const(0, 1)
+
         with m.FSM(name="exec_fsm"):
 
             # waiting for instruction bus (stays there until not busy)
@@ -1034,7 +1054,8 @@ class TestIssuerInternal(Elaboratable):
                         # if we erroneously indicate "done" here, it is as if
                         # there were *TWO* instructions:
                         # 1) the failed LDST 2) a TRAP.
-                        with m.If(~pdecode2.ldst_exc.happened):
+                        with m.If(~pdecode2.ldst_exc.happened &
+                                  ~fetch_failed):
                             comb += self.insn_done.eq(1)
                         m.next = "INSN_START"  # back to fetch
 
