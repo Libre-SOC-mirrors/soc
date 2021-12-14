@@ -170,6 +170,52 @@ def _test_loadstore1_ifetch_iface(dut, mem):
 def write_mem2(mem, addr, i1, i2):
     mem[addr] = i1 | i2<<32
 
+#TODO: use fetch interface here
+def lookup_virt(dut,addr):
+    icache = dut.submodules.ldst.icache
+    i_in = icache.i_in
+    i_out  = icache.i_out
+    yield i_in.priv_mode.eq(0)
+    yield i_in.virt_mode.eq(1)
+    yield i_in.req.eq(0)
+    yield i_in.stop_mark.eq(0)
+
+    yield icache.a_i_valid.eq(1)
+    yield icache.a_pc_i.eq(addr)
+    yield
+    valid = yield i_out.valid
+    failed = yield i_out.fetch_failed
+    while not valid and not failed:
+        yield
+        valid = yield i_out.valid
+        failed = yield i_out.fetch_failed
+    yield icache.a_i_valid.eq(0)
+
+    return valid,failed
+
+def mmu_lookup(dut,addr):
+    ldst = dut.submodules.ldst
+    pi = ldst.pi
+    yield from debug(dut, "instr fault "+hex(addr))
+    yield ldst.priv_mode.eq(0)
+    yield ldst.instr_fault.eq(1)
+    yield ldst.maddr.eq(addr)
+    yield
+    yield ldst.instr_fault.eq(0)
+    while True:
+        done = yield (ldst.done)
+        exc_info = yield from get_exception_info(pi.exc_o)
+        if done or exc_info.happened:
+            break
+        yield
+    yield
+    assert exc_info.happened == 0 # assert just before doing the fault set zero
+    yield ldst.instr_fault.eq(0)
+    yield from debug(dut, "instr fault done "+hex(addr))
+    yield
+    yield
+    yield
+
 def _test_loadstore1_ifetch_multi(dut, mem):
     mmu = dut.submodules.mmu
     ldst = dut.submodules.ldst
@@ -186,7 +232,7 @@ def _test_loadstore1_ifetch_multi(dut, mem):
     i_out  = icache.i_out
     i_m_in = icache.m_in
 
-    # TODO fetch instructions from multiple addresses
+    # fetch instructions from multiple addresses
     # should cope with some addresses being invalid
     real_addrs = [0,4,8,0,8,4,0,0,12]
     write_mem2(mem,0,0xF0,0xF4)
@@ -195,43 +241,29 @@ def _test_loadstore1_ifetch_multi(dut, mem):
     yield i_in.priv_mode.eq(1)
     for addr in real_addrs:
         yield from debug(dut, "real_addr "+hex(addr))
-        # use the new interface in this test
-
         insn = yield from read_from_addr(icache, addr, stall=False)
         nia   = yield i_out.nia  # NO, must use FetchUnitInterface
         print ("TEST_MULTI: fetched %x from addr %x == %x" % (insn, nia,addr))
         assert insn==0xF0+addr
 
+    # now with virtual memory enabled
     yield i_in.virt_mode.eq(1)
 
     virt_addrs = [0x10200,0x10204,0x10208,0x10200,
                   0x102008,0x10204,0x10200,0x10200,0x10200C]
 
+    write_mem2(mem,0x10200,0xF8,0xFC)
+
     for addr in virt_addrs:
         yield from debug(dut, "virt_addr "+hex(addr))
 
-        #TODO: use fetch interface here
-        ###################################
-        yield i_in.priv_mode.eq(0)
-        yield i_in.virt_mode.eq(1)
-        yield i_in.req.eq(0)
-        yield i_in.stop_mark.eq(0)
-
-        yield icache.a_i_valid.eq(1)
-        yield icache.a_pc_i.eq(addr)
+        valid, failed = yield from lookup_virt(dut,addr)
         yield
-        valid = yield i_out.valid
-        failed = yield i_out.fetch_failed
-        while not valid and not failed:
-            yield
-            valid = yield i_out.valid
-            failed = yield i_out.fetch_failed
-        yield icache.a_i_valid.eq(0)
-        ###################################
         print("TEST_MULTI: failed=",failed) # this is reported wrong
-
-        yield
-        yield
+        if failed==1: # test one first
+            yield from mmu_lookup(dut,addr)
+            valid, failed = yield from lookup_virt(dut,addr)
+            assert(valid==1)
 
     wbget.stop = True
 
