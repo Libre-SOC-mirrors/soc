@@ -31,15 +31,57 @@ from openpower.test.state import TestState, StateRunner
 from openpower.test.runner import TestRunnerBase
 
 
-def setup_i_memory(imem, startaddr, instructions):
+def insert_into_rom(startaddr, instructions, rom):
+    print("insn before, init rom", len(instructions))
+    pprint(rom)
+
+    startaddr //= 4  # instructions are 32-bit
+
+    # 64 bit
+    mask = ((1 << 64)-1)
+    for ins in instructions:
+        if isinstance(ins, tuple):
+            insn, code = ins
+        else:
+            insn, code = ins, ''
+        insn = insn & 0xffffffff
+        msbs = (startaddr >> 1) & mask
+        lsb = 1 if (startaddr & 1) else 0
+        print ("insn", hex(insn), hex(msbs), hex(lsb))
+
+        val = rom.get(msbs<<3, 0)
+        if insn != 0:
+            print("before set", hex(4*startaddr),
+                  hex(msbs), hex(val), hex(insn))
+        val = (val | (insn << (lsb*32)))
+        val = val & mask
+        rom[msbs<<3] = val
+        if insn != 0:
+            print("after  set", hex(4*startaddr), hex(msbs), hex(val))
+            print("instr: %06x 0x%x %s %08x" % (4*startaddr, insn, code, val))
+        startaddr += 1
+        startaddr = startaddr & mask
+
+    print ("after insn insert")
+    pprint(rom)
+
+
+def setup_i_memory(imem, startaddr, instructions, rom):
     mem = imem
+    print ("insn before")
+    return
     print("insn before, init mem", mem.depth, mem.width, mem,
           len(instructions))
-    for i in range(mem.depth):
-        yield mem._array[i].eq(0)
-    yield Settle()
+
+    if not rom:
+        # initialise mem array to zero
+        for i in range(mem.depth):
+            yield mem._array[i].eq(0)
+        yield Settle()
+
     startaddr //= 4  # instructions are 32-bit
     if mem.width == 32:
+        assert rom is None, "cannot do 32-bit from wb_get ROM yet"
         mask = ((1 << 32)-1)
         for ins in instructions:
             if isinstance(ins, tuple):
@@ -64,15 +106,22 @@ def setup_i_memory(imem, startaddr, instructions):
             insn, code = ins, ''
         insn = insn & 0xffffffff
         msbs = (startaddr >> 1) & mask
-        val = yield mem._array[msbs]
+        lsb = 1 if (startaddr & 1) else 0
+
+        if rom: # must put the value into the wb_get area
+            val = rom[msbs<<1]
+        else:
+            val = yield mem._array[msbs]
         if insn != 0:
             print("before set", hex(4*startaddr),
                   hex(msbs), hex(val), hex(insn))
-        lsb = 1 if (startaddr & 1) else 0
         val = (val | (insn << (lsb*32)))
         val = val & mask
-        yield mem._array[msbs].eq(val)
-        yield Settle()
+        if rom: # must put the value into the wb_get area
+            rom[msbs<<1] = val
+        else:
+            yield mem._array[msbs].eq(val)
+            yield Settle()
         if insn != 0:
             print("after  set", hex(4*startaddr), hex(msbs), hex(val))
             print("instr: %06x 0x%x %s %08x" % (4*startaddr, insn, code, val))
@@ -187,9 +236,11 @@ class HDLRunner(StateRunner):
         # XXX for now, when ROM (run under wb_get) is detected,
         # skip setup of memories.  must be done a different way
         if not self.dut.rom:
-            yield from setup_i_memory(imem, pc, instructions)
+            yield from setup_i_memory(imem, pc, instructions, self.dut.rom)
             yield from setup_tst_memory(l0, self.test.mem)
-        #print("about to setup regs")
+        else:
+            insert_into_rom(pc, instructions, self.dut.rom)
+        print("about to setup regs")
         yield from setup_regs(pdecode2, core, self.test)
         #print("setup mem and regs done")
 
