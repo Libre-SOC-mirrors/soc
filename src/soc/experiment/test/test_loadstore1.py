@@ -167,39 +167,37 @@ def _test_loadstore1_ifetch_iface(dut, mem):
 
     wbget.stop = True
 
+def write_mem2(mem, addr, i1, i2):
+    mem[addr] = i1 | i2<<32
+
 def _test_loadstore1_ifetch_multi(dut, mem):
     mmu = dut.submodules.mmu
     ldst = dut.submodules.ldst
     pi = ldst.pi
     icache = dut.submodules.ldst.icache
-    wbget.stop = False
+    assert wbget.stop == False
 
     i_in = icache.i_in
     i_out  = icache.i_out
     i_m_in = icache.m_in
 
-    yield from debug(dut, "TODO")
-    yield
-    yield
-    yield
     # TODO fetch instructions from multiple addresses
     # should cope with some addresses being invalid
-    addrs = [0,4,8,0,0x10200,0x10204,0x10208,0x10200]
-
-    mem[0x10200]=0xFF00FF00EE00EE00EE
-    mem[0]=0xFF00FF00EE00EE00EE
+    real_addrs = [0,4,8,0,8,4,0,0,12]
+    write_mem2(mem,0,0xF0,0xF4)
+    write_mem2(mem,8,0xF8,0xFC)
 
     yield i_in.priv_mode.eq(1)
-
-    for addr in addrs:
-        yield from debug(dut, "BROKEN_fetch_from "+hex(addr))
+    for addr in real_addrs:
+        yield from debug(dut, "real_addr "+hex(addr))
         # use the new interface in this test
 
-        #broken: does not use wishbone yet - investigate
         insn = yield from read_from_addr(icache, addr, stall=False)
-
         nia   = yield i_out.nia  # NO, must use FetchUnitInterface
         print ("TEST_MULTI: fetched %x from addr %x == %x" % (insn, nia,addr))
+        assert insn==0xF0+addr
+
+    # TODO: virt addrs
 
     wbget.stop = True
 
@@ -794,17 +792,21 @@ def test_loadstore1_ifetch_invalid():
 
 def test_loadstore1_ifetch_multi():
     m, cmpi = setup_mmu()
+    wbget.stop = False
 
     # this is a specially-arranged page table which has the permissions
     # barred for execute on the leaf node (EAA=0x2 instead of EAA=0x3)
     mem = pagetables.test1
 
+    # set this up before passing to Simulator (which calls elaborate)
+    icache = m.submodules.ldst.icache
+    icache.use_fetch_interface() # this is the function which converts
+                                 # to FetchUnitInterface. *including*
+                                 # rewiring the Wishbone Bus to ibus
+
     # nmigen Simulation
     sim = Simulator(m)
     sim.add_clock(1e-6)
-
-    icache = m.submodules.ldst.icache
-    icache.use_fetch_interface() # see test_loadstore1_ifetch_unit_iface():
 
     sim.add_sync_process(wrap(_test_loadstore1_ifetch_multi(m, mem)))
     # add two wb_get processes onto the *same* memory dictionary.
@@ -820,5 +822,5 @@ if __name__ == '__main__':
     test_loadstore1_invalid()
     test_loadstore1_ifetch() #FIXME
     test_loadstore1_ifetch_invalid()
+    test_loadstore1_ifetch_unit_iface() # guess: should be working
     test_loadstore1_ifetch_multi()
-    test_loadstore1_ifetch_unit_iface()
