@@ -208,6 +208,7 @@ class FetchFSM(ControlBase):
         dbg = self.dbg
         core = self.core
         pc = self.i.pc
+        msr = self.i.msr
         svstate = self.svstate
         nia = self.nia
         is_svp64_mode = self.is_svp64_mode
@@ -222,8 +223,6 @@ class FetchFSM(ControlBase):
         cur_state = self.cur_state
         dec_opcode_o = pdecode2.dec.raw_opcode_in  # raw opcode
 
-        msr_read = Signal(reset=1)
-
         # also note instruction fetch failed
         if hasattr(core, "icache"):
             fetch_failed = core.icache.i_out.fetch_failed
@@ -231,12 +230,6 @@ class FetchFSM(ControlBase):
         else:
             fetch_failed = Const(0, 1)
             flush_needed = False
-
-        # don't read msr every cycle
-        staterf = self.core.regs.rf['state']
-        state_r_msr = staterf.r_ports['msr']  # MSR rd
-
-        comb += state_r_msr.ren.eq(0)
 
         with m.FSM(name='fetch_fsm'):
 
@@ -254,10 +247,7 @@ class FetchFSM(ControlBase):
                     comb += self.imem.f_i_valid.eq(1)
                     sync += cur_state.pc.eq(pc)
                     sync += cur_state.svstate.eq(svstate)  # and svstate
-
-                    # initiate read of MSR. arrives one clock later
-                    comb += state_r_msr.ren.eq(1 << StateRegs.MSR)
-                    sync += msr_read.eq(0)
+                    sync += cur_state.msr.eq(msr)  # and msr
 
                     m.next = "INSN_READ"  # move to "wait for bus" phase
 
@@ -271,10 +261,6 @@ class FetchFSM(ControlBase):
                     # stopping: jump back to idle
                     m.next = "IDLE"
                 with m.Else():
-                    # one cycle later, msr/sv read arrives.  valid only once.
-                    with m.If(~msr_read):
-                        sync += msr_read.eq(1)  # yeah don't read it again
-                        sync += cur_state.msr.eq(state_r_msr.o_data)
                     with m.If(self.imem.f_busy_o & ~fetch_failed):  # zzz...
                         # busy but not fetch failed: stay in wait-read
                         comb += self.imem.a_i_valid.eq(1)
@@ -455,6 +441,7 @@ class TestIssuerInternal(Elaboratable):
         # instruction go/monitor
         self.pc_o = Signal(64, reset_less=True)
         self.pc_i = Data(64, "pc_i")  # set "ok" to indicate "please change me"
+        self.msr_i = Data(64, "msr_i") # set "ok" to indicate "please change me"
         self.svstate_i = Data(64, "svstate_i")  # ditto
         self.core_bigendian_i = Signal()  # TODO: set based on MSR.LE
         self.busy_o = Signal(reset_less=True)
@@ -462,9 +449,12 @@ class TestIssuerInternal(Elaboratable):
 
         # STATE regfile read /write ports for PC, MSR, SVSTATE
         staterf = self.core.regs.rf['state']
+        self.state_r_msr = staterf.r_ports['msr']  # MSR rd
         self.state_r_pc = staterf.r_ports['cia']  # PC rd
-        self.state_w_pc = staterf.w_ports['d_wr1']  # PC wr
         self.state_r_sv = staterf.r_ports['sv']  # SVSTATE rd
+
+        self.state_w_msr = staterf.w_ports['msr']  # MSR wr
+        self.state_w_pc = staterf.w_ports['d_wr1']  # PC wr
         self.state_w_sv = staterf.w_ports['sv']  # SVSTATE wr
 
         # DMI interface access
@@ -664,7 +654,7 @@ class TestIssuerInternal(Elaboratable):
                 with m.If(pred_mask_i_ready):
                     m.next = "FETCH_PRED_IDLE"
 
-    def issue_fsm(self, m, core, pc_changed, sv_changed, nia,
+    def issue_fsm(self, m, core, msr_changed, pc_changed, sv_changed, nia,
                   dbg, core_rst, is_svp64_mode,
                   fetch_pc_o_ready, fetch_pc_i_valid,
                   fetch_insn_o_valid, fetch_insn_i_ready,
@@ -737,11 +727,15 @@ class TestIssuerInternal(Elaboratable):
                 with m.Else():
                     # tell core it's stopped, and acknowledge debug handshake
                     comb += dbg.core_stopped_i.eq(1)
-                    # while stopped, allow updating the PC and SVSTATE
+                    # while stopped, allow updating the MSR, PC and SVSTATE
                     with m.If(self.pc_i.ok):
                         comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
                         comb += self.state_w_pc.i_data.eq(self.pc_i.data)
                         sync += pc_changed.eq(1)
+                    with m.If(self.msr_i.ok):
+                        comb += self.state_w_msr.wen.eq(1 << StateRegs.MSR)
+                        comb += self.state_w_msr.i_data.eq(self.msr_i.data)
+                        sync += msr_changed.eq(1)
                     with m.If(self.svstate_i.ok):
                         comb += new_svstate.eq(self.svstate_i.data)
                         comb += update_svstate.eq(1)
@@ -934,10 +928,10 @@ class TestIssuerInternal(Elaboratable):
                         with m.If(pdecode2.ldst_exc.happened):
                             m.next = "DECODE_SV"
 
-                        # if either PC or SVSTATE were changed by the previous
+                        # if MSR, PC or SVSTATE were changed by the previous
                         # instruction, go directly back to Fetch, without
-                        # updating either PC or SVSTATE
-                        with m.Elif(pc_changed | sv_changed):
+                        # updating either MSR PC or SVSTATE
+                        with m.Elif(msr_changed | pc_changed | sv_changed):
                             m.next = "ISSUE_START"
 
                         # also return to Fetch, when no output was a vector
@@ -983,7 +977,11 @@ class TestIssuerInternal(Elaboratable):
                         comb += core.icache.flush_in.eq(1)
                     # stop instruction fault
                     sync += pdecode2.instr_fault.eq(0)
-                    # while stopped, allow updating the PC and SVSTATE
+                    # while stopped, allow updating the MSR, PC and SVSTATE
+                    with m.If(self.msr_i.ok):
+                        comb += self.state_w_msr.wen.eq(1 << StateRegs.MSR)
+                        comb += self.state_w_msr.i_data.eq(self.msr_i.data)
+                        sync += msr_changed.eq(1)
                     with m.If(self.pc_i.ok):
                         comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
                         comb += self.state_w_pc.i_data.eq(self.pc_i.data)
@@ -999,7 +997,7 @@ class TestIssuerInternal(Elaboratable):
             comb += self.state_w_sv.i_data.eq(new_svstate)
             sync += cur_state.svstate.eq(new_svstate)  # for next clock
 
-    def execute_fsm(self, m, core, pc_changed, sv_changed,
+    def execute_fsm(self, m, core, msr_changed, pc_changed, sv_changed,
                     exec_insn_i_valid, exec_insn_o_ready,
                     exec_pc_o_valid, exec_pc_i_ready):
         """execute FSM
@@ -1032,14 +1030,17 @@ class TestIssuerInternal(Elaboratable):
                     comb += core_ivalid_i.eq(1)  # instruction is valid/issued
                     sync += sv_changed.eq(0)
                     sync += pc_changed.eq(0)
+                    sync += msr_changed.eq(0)
                     with m.If(core.p.o_ready):  # only move if accepted
                         m.next = "INSN_ACTIVE"  # move to "wait completion"
 
             # instruction started: must wait till it finishes
             with m.State("INSN_ACTIVE"):
-                # note changes to PC and SVSTATE
+                # note changes to MSR, PC and SVSTATE
                 with m.If(self.state_nia.wen & (1 << StateRegs.SVSTATE)):
                     sync += sv_changed.eq(1)
+                with m.If(self.state_nia.wen & (1 << StateRegs.MSR)):
+                    sync += msr_changed.eq(1)
                 with m.If(self.state_nia.wen & (1 << StateRegs.PC)):
                     sync += pc_changed.eq(1)
                 with m.If(~core_busy_o):  # instruction done!
@@ -1175,13 +1176,16 @@ class TestIssuerInternal(Elaboratable):
         # PC and instruction from I-Memory
         comb += self.pc_o.eq(cur_state.pc)
         pc_changed = Signal()  # note write to PC
+        msr_changed = Signal()  # note write to MSR
         sv_changed = Signal()  # note write to SVSTATE
 
         # indicate to outside world if any FU is still executing
         comb += self.any_busy.eq(core.n.o_data.any_busy_o)  # any FU executing
 
         # read state either from incoming override or from regfile
-        # TODO: really should be doing MSR in the same way
+        msr = state_get(m, core_rst, self.msr_i,
+                       "msr",                  # read MSR
+                       self.state_r_msr, StateRegs.MSR)
         pc = state_get(m, core_rst, self.pc_i,
                        "pc",                  # read PC
                        self.state_r_pc, StateRegs.PC)
@@ -1202,7 +1206,7 @@ class TestIssuerInternal(Elaboratable):
         comb += dbg.terminate_i.eq(core.o.core_terminate_o)
         comb += dbg.state.pc.eq(pc)
         comb += dbg.state.svstate.eq(svstate)
-        comb += dbg.state.msr.eq(cur_state.msr)
+        comb += dbg.state.msr.eq(msr)
 
         # pass the prefix mode from Fetch to Issue, so the latter can loop
         # on VL==0
@@ -1252,13 +1256,14 @@ class TestIssuerInternal(Elaboratable):
         m.submodules.fetch = fetch
         # connect up in/out data to existing Signals
         comb += fetch.p.i_data.pc.eq(pc)
+        comb += fetch.p.i_data.msr.eq(msr)
         # and the ready/valid signalling
         comb += fetch_pc_o_ready.eq(fetch.p.o_ready)
         comb += fetch.p.i_valid.eq(fetch_pc_i_valid)
         comb += fetch_insn_o_valid.eq(fetch.n.o_valid)
         comb += fetch.n.i_ready.eq(fetch_insn_i_ready)
 
-        self.issue_fsm(m, core, pc_changed, sv_changed, nia,
+        self.issue_fsm(m, core, msr_changed, pc_changed, sv_changed, nia,
                        dbg, core_rst, is_svp64_mode,
                        fetch_pc_o_ready, fetch_pc_i_valid,
                        fetch_insn_o_valid, fetch_insn_i_ready,
@@ -1272,7 +1277,7 @@ class TestIssuerInternal(Elaboratable):
                                      pred_insn_i_valid, pred_insn_o_ready,
                                      pred_mask_o_valid, pred_mask_i_ready)
 
-        self.execute_fsm(m, core, pc_changed, sv_changed,
+        self.execute_fsm(m, core, msr_changed, pc_changed, sv_changed,
                          exec_insn_i_valid, exec_insn_o_ready,
                          exec_pc_o_valid, exec_pc_i_ready)
 
@@ -1386,6 +1391,7 @@ class TestIssuerInternal(Elaboratable):
 
     def __iter__(self):
         yield from self.pc_i.ports()
+        yield from self.msr_i.ports()
         yield self.pc_o
         yield self.memerr_o
         yield from self.core.ports()
@@ -1398,6 +1404,7 @@ class TestIssuerInternal(Elaboratable):
 
     def external_ports(self):
         ports = self.pc_i.ports()
+        ports = self.msr_i.ports()
         ports += [self.pc_o, self.memerr_o, self.core_bigendian_i, self.busy_o,
                   ]
 

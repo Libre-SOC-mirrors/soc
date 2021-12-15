@@ -22,9 +22,10 @@ class FetchInput:
     def __init__(self):
 
         self.pc = Signal(64)
+        self.msr = Signal(64)
 
     def eq(self, i):
-        return [self.pc.eq(i.pc),
+        return [self.pc.eq(i.pc), self.msr.eq(i.msr),
                ]
 
 
