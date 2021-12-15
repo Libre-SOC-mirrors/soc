@@ -33,7 +33,7 @@ from openpower.decoder.decode2execute1 import Data
 from openpower.decoder.power_enums import (MicrOp, SVP64PredInt, SVP64PredCR,
                                            SVP64PredMode)
 from openpower.state import CoreState
-from openpower.consts import (CR, SVP64CROffs)
+from openpower.consts import (CR, SVP64CROffs, MSR)
 from soc.experiment.testmem import TestMemory  # test only for instructions
 from soc.regfile.regfiles import StateRegs, FastRegs
 from soc.simple.core import NonProductionCore
@@ -688,6 +688,11 @@ class FetchFSM(ControlBase):
             fetch_failed = Const(0, 1)
             flush_needed = False
 
+        # set priv / virt mode on I-Cache, sigh
+        if isinstance(self.imem, ICache):
+            comb += self.imem.i_in.priv_mode.eq(~msr[MSR.PR])
+            comb += self.imem.i_in.virt_mode.eq(msr[MSR.DR])
+
         with m.FSM(name='fetch_fsm'):
 
             # waiting (zzz)
@@ -702,6 +707,7 @@ class FetchFSM(ControlBase):
                     comb += self.imem.a_pc_i.eq(pc)
                     comb += self.imem.a_i_valid.eq(1)
                     comb += self.imem.f_i_valid.eq(1)
+                    # transfer state to output
                     sync += cur_state.pc.eq(pc)
                     sync += cur_state.svstate.eq(svstate)  # and svstate
                     sync += cur_state.msr.eq(msr)  # and msr

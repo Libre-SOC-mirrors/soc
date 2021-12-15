@@ -24,6 +24,7 @@ import sys
 from nmutil.singlepipe import ControlBase
 from soc.simple.core_data import FetchOutput, FetchInput
 
+from openpower.consts import MSR
 from openpower.decoder.power_enums import MicrOp
 from openpower.state import CoreState
 from soc.regfile.regfiles import StateRegs
@@ -111,6 +112,11 @@ class FetchFSM(ControlBase):
         else:
             fetch_failed = Const(0, 1)
             flush_needed = False
+
+        # set priv / virt mode on I-Cache, sigh
+        if isinstance(self.imem, ICache):
+            comb += self.imem.i_in.priv_mode.eq(~msr[MSR.PR])
+            comb += self.imem.i_in.virt_mode.eq(msr[MSR.DR])
 
         with m.FSM(name='fetch_fsm'):
 
