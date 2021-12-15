@@ -63,11 +63,10 @@ def get_insn(f_instr_o, pc):
 # gets state input or reads from state regfile
 
 
-def state_get(m, core_rst, state_i, name, regfile, regnum):
+def state_get(m, res, core_rst, state_i, name, regfile, regnum):
     comb = m.d.comb
     sync = m.d.sync
-    # read the PC
-    res = Signal(64, reset_less=True, name=name)
+    # read the {insert state variable here}
     res_ok_delay = Signal(name="%s_ok_delay" % name)
     with m.If(~core_rst):
         sync += res_ok_delay.eq(~state_i.ok)
@@ -75,12 +74,11 @@ def state_get(m, core_rst, state_i, name, regfile, regnum):
             # incoming override (start from pc_i)
             comb += res.eq(state_i.data)
         with m.Else():
-            # otherwise read StateRegs regfile for PC...
+            # otherwise read StateRegs regfile for {insert state here}...
             comb += regfile.ren.eq(1 << regnum)
         # ... but on a 1-clock delay
         with m.If(res_ok_delay):
             comb += res.eq(regfile.o_data)
-    return res
 
 
 def get_predint(m, mask, name):
@@ -1183,13 +1181,14 @@ class TestIssuerInternal(Elaboratable):
         comb += self.any_busy.eq(core.n.o_data.any_busy_o)  # any FU executing
 
         # read state either from incoming override or from regfile
-        msr = state_get(m, core_rst, self.msr_i,
+        state = CoreState("get")  # current state (MSR/PC/SVSTATE)
+        state_get(m, state.msr, core_rst, self.msr_i,
                        "msr",                  # read MSR
                        self.state_r_msr, StateRegs.MSR)
-        pc = state_get(m, core_rst, self.pc_i,
+        state_get(m, state.pc, core_rst, self.pc_i,
                        "pc",                  # read PC
                        self.state_r_pc, StateRegs.PC)
-        svstate = state_get(m, core_rst, self.svstate_i,
+        state_get(m, state.svstate, core_rst, self.svstate_i,
                             "svstate",   # read SVSTATE
                             self.state_r_sv, StateRegs.SVSTATE)
 
@@ -1204,9 +1203,7 @@ class TestIssuerInternal(Elaboratable):
         # connect up debug signals
         # TODO comb += core.icache_rst_i.eq(dbg.icache_rst_o)
         comb += dbg.terminate_i.eq(core.o.core_terminate_o)
-        comb += dbg.state.pc.eq(pc)
-        comb += dbg.state.svstate.eq(svstate)
-        comb += dbg.state.msr.eq(msr)
+        comb += dbg.state.eq(state)
 
         # pass the prefix mode from Fetch to Issue, so the latter can loop
         # on VL==0
@@ -1252,11 +1249,11 @@ class TestIssuerInternal(Elaboratable):
         # set up Fetch FSM
         fetch = FetchFSM(self.allow_overlap, self.svp64_en,
                          self.imem, core_rst, pdecode2, cur_state,
-                         dbg, core, svstate, nia, is_svp64_mode)
+                         dbg, core, state.svstate, nia, is_svp64_mode)
         m.submodules.fetch = fetch
         # connect up in/out data to existing Signals
-        comb += fetch.p.i_data.pc.eq(pc)
-        comb += fetch.p.i_data.msr.eq(msr)
+        comb += fetch.p.i_data.pc.eq(state.pc)
+        comb += fetch.p.i_data.msr.eq(state.msr)
         # and the ready/valid signalling
         comb += fetch_pc_o_ready.eq(fetch.p.o_ready)
         comb += fetch.p.i_valid.eq(fetch_pc_i_valid)
