@@ -1465,7 +1465,9 @@ class TestIssuerInternal(TestIssuerBase):
 
 class TestIssuer(Elaboratable):
     def __init__(self, pspec):
-        self.ti = TestIssuerInternal(pspec)
+        #self.ti = TestIssuerInternal(pspec)
+        from soc.simple.inorder import TestIssuerInternalInOrder
+        self.ti = TestIssuerInternalInOrder(pspec)
         self.pll = DummyPLL(instance=True)
 
         # PLL direct clock or not
