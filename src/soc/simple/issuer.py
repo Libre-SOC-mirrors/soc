@@ -243,6 +243,9 @@ class TestIssuerBase(Elaboratable):
         if self.svp64_en:
             self.svp64 = SVP64PrefixDecoder()  # for decoding SVP64 prefix
 
+        self.update_svstate = Signal()  # set this if updating svstate
+        self.new_svstate = new_svstate = SVSTATERec("new_svstate")
+
         # Test Instruction memory
         if hasattr(core, "icache"):
             # XXX BLECH! use pspec to transfer the I-Cache to ConfigFetchUnit
@@ -543,6 +546,24 @@ class TestIssuerBase(Elaboratable):
         # DEC and TB inc/dec FSM.  copy of DEC is put into CoreState,
         # (which uses that in PowerDecoder2 to raise 0x900 exception)
         self.tb_dec_fsm(m, cur_state.dec)
+
+        # while stopped, allow updating the MSR, PC and SVSTATE.
+        # these are mainly for debugging purposes (including DMI/JTAG)
+        with m.If(dbg.core_stopped_i):
+            with m.If(self.pc_i.ok):
+                comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
+                comb += self.state_w_pc.i_data.eq(self.pc_i.data)
+                sync += self.pc_changed.eq(1)
+            with m.If(self.msr_i.ok):
+                comb += self.state_w_msr.wen.eq(1 << StateRegs.MSR)
+                comb += self.state_w_msr.i_data.eq(self.msr_i.data)
+                sync += self.msr_changed.eq(1)
+            with m.If(self.svstate_i.ok | self.update_svstate):
+                with m.If(self.svstate_i.ok): # over-ride from external source
+                    comb += self.new_svstate.eq(self.svstate_i.data)
+                comb += self.state_w_sv.wen.eq(1 << StateRegs.SVSTATE)
+                comb += self.state_w_sv.i_data.eq(self.new_svstate)
+                sync += self.sv_changed.eq(1)
 
         return m
 
@@ -976,13 +997,12 @@ class TestIssuerInternal(TestIssuerBase):
         sync = m.d.sync
         pdecode2 = self.pdecode2
         cur_state = self.cur_state
+        new_svstate = self.new_svstate
 
         # temporaries
         dec_opcode_i = pdecode2.dec.raw_opcode_in  # raw opcode
 
         # for updating svstate (things like srcstep etc.)
-        update_svstate = Signal()  # set this (below) if updating
-        new_svstate = SVSTATERec("new_svstate")
         comb += new_svstate.eq(cur_state.svstate)
 
         # precalculate srcstep+1 and dststep+1
@@ -1026,18 +1046,10 @@ class TestIssuerInternal(TestIssuerBase):
                 with m.Else():
                     # tell core it's stopped, and acknowledge debug handshake
                     comb += dbg.core_stopped_i.eq(1)
-                    # while stopped, allow updating the MSR, PC and SVSTATE
-                    with m.If(self.pc_i.ok):
-                        comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
-                        comb += self.state_w_pc.i_data.eq(self.pc_i.data)
-                        sync += self.pc_changed.eq(1)
-                    with m.If(self.msr_i.ok):
-                        comb += self.state_w_msr.wen.eq(1 << StateRegs.MSR)
-                        comb += self.state_w_msr.i_data.eq(self.msr_i.data)
-                        sync += self.msr_changed.eq(1)
+                    # while stopped, allow updating SVSTATE
                     with m.If(self.svstate_i.ok):
                         comb += new_svstate.eq(self.svstate_i.data)
-                        comb += update_svstate.eq(1)
+                        comb += self.update_svstate.eq(1)
                         sync += self.sv_changed.eq(1)
 
             # wait for an instruction to arrive from Fetch
@@ -1135,7 +1147,7 @@ class TestIssuerInternal(TestIssuerBase):
                             comb += self.state_w_pc.i_data.eq(nia)
                             comb += new_svstate.srcstep.eq(0)
                             comb += new_svstate.dststep.eq(0)
-                            comb += update_svstate.eq(1)
+                            comb += self.update_svstate.eq(1)
                             # synchronize with the simulator
                             comb += self.insn_done.eq(1)
                             # go back to Issue
@@ -1144,7 +1156,7 @@ class TestIssuerInternal(TestIssuerBase):
                             # update new src/dst step
                             comb += new_svstate.srcstep.eq(skip_srcstep)
                             comb += new_svstate.dststep.eq(skip_dststep)
-                            comb += update_svstate.eq(1)
+                            comb += self.update_svstate.eq(1)
                             # proceed to Decode
                             m.next = "DECODE_SV"
 
@@ -1250,18 +1262,18 @@ class TestIssuerInternal(TestIssuerBase):
                                 with m.If(pdecode2.loop_continue):
                                     comb += new_svstate.srcstep.eq(0)
                                     comb += new_svstate.dststep.eq(0)
-                                    comb += update_svstate.eq(1)
+                                    comb += self.update_svstate.eq(1)
                             else:
                                 comb += new_svstate.srcstep.eq(0)
                                 comb += new_svstate.dststep.eq(0)
-                                comb += update_svstate.eq(1)
+                                comb += self.update_svstate.eq(1)
                             m.next = "ISSUE_START"
 
                         # returning to Execute? then, first update SRCSTEP
                         with m.Else():
                             comb += new_svstate.srcstep.eq(next_srcstep)
                             comb += new_svstate.dststep.eq(next_dststep)
-                            comb += update_svstate.eq(1)
+                            comb += self.update_svstate.eq(1)
                             # return to mask skip loop
                             m.next = "PRED_SKIP"
 
@@ -1277,25 +1289,10 @@ class TestIssuerInternal(TestIssuerBase):
                         comb += core.icache.flush_in.eq(1)
                     # stop instruction fault
                     sync += pdecode2.instr_fault.eq(0)
-                    # while stopped, allow updating the MSR, PC and SVSTATE
-                    with m.If(self.msr_i.ok):
-                        comb += self.state_w_msr.wen.eq(1 << StateRegs.MSR)
-                        comb += self.state_w_msr.i_data.eq(self.msr_i.data)
-                        sync += self.msr_changed.eq(1)
-                    with m.If(self.pc_i.ok):
-                        comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
-                        comb += self.state_w_pc.i_data.eq(self.pc_i.data)
-                        sync += self.pc_changed.eq(1)
-                    with m.If(self.svstate_i.ok):
-                        comb += new_svstate.eq(self.svstate_i.data)
-                        comb += update_svstate.eq(1)
-                        sync += self.sv_changed.eq(1)
 
         # check if svstate needs updating: if so, write it to State Regfile
-        with m.If(update_svstate):
-            comb += self.state_w_sv.wen.eq(1 << StateRegs.SVSTATE)
-            comb += self.state_w_sv.i_data.eq(new_svstate)
-            sync += cur_state.svstate.eq(new_svstate)  # for next clock
+        with m.If(self.update_svstate):
+            sync += cur_state.svstate.eq(self.new_svstate)  # for next clock
 
     def execute_fsm(self, m, core,
                     exec_insn_i_valid, exec_insn_o_ready,

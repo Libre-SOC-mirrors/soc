@@ -391,15 +391,6 @@ class TestIssuerInternalInOrder(TestIssuerBase):
                         comb += core.icache.flush_in.eq(1)
                     # stop instruction fault
                     sync += pdecode2.instr_fault.eq(0)
-                    # while stopped, allow updating the MSR, PC and SVSTATE
-                    with m.If(self.msr_i.ok):
-                        comb += self.state_w_msr.wen.eq(1 << StateRegs.MSR)
-                        comb += self.state_w_msr.i_data.eq(self.msr_i.data)
-                        sync += self.msr_changed.eq(1)
-                    with m.If(self.pc_i.ok):
-                        comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
-                        comb += self.state_w_pc.i_data.eq(self.pc_i.data)
-                        sync += self.pc_changed.eq(1)
 
     def execute_fsm(self, m, core,
                     exec_insn_i_valid, exec_insn_o_ready,
