@@ -156,6 +156,388 @@ def get_predcr(m, mask, name):
     return idx, invert
 
 
+class TestIssuerBase:
+    """TestIssuerBase - base class for Issuers
+    """
+
+    def __init__(self, pspec):
+
+        # test is SVP64 is to be enabled
+        self.svp64_en = hasattr(pspec, "svp64") and (pspec.svp64 == True)
+
+        # and if regfiles are reduced
+        self.regreduce_en = (hasattr(pspec, "regreduce") and
+                             (pspec.regreduce == True))
+
+        # and if overlap requested
+        self.allow_overlap = (hasattr(pspec, "allow_overlap") and
+                              (pspec.allow_overlap == True))
+
+        # JTAG interface.  add this right at the start because if it's
+        # added it *modifies* the pspec, by adding enable/disable signals
+        # for parts of the rest of the core
+        self.jtag_en = hasattr(pspec, "debug") and pspec.debug == 'jtag'
+        self.dbg_domain = "sync"  # sigh "dbgsunc" too problematic
+        # self.dbg_domain = "dbgsync" # domain for DMI/JTAG clock
+        if self.jtag_en:
+            # XXX MUST keep this up-to-date with litex, and
+            # soc-cocotb-sim, and err.. all needs sorting out, argh
+            subset = ['uart',
+                      'mtwi',
+                      'eint', 'gpio', 'mspi0',
+                      # 'mspi1', - disabled for now
+                      # 'pwm', 'sd0', - disabled for now
+                      'sdr']
+            self.jtag = JTAG(get_pinspecs(subset=subset),
+                             domain=self.dbg_domain)
+            # add signals to pspec to enable/disable icache and dcache
+            # (or data and intstruction wishbone if icache/dcache not included)
+            # https://bugs.libre-soc.org/show_bug.cgi?id=520
+            # TODO: do we actually care if these are not domain-synchronised?
+            # honestly probably not.
+            pspec.wb_icache_en = self.jtag.wb_icache_en
+            pspec.wb_dcache_en = self.jtag.wb_dcache_en
+            self.wb_sram_en = self.jtag.wb_sram_en
+        else:
+            self.wb_sram_en = Const(1)
+
+        # add 4k sram blocks?
+        self.sram4x4k = (hasattr(pspec, "sram4x4kblock") and
+                         pspec.sram4x4kblock == True)
+        if self.sram4x4k:
+            self.sram4k = []
+            for i in range(4):
+                self.sram4k.append(SPBlock512W64B8W(name="sram4k_%d" % i,
+                                                    # features={'err'}
+                                                    ))
+
+        # add interrupt controller?
+        self.xics = hasattr(pspec, "xics") and pspec.xics == True
+        if self.xics:
+            self.xics_icp = XICS_ICP()
+            self.xics_ics = XICS_ICS()
+            self.int_level_i = self.xics_ics.int_level_i
+
+        # add GPIO peripheral?
+        self.gpio = hasattr(pspec, "gpio") and pspec.gpio == True
+        if self.gpio:
+            self.simple_gpio = SimpleGPIO()
+            self.gpio_o = self.simple_gpio.gpio_o
+
+        # main instruction core.  suitable for prototyping / demo only
+        self.core = core = NonProductionCore(pspec)
+        self.core_rst = ResetSignal("coresync")
+
+        # instruction decoder.  goes into Trap Record
+        #pdecode = create_pdecode()
+        self.cur_state = CoreState("cur")  # current state (MSR/PC/SVSTATE)
+        self.pdecode2 = PowerDecode2(None, state=self.cur_state,
+                                     opkls=IssuerDecode2ToOperand,
+                                     svp64_en=self.svp64_en,
+                                     regreduce_en=self.regreduce_en)
+        pdecode = self.pdecode2.dec
+
+        if self.svp64_en:
+            self.svp64 = SVP64PrefixDecoder()  # for decoding SVP64 prefix
+
+        # Test Instruction memory
+        if hasattr(core, "icache"):
+            # XXX BLECH! use pspec to transfer the I-Cache to ConfigFetchUnit
+            # truly dreadful.  needs a huge reorg.
+            pspec.icache = core.icache
+        self.imem = ConfigFetchUnit(pspec).fu
+
+        # DMI interface
+        self.dbg = CoreDebug()
+
+        # instruction go/monitor
+        self.pc_o = Signal(64, reset_less=True)
+        self.pc_i = Data(64, "pc_i")  # set "ok" to indicate "please change me"
+        self.msr_i = Data(64, "msr_i") # set "ok" to indicate "please change me"
+        self.svstate_i = Data(64, "svstate_i")  # ditto
+        self.core_bigendian_i = Signal()  # TODO: set based on MSR.LE
+        self.busy_o = Signal(reset_less=True)
+        self.memerr_o = Signal(reset_less=True)
+
+        # STATE regfile read /write ports for PC, MSR, SVSTATE
+        staterf = self.core.regs.rf['state']
+        self.state_r_msr = staterf.r_ports['msr']  # MSR rd
+        self.state_r_pc = staterf.r_ports['cia']  # PC rd
+        self.state_r_sv = staterf.r_ports['sv']  # SVSTATE rd
+
+        self.state_w_msr = staterf.w_ports['msr']  # MSR wr
+        self.state_w_pc = staterf.w_ports['d_wr1']  # PC wr
+        self.state_w_sv = staterf.w_ports['sv']  # SVSTATE wr
+
+        # DMI interface access
+        intrf = self.core.regs.rf['int']
+        crrf = self.core.regs.rf['cr']
+        xerrf = self.core.regs.rf['xer']
+        self.int_r = intrf.r_ports['dmi']  # INT read
+        self.cr_r = crrf.r_ports['full_cr_dbg']  # CR read
+        self.xer_r = xerrf.r_ports['full_xer']  # XER read
+
+        if self.svp64_en:
+            # for predication
+            self.int_pred = intrf.r_ports['pred']  # INT predicate read
+            self.cr_pred = crrf.r_ports['cr_pred']  # CR predicate read
+
+        # hack method of keeping an eye on whether branch/trap set the PC
+        self.state_nia = self.core.regs.rf['state'].w_ports['nia']
+        self.state_nia.wen.name = 'state_nia_wen'
+
+        # pulse to synchronize the simulator at instruction end
+        self.insn_done = Signal()
+
+        # indicate any instruction still outstanding, in execution
+        self.any_busy = Signal()
+
+        if self.svp64_en:
+            # store copies of predicate masks
+            self.srcmask = Signal(64)
+            self.dstmask = Signal(64)
+
+    def setup_peripherals(self, m):
+        comb, sync = m.d.comb, m.d.sync
+
+        # okaaaay so the debug module must be in coresync clock domain
+        # but NOT its reset signal. to cope with this, set every single
+        # submodule explicitly in coresync domain, debug and JTAG
+        # in their own one but using *external* reset.
+        csd = DomainRenamer("coresync")
+        dbd = DomainRenamer(self.dbg_domain)
+
+        m.submodules.core = core = csd(self.core)
+        # this _so_ needs sorting out.  ICache is added down inside
+        # LoadStore1 and is already a submodule of LoadStore1
+        if not isinstance(self.imem, ICache):
+            m.submodules.imem = imem = csd(self.imem)
+        m.submodules.dbg = dbg = dbd(self.dbg)
+        if self.jtag_en:
+            m.submodules.jtag = jtag = dbd(self.jtag)
+            # TODO: UART2GDB mux, here, from external pin
+            # see https://bugs.libre-soc.org/show_bug.cgi?id=499
+            sync += dbg.dmi.connect_to(jtag.dmi)
+
+        cur_state = self.cur_state
+
+        # 4x 4k SRAM blocks.  these simply "exist", they get routed in litex
+        if self.sram4x4k:
+            for i, sram in enumerate(self.sram4k):
+                m.submodules["sram4k_%d" % i] = csd(sram)
+                comb += sram.enable.eq(self.wb_sram_en)
+
+        # XICS interrupt handler
+        if self.xics:
+            m.submodules.xics_icp = icp = csd(self.xics_icp)
+            m.submodules.xics_ics = ics = csd(self.xics_ics)
+            comb += icp.ics_i.eq(ics.icp_o)           # connect ICS to ICP
+            sync += cur_state.eint.eq(icp.core_irq_o)  # connect ICP to core
+
+        # GPIO test peripheral
+        if self.gpio:
+            m.submodules.simple_gpio = simple_gpio = csd(self.simple_gpio)
+
+        # connect one GPIO output to ICS bit 15 (like in microwatt soc.vhdl)
+        # XXX causes litex ECP5 test to get wrong idea about input and output
+        # (but works with verilator sim *sigh*)
+        # if self.gpio and self.xics:
+        #   comb += self.int_level_i[15].eq(simple_gpio.gpio_o[0])
+
+        # instruction decoder
+        pdecode = create_pdecode()
+        m.submodules.dec2 = pdecode2 = csd(self.pdecode2)
+        if self.svp64_en:
+            m.submodules.svp64 = svp64 = csd(self.svp64)
+
+        # convenience
+        dmi, d_reg, d_cr, d_xer, = dbg.dmi, dbg.d_gpr, dbg.d_cr, dbg.d_xer
+        intrf = self.core.regs.rf['int']
+
+        # clock delay power-on reset
+        cd_por = ClockDomain(reset_less=True)
+        cd_sync = ClockDomain()
+        core_sync = ClockDomain("coresync")
+        m.domains += cd_por, cd_sync, core_sync
+        if self.dbg_domain != "sync":
+            dbg_sync = ClockDomain(self.dbg_domain)
+            m.domains += dbg_sync
+
+        ti_rst = Signal(reset_less=True)
+        delay = Signal(range(4), reset=3)
+        with m.If(delay != 0):
+            m.d.por += delay.eq(delay - 1)
+        comb += cd_por.clk.eq(ClockSignal())
+
+        # power-on reset delay
+        core_rst = ResetSignal("coresync")
+        comb += ti_rst.eq(delay != 0 | dbg.core_rst_o | ResetSignal())
+        comb += core_rst.eq(ti_rst)
+
+        # debug clock is same as coresync, but reset is *main external*
+        if self.dbg_domain != "sync":
+            dbg_rst = ResetSignal(self.dbg_domain)
+            comb += dbg_rst.eq(ResetSignal())
+
+        # busy/halted signals from core
+        core_busy_o = ~core.p.o_ready | core.n.o_data.busy_o  # core is busy
+        comb += self.busy_o.eq(core_busy_o)
+        comb += pdecode2.dec.bigendian.eq(self.core_bigendian_i)
+
+        # temporary hack: says "go" immediately for both address gen and ST
+        l0 = core.l0
+        ldst = core.fus.fus['ldst0']
+        st_go_edge = rising_edge(m, ldst.st.rel_o)
+        # link addr-go direct to rel
+        m.d.comb += ldst.ad.go_i.eq(ldst.ad.rel_o)
+        m.d.comb += ldst.st.go_i.eq(st_go_edge)  # link store-go to rising rel
+
+    def do_dmi(self, m, dbg):
+        """deals with DMI debug requests
+
+        currently only provides read requests for the INT regfile, CR and XER
+        it will later also deal with *writing* to these regfiles.
+        """
+        comb = m.d.comb
+        sync = m.d.sync
+        dmi, d_reg, d_cr, d_xer, = dbg.dmi, dbg.d_gpr, dbg.d_cr, dbg.d_xer
+        intrf = self.core.regs.rf['int']
+
+        with m.If(d_reg.req):  # request for regfile access being made
+            # TODO: error-check this
+            # XXX should this be combinatorial?  sync better?
+            if intrf.unary:
+                comb += self.int_r.ren.eq(1 << d_reg.addr)
+            else:
+                comb += self.int_r.addr.eq(d_reg.addr)
+                comb += self.int_r.ren.eq(1)
+        d_reg_delay = Signal()
+        sync += d_reg_delay.eq(d_reg.req)
+        with m.If(d_reg_delay):
+            # data arrives one clock later
+            comb += d_reg.data.eq(self.int_r.o_data)
+            comb += d_reg.ack.eq(1)
+
+        # sigh same thing for CR debug
+        with m.If(d_cr.req):  # request for regfile access being made
+            comb += self.cr_r.ren.eq(0b11111111)  # enable all
+        d_cr_delay = Signal()
+        sync += d_cr_delay.eq(d_cr.req)
+        with m.If(d_cr_delay):
+            # data arrives one clock later
+            comb += d_cr.data.eq(self.cr_r.o_data)
+            comb += d_cr.ack.eq(1)
+
+        # aaand XER...
+        with m.If(d_xer.req):  # request for regfile access being made
+            comb += self.xer_r.ren.eq(0b111111)  # enable all
+        d_xer_delay = Signal()
+        sync += d_xer_delay.eq(d_xer.req)
+        with m.If(d_xer_delay):
+            # data arrives one clock later
+            comb += d_xer.data.eq(self.xer_r.o_data)
+            comb += d_xer.ack.eq(1)
+
+    def tb_dec_fsm(self, m, spr_dec):
+        """tb_dec_fsm
+
+        this is a FSM for updating either dec or tb.  it runs alternately
+        DEC, TB, DEC, TB.  note that SPR pipeline could have written a new
+        value to DEC, however the regfile has "passthrough" on it so this
+        *should* be ok.
+
+        see v3.0B p1097-1099 for Timeer Resource and p1065 and p1076
+        """
+
+        comb, sync = m.d.comb, m.d.sync
+        fast_rf = self.core.regs.rf['fast']
+        fast_r_dectb = fast_rf.r_ports['issue']  # DEC/TB
+        fast_w_dectb = fast_rf.w_ports['issue']  # DEC/TB
+
+        with m.FSM() as fsm:
+
+            # initiates read of current DEC
+            with m.State("DEC_READ"):
+                comb += fast_r_dectb.addr.eq(FastRegs.DEC)
+                comb += fast_r_dectb.ren.eq(1)
+                m.next = "DEC_WRITE"
+
+            # waits for DEC read to arrive (1 cycle), updates with new value
+            with m.State("DEC_WRITE"):
+                new_dec = Signal(64)
+                # TODO: MSR.LPCR 32-bit decrement mode
+                comb += new_dec.eq(fast_r_dectb.o_data - 1)
+                comb += fast_w_dectb.addr.eq(FastRegs.DEC)
+                comb += fast_w_dectb.wen.eq(1)
+                comb += fast_w_dectb.i_data.eq(new_dec)
+                sync += spr_dec.eq(new_dec)  # copy into cur_state for decoder
+                m.next = "TB_READ"
+
+            # initiates read of current TB
+            with m.State("TB_READ"):
+                comb += fast_r_dectb.addr.eq(FastRegs.TB)
+                comb += fast_r_dectb.ren.eq(1)
+                m.next = "TB_WRITE"
+
+            # waits for read TB to arrive, initiates write of current TB
+            with m.State("TB_WRITE"):
+                new_tb = Signal(64)
+                comb += new_tb.eq(fast_r_dectb.o_data + 1)
+                comb += fast_w_dectb.addr.eq(FastRegs.TB)
+                comb += fast_w_dectb.wen.eq(1)
+                comb += fast_w_dectb.i_data.eq(new_tb)
+                m.next = "DEC_READ"
+
+        return m
+
+    def __iter__(self):
+        yield from self.pc_i.ports()
+        yield from self.msr_i.ports()
+        yield self.pc_o
+        yield self.memerr_o
+        yield from self.core.ports()
+        yield from self.imem.ports()
+        yield self.core_bigendian_i
+        yield self.busy_o
+
+    def ports(self):
+        return list(self)
+
+    def external_ports(self):
+        ports = self.pc_i.ports()
+        ports = self.msr_i.ports()
+        ports += [self.pc_o, self.memerr_o, self.core_bigendian_i, self.busy_o,
+                  ]
+
+        if self.jtag_en:
+            ports += list(self.jtag.external_ports())
+        else:
+            # don't add DMI if JTAG is enabled
+            ports += list(self.dbg.dmi.ports())
+
+        ports += list(self.imem.ibus.fields.values())
+        ports += list(self.core.l0.cmpi.wb_bus().fields.values())
+
+        if self.sram4x4k:
+            for sram in self.sram4k:
+                ports += list(sram.bus.fields.values())
+
+        if self.xics:
+            ports += list(self.xics_icp.bus.fields.values())
+            ports += list(self.xics_ics.bus.fields.values())
+            ports.append(self.int_level_i)
+
+        if self.gpio:
+            ports += list(self.simple_gpio.bus.fields.values())
+            ports.append(self.gpio_o)
+
+        return ports
+
+    def ports(self):
+        return list(self)
+
+
+
 # Fetch Finite State Machine.
 # WARNING: there are currently DriverConflicts but it's actually working.
 # TODO, here: everything that is global in nature, information from the
@@ -338,150 +720,13 @@ class FetchFSM(ControlBase):
         return m
 
 
-class TestIssuerInternal(Elaboratable):
+class TestIssuerInternal(TestIssuerBase, Elaboratable):
     """TestIssuer - reads instructions from TestMemory and issues them
 
     efficiency and speed is not the main goal here: functional correctness
     and code clarity is.  optimisations (which almost 100% interfere with
     easy understanding) come later.
     """
-
-    def __init__(self, pspec):
-
-        # test is SVP64 is to be enabled
-        self.svp64_en = hasattr(pspec, "svp64") and (pspec.svp64 == True)
-
-        # and if regfiles are reduced
-        self.regreduce_en = (hasattr(pspec, "regreduce") and
-                             (pspec.regreduce == True))
-
-        # and if overlap requested
-        self.allow_overlap = (hasattr(pspec, "allow_overlap") and
-                              (pspec.allow_overlap == True))
-
-        # JTAG interface.  add this right at the start because if it's
-        # added it *modifies* the pspec, by adding enable/disable signals
-        # for parts of the rest of the core
-        self.jtag_en = hasattr(pspec, "debug") and pspec.debug == 'jtag'
-        self.dbg_domain = "sync"  # sigh "dbgsunc" too problematic
-        # self.dbg_domain = "dbgsync" # domain for DMI/JTAG clock
-        if self.jtag_en:
-            # XXX MUST keep this up-to-date with litex, and
-            # soc-cocotb-sim, and err.. all needs sorting out, argh
-            subset = ['uart',
-                      'mtwi',
-                      'eint', 'gpio', 'mspi0',
-                      # 'mspi1', - disabled for now
-                      # 'pwm', 'sd0', - disabled for now
-                      'sdr']
-            self.jtag = JTAG(get_pinspecs(subset=subset),
-                             domain=self.dbg_domain)
-            # add signals to pspec to enable/disable icache and dcache
-            # (or data and intstruction wishbone if icache/dcache not included)
-            # https://bugs.libre-soc.org/show_bug.cgi?id=520
-            # TODO: do we actually care if these are not domain-synchronised?
-            # honestly probably not.
-            pspec.wb_icache_en = self.jtag.wb_icache_en
-            pspec.wb_dcache_en = self.jtag.wb_dcache_en
-            self.wb_sram_en = self.jtag.wb_sram_en
-        else:
-            self.wb_sram_en = Const(1)
-
-        # add 4k sram blocks?
-        self.sram4x4k = (hasattr(pspec, "sram4x4kblock") and
-                         pspec.sram4x4kblock == True)
-        if self.sram4x4k:
-            self.sram4k = []
-            for i in range(4):
-                self.sram4k.append(SPBlock512W64B8W(name="sram4k_%d" % i,
-                                                    # features={'err'}
-                                                    ))
-
-        # add interrupt controller?
-        self.xics = hasattr(pspec, "xics") and pspec.xics == True
-        if self.xics:
-            self.xics_icp = XICS_ICP()
-            self.xics_ics = XICS_ICS()
-            self.int_level_i = self.xics_ics.int_level_i
-
-        # add GPIO peripheral?
-        self.gpio = hasattr(pspec, "gpio") and pspec.gpio == True
-        if self.gpio:
-            self.simple_gpio = SimpleGPIO()
-            self.gpio_o = self.simple_gpio.gpio_o
-
-        # main instruction core.  suitable for prototyping / demo only
-        self.core = core = NonProductionCore(pspec)
-        self.core_rst = ResetSignal("coresync")
-
-        # instruction decoder.  goes into Trap Record
-        #pdecode = create_pdecode()
-        self.cur_state = CoreState("cur")  # current state (MSR/PC/SVSTATE)
-        self.pdecode2 = PowerDecode2(None, state=self.cur_state,
-                                     opkls=IssuerDecode2ToOperand,
-                                     svp64_en=self.svp64_en,
-                                     regreduce_en=self.regreduce_en)
-        pdecode = self.pdecode2.dec
-
-        if self.svp64_en:
-            self.svp64 = SVP64PrefixDecoder()  # for decoding SVP64 prefix
-
-        # Test Instruction memory
-        if hasattr(core, "icache"):
-            # XXX BLECH! use pspec to transfer the I-Cache to ConfigFetchUnit
-            # truly dreadful.  needs a huge reorg.
-            pspec.icache = core.icache
-        self.imem = ConfigFetchUnit(pspec).fu
-
-        # DMI interface
-        self.dbg = CoreDebug()
-
-        # instruction go/monitor
-        self.pc_o = Signal(64, reset_less=True)
-        self.pc_i = Data(64, "pc_i")  # set "ok" to indicate "please change me"
-        self.msr_i = Data(64, "msr_i") # set "ok" to indicate "please change me"
-        self.svstate_i = Data(64, "svstate_i")  # ditto
-        self.core_bigendian_i = Signal()  # TODO: set based on MSR.LE
-        self.busy_o = Signal(reset_less=True)
-        self.memerr_o = Signal(reset_less=True)
-
-        # STATE regfile read /write ports for PC, MSR, SVSTATE
-        staterf = self.core.regs.rf['state']
-        self.state_r_msr = staterf.r_ports['msr']  # MSR rd
-        self.state_r_pc = staterf.r_ports['cia']  # PC rd
-        self.state_r_sv = staterf.r_ports['sv']  # SVSTATE rd
-
-        self.state_w_msr = staterf.w_ports['msr']  # MSR wr
-        self.state_w_pc = staterf.w_ports['d_wr1']  # PC wr
-        self.state_w_sv = staterf.w_ports['sv']  # SVSTATE wr
-
-        # DMI interface access
-        intrf = self.core.regs.rf['int']
-        crrf = self.core.regs.rf['cr']
-        xerrf = self.core.regs.rf['xer']
-        self.int_r = intrf.r_ports['dmi']  # INT read
-        self.cr_r = crrf.r_ports['full_cr_dbg']  # CR read
-        self.xer_r = xerrf.r_ports['full_xer']  # XER read
-
-        if self.svp64_en:
-            # for predication
-            self.int_pred = intrf.r_ports['pred']  # INT predicate read
-            self.cr_pred = crrf.r_ports['cr_pred']  # CR predicate read
-
-        # hack method of keeping an eye on whether branch/trap set the PC
-        self.state_nia = self.core.regs.rf['state'].w_ports['nia']
-        self.state_nia.wen.name = 'state_nia_wen'
-
-        # pulse to synchronize the simulator at instruction end
-        self.insn_done = Signal()
-
-        # indicate any instruction still outstanding, in execution
-        self.any_busy = Signal()
-
-        if self.svp64_en:
-            # store copies of predicate masks
-            self.srcmask = Signal(64)
-            self.dstmask = Signal(64)
 
     def fetch_predicate_fsm(self, m,
                             pred_insn_i_valid, pred_insn_o_ready,
@@ -1059,101 +1304,6 @@ class TestIssuerInternal(Elaboratable):
                             comb += self.insn_done.eq(1)
                         m.next = "INSN_START"  # back to fetch
 
-    def setup_peripherals(self, m):
-        comb, sync = m.d.comb, m.d.sync
-
-        # okaaaay so the debug module must be in coresync clock domain
-        # but NOT its reset signal. to cope with this, set every single
-        # submodule explicitly in coresync domain, debug and JTAG
-        # in their own one but using *external* reset.
-        csd = DomainRenamer("coresync")
-        dbd = DomainRenamer(self.dbg_domain)
-
-        m.submodules.core = core = csd(self.core)
-        # this _so_ needs sorting out.  ICache is added down inside
-        # LoadStore1 and is already a submodule of LoadStore1
-        if not isinstance(self.imem, ICache):
-            m.submodules.imem = imem = csd(self.imem)
-        m.submodules.dbg = dbg = dbd(self.dbg)
-        if self.jtag_en:
-            m.submodules.jtag = jtag = dbd(self.jtag)
-            # TODO: UART2GDB mux, here, from external pin
-            # see https://bugs.libre-soc.org/show_bug.cgi?id=499
-            sync += dbg.dmi.connect_to(jtag.dmi)
-
-        cur_state = self.cur_state
-
-        # 4x 4k SRAM blocks.  these simply "exist", they get routed in litex
-        if self.sram4x4k:
-            for i, sram in enumerate(self.sram4k):
-                m.submodules["sram4k_%d" % i] = csd(sram)
-                comb += sram.enable.eq(self.wb_sram_en)
-
-        # XICS interrupt handler
-        if self.xics:
-            m.submodules.xics_icp = icp = csd(self.xics_icp)
-            m.submodules.xics_ics = ics = csd(self.xics_ics)
-            comb += icp.ics_i.eq(ics.icp_o)           # connect ICS to ICP
-            sync += cur_state.eint.eq(icp.core_irq_o)  # connect ICP to core
-
-        # GPIO test peripheral
-        if self.gpio:
-            m.submodules.simple_gpio = simple_gpio = csd(self.simple_gpio)
-
-        # connect one GPIO output to ICS bit 15 (like in microwatt soc.vhdl)
-        # XXX causes litex ECP5 test to get wrong idea about input and output
-        # (but works with verilator sim *sigh*)
-        # if self.gpio and self.xics:
-        #   comb += self.int_level_i[15].eq(simple_gpio.gpio_o[0])
-
-        # instruction decoder
-        pdecode = create_pdecode()
-        m.submodules.dec2 = pdecode2 = csd(self.pdecode2)
-        if self.svp64_en:
-            m.submodules.svp64 = svp64 = csd(self.svp64)
-
-        # convenience
-        dmi, d_reg, d_cr, d_xer, = dbg.dmi, dbg.d_gpr, dbg.d_cr, dbg.d_xer
-        intrf = self.core.regs.rf['int']
-
-        # clock delay power-on reset
-        cd_por = ClockDomain(reset_less=True)
-        cd_sync = ClockDomain()
-        core_sync = ClockDomain("coresync")
-        m.domains += cd_por, cd_sync, core_sync
-        if self.dbg_domain != "sync":
-            dbg_sync = ClockDomain(self.dbg_domain)
-            m.domains += dbg_sync
-
-        ti_rst = Signal(reset_less=True)
-        delay = Signal(range(4), reset=3)
-        with m.If(delay != 0):
-            m.d.por += delay.eq(delay - 1)
-        comb += cd_por.clk.eq(ClockSignal())
-
-        # power-on reset delay
-        core_rst = ResetSignal("coresync")
-        comb += ti_rst.eq(delay != 0 | dbg.core_rst_o | ResetSignal())
-        comb += core_rst.eq(ti_rst)
-
-        # debug clock is same as coresync, but reset is *main external*
-        if self.dbg_domain != "sync":
-            dbg_rst = ResetSignal(self.dbg_domain)
-            comb += dbg_rst.eq(ResetSignal())
-
-        # busy/halted signals from core
-        core_busy_o = ~core.p.o_ready | core.n.o_data.busy_o  # core is busy
-        comb += self.busy_o.eq(core_busy_o)
-        comb += pdecode2.dec.bigendian.eq(self.core_bigendian_i)
-
-        # temporary hack: says "go" immediately for both address gen and ST
-        l0 = core.l0
-        ldst = core.fus.fus['ldst0']
-        st_go_edge = rising_edge(m, ldst.st.rel_o)
-        # link addr-go direct to rel
-        m.d.comb += ldst.ad.go_i.eq(ldst.ad.rel_o)
-        m.d.comb += ldst.st.go_i.eq(st_go_edge)  # link store-go to rising rel
-
     def elaborate(self, platform):
         m = Module()
         # convenience
@@ -1287,150 +1437,6 @@ class TestIssuerInternal(Elaboratable):
         self.tb_dec_fsm(m, cur_state.dec)
 
         return m
-
-    def do_dmi(self, m, dbg):
-        """deals with DMI debug requests
-
-        currently only provides read requests for the INT regfile, CR and XER
-        it will later also deal with *writing* to these regfiles.
-        """
-        comb = m.d.comb
-        sync = m.d.sync
-        dmi, d_reg, d_cr, d_xer, = dbg.dmi, dbg.d_gpr, dbg.d_cr, dbg.d_xer
-        intrf = self.core.regs.rf['int']
-
-        with m.If(d_reg.req):  # request for regfile access being made
-            # TODO: error-check this
-            # XXX should this be combinatorial?  sync better?
-            if intrf.unary:
-                comb += self.int_r.ren.eq(1 << d_reg.addr)
-            else:
-                comb += self.int_r.addr.eq(d_reg.addr)
-                comb += self.int_r.ren.eq(1)
-        d_reg_delay = Signal()
-        sync += d_reg_delay.eq(d_reg.req)
-        with m.If(d_reg_delay):
-            # data arrives one clock later
-            comb += d_reg.data.eq(self.int_r.o_data)
-            comb += d_reg.ack.eq(1)
-
-        # sigh same thing for CR debug
-        with m.If(d_cr.req):  # request for regfile access being made
-            comb += self.cr_r.ren.eq(0b11111111)  # enable all
-        d_cr_delay = Signal()
-        sync += d_cr_delay.eq(d_cr.req)
-        with m.If(d_cr_delay):
-            # data arrives one clock later
-            comb += d_cr.data.eq(self.cr_r.o_data)
-            comb += d_cr.ack.eq(1)
-
-        # aaand XER...
-        with m.If(d_xer.req):  # request for regfile access being made
-            comb += self.xer_r.ren.eq(0b111111)  # enable all
-        d_xer_delay = Signal()
-        sync += d_xer_delay.eq(d_xer.req)
-        with m.If(d_xer_delay):
-            # data arrives one clock later
-            comb += d_xer.data.eq(self.xer_r.o_data)
-            comb += d_xer.ack.eq(1)
-
-    def tb_dec_fsm(self, m, spr_dec):
-        """tb_dec_fsm
-
-        this is a FSM for updating either dec or tb.  it runs alternately
-        DEC, TB, DEC, TB.  note that SPR pipeline could have written a new
-        value to DEC, however the regfile has "passthrough" on it so this
-        *should* be ok.
-
-        see v3.0B p1097-1099 for Timeer Resource and p1065 and p1076
-        """
-
-        comb, sync = m.d.comb, m.d.sync
-        fast_rf = self.core.regs.rf['fast']
-        fast_r_dectb = fast_rf.r_ports['issue']  # DEC/TB
-        fast_w_dectb = fast_rf.w_ports['issue']  # DEC/TB
-
-        with m.FSM() as fsm:
-
-            # initiates read of current DEC
-            with m.State("DEC_READ"):
-                comb += fast_r_dectb.addr.eq(FastRegs.DEC)
-                comb += fast_r_dectb.ren.eq(1)
-                m.next = "DEC_WRITE"
-
-            # waits for DEC read to arrive (1 cycle), updates with new value
-            with m.State("DEC_WRITE"):
-                new_dec = Signal(64)
-                # TODO: MSR.LPCR 32-bit decrement mode
-                comb += new_dec.eq(fast_r_dectb.o_data - 1)
-                comb += fast_w_dectb.addr.eq(FastRegs.DEC)
-                comb += fast_w_dectb.wen.eq(1)
-                comb += fast_w_dectb.i_data.eq(new_dec)
-                sync += spr_dec.eq(new_dec)  # copy into cur_state for decoder
-                m.next = "TB_READ"
-
-            # initiates read of current TB
-            with m.State("TB_READ"):
-                comb += fast_r_dectb.addr.eq(FastRegs.TB)
-                comb += fast_r_dectb.ren.eq(1)
-                m.next = "TB_WRITE"
-
-            # waits for read TB to arrive, initiates write of current TB
-            with m.State("TB_WRITE"):
-                new_tb = Signal(64)
-                comb += new_tb.eq(fast_r_dectb.o_data + 1)
-                comb += fast_w_dectb.addr.eq(FastRegs.TB)
-                comb += fast_w_dectb.wen.eq(1)
-                comb += fast_w_dectb.i_data.eq(new_tb)
-                m.next = "DEC_READ"
-
-        return m
-
-    def __iter__(self):
-        yield from self.pc_i.ports()
-        yield from self.msr_i.ports()
-        yield self.pc_o
-        yield self.memerr_o
-        yield from self.core.ports()
-        yield from self.imem.ports()
-        yield self.core_bigendian_i
-        yield self.busy_o
-
-    def ports(self):
-        return list(self)
-
-    def external_ports(self):
-        ports = self.pc_i.ports()
-        ports = self.msr_i.ports()
-        ports += [self.pc_o, self.memerr_o, self.core_bigendian_i, self.busy_o,
-                  ]
-
-        if self.jtag_en:
-            ports += list(self.jtag.external_ports())
-        else:
-            # don't add DMI if JTAG is enabled
-            ports += list(self.dbg.dmi.ports())
-
-        ports += list(self.imem.ibus.fields.values())
-        ports += list(self.core.l0.cmpi.wb_bus().fields.values())
-
-        if self.sram4x4k:
-            for sram in self.sram4k:
-                ports += list(sram.bus.fields.values())
-
-        if self.xics:
-            ports += list(self.xics_icp.bus.fields.values())
-            ports += list(self.xics_ics.bus.fields.values())
-            ports.append(self.int_level_i)
-
-        if self.gpio:
-            ports += list(self.simple_gpio.bus.fields.values())
-            ports.append(self.gpio_o)
-
-        return ports
-
-    def ports(self):
-        return list(self)
 
 
 class TestIssuer(Elaboratable):
