@@ -68,8 +68,6 @@ def insert_into_rom(startaddr, instructions, rom):
 
 def setup_i_memory(imem, startaddr, instructions, rom):
     mem = imem
-    print ("insn before")
-    return
     print("insn before, init mem", mem.depth, mem.width, mem,
           len(instructions))
 
