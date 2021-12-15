@@ -275,15 +275,6 @@ class TestIssuerInternalInOrder(TestIssuerBase):
                 with m.Else():
                     # tell core it's stopped, and acknowledge debug handshake
                     comb += dbg.core_stopped_i.eq(1)
-                    # while stopped, allow updating the MSR, PC and SVSTATE
-                    with m.If(self.pc_i.ok):
-                        comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
-                        comb += self.state_w_pc.i_data.eq(self.pc_i.data)
-                        sync += self.pc_changed.eq(1)
-                    with m.If(self.msr_i.ok):
-                        comb += self.state_w_msr.wen.eq(1 << StateRegs.MSR)
-                        comb += self.state_w_msr.i_data.eq(self.msr_i.data)
-                        sync += self.msr_changed.eq(1)
 
             # wait for an instruction to arrive from Fetch
             with m.State("INSN_WAIT"):
