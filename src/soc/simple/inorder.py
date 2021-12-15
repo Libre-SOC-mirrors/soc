@@ -15,7 +15,7 @@ way, and to at provide something that can be further incrementally
 improved.
 """
 
-from nmigen import (Elaboratable, Module, Signal, 
+from nmigen import (Elaboratable, Module, Signal,
                     Mux, Const, Repl, Cat)
 from nmigen.cli import rtlil
 from nmigen.cli import main
@@ -49,11 +49,10 @@ def get_insn(f_instr_o, pc):
 # not only that: TestIssuerInternal.imem can entirely move into here
 # because imem is only ever accessed inside the FetchFSM.
 class FetchFSM(ControlBase):
-    def __init__(self, allow_overlap, svp64_en, imem, core_rst,
+    def __init__(self, allow_overlap, imem, core_rst,
                  pdecode2, cur_state,
-                 dbg, core, svstate, nia, is_svp64_mode):
+                 dbg, core, svstate, nia):
         self.allow_overlap = allow_overlap
-        self.svp64_en = svp64_en
         self.imem = imem
         self.core_rst = core_rst
         self.pdecode2 = pdecode2
@@ -62,7 +61,6 @@ class FetchFSM(ControlBase):
         self.core = core
         self.svstate = svstate
         self.nia = nia
-        self.is_svp64_mode = is_svp64_mode
 
         # set up pipeline ControlBase and allocate i/o specs
         # (unusual: normally done by the Pipeline API)
@@ -95,7 +93,6 @@ class FetchFSM(ControlBase):
         msr = self.i.msr
         svstate = self.svstate
         nia = self.nia
-        is_svp64_mode = self.is_svp64_mode
         fetch_pc_o_ready = self.p.o_ready
         fetch_pc_i_valid = self.p.i_valid
         fetch_insn_o_valid = self.n.o_valid
@@ -154,35 +151,9 @@ class FetchFSM(ControlBase):
                         # when fetch failed, the instruction gets ignored
                         # by the decoder
                         insn = get_insn(self.imem.f_instr_o, cur_state.pc)
-                        if self.svp64_en:
-                            svp64 = self.svp64
-                            # decode the SVP64 prefix, if any
-                            comb += svp64.raw_opcode_in.eq(insn)
-                            comb += svp64.bigendian.eq(self.core_bigendian_i)
-                            # pass the decoded prefix (if any) to PowerDecoder2
-                            sync += pdecode2.sv_rm.eq(svp64.svp64_rm)
-                            sync += pdecode2.is_svp64_mode.eq(is_svp64_mode)
-                            # remember whether this is a prefixed instruction,
-                            # so the FSM can readily loop when VL==0
-                            sync += is_svp64_mode.eq(svp64.is_svp64_mode)
-                            # calculate the address of the following instruction
-                            insn_size = Mux(svp64.is_svp64_mode, 8, 4)
-                            sync += nia.eq(cur_state.pc + insn_size)
-                            with m.If(~svp64.is_svp64_mode):
-                                # with no prefix, store the instruction
-                                # and hand it directly to the next FSM
-                                sync += dec_opcode_o.eq(insn)
-                                m.next = "INSN_READY"
-                            with m.Else():
-                                # fetch the rest of the instruction from memory
-                                comb += self.imem.a_pc_i.eq(cur_state.pc + 4)
-                                comb += self.imem.a_i_valid.eq(1)
-                                comb += self.imem.f_i_valid.eq(1)
-                                m.next = "INSN_READ2"
-                        else:
-                            # not SVP64 - 32-bit only
-                            sync += nia.eq(cur_state.pc + 4)
-                            sync += dec_opcode_o.eq(insn)
+                        # not SVP64 - 32-bit only
+                        sync += nia.eq(cur_state.pc + 4)
+                        sync += dec_opcode_o.eq(insn)
                             m.next = "INSN_READY"
 
             with m.State("INSN_READ2"):
@@ -218,7 +189,7 @@ class TestIssuerInternalInOrder(TestIssuerBase):
     """
 
     def issue_fsm(self, m, core, nia,
-                  dbg, core_rst, is_svp64_mode,
+                  dbg, core_rst,
                   fetch_pc_o_ready, fetch_pc_i_valid,
                   fetch_insn_o_valid, fetch_insn_i_ready,
                   exec_insn_i_valid, exec_insn_o_ready,
@@ -501,7 +472,7 @@ class TestIssuerInternalInOrder(TestIssuerBase):
         # signalling is used to communicate between the four.
 
         # set up Fetch FSM
-        fetch = FetchFSM(self.allow_overlap, self.svp64_en,
+        fetch = FetchFSM(self.allow_overlap,
                          self.imem, core_rst, pdecode2, cur_state,
                          dbg, core,
                          dbg.state.svstate, # combinatorially same
@@ -517,7 +488,7 @@ class TestIssuerInternalInOrder(TestIssuerBase):
         comb += fetch.n.i_ready.eq(fetch_insn_i_ready)
 
         self.issue_fsm(m, core, nia,
-                       dbg, core_rst, 
+                       dbg, core_rst,
                        fetch_pc_o_ready, fetch_pc_i_valid,
                        fetch_insn_o_valid, fetch_insn_i_ready,
                        exec_insn_i_valid, exec_insn_o_ready,
@@ -529,6 +500,8 @@ class TestIssuerInternalInOrder(TestIssuerBase):
 
         return m
 
+
+# XXX TODO: update this
 
 if __name__ == '__main__':
     units = {'alu': 1, 'cr': 1, 'branch': 1, 'trap': 1, 'logical': 1,
