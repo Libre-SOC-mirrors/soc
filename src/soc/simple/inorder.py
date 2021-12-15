@@ -162,17 +162,6 @@ class FetchFSM(ControlBase):
                         sync += dec_opcode_o.eq(insn)
                             m.next = "INSN_READY"
 
-            with m.State("INSN_READ2"):
-                with m.If(self.imem.f_busy_o):  # zzz...
-                    # busy: stay in wait-read
-                    comb += self.imem.a_i_valid.eq(1)
-                    comb += self.imem.f_i_valid.eq(1)
-                with m.Else():
-                    # not busy: instruction fetched
-                    insn = get_insn(self.imem.f_instr_o, cur_state.pc+4)
-                    sync += dec_opcode_o.eq(insn)
-                    m.next = "INSN_READY"
-
             with m.State("INSN_READY"):
                 # hand over the instruction, to be decoded
                 comb += fetch_insn_o_valid.eq(1)
