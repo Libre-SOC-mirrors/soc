@@ -711,14 +711,14 @@ class TestIssuerInternal(Elaboratable):
         if hasattr(core, "icache"):
             fetch_failed = core.icache.i_out.fetch_failed
             flush_needed = True
+            # set to fault in decoder
+            # update (highest priority) instruction fault
+            rising_fetch_failed = rising_edge(m, fetch_failed)
+            with m.If(rising_fetch_failed):
+                sync += pdecode2.instr_fault.eq(1)
         else:
             fetch_failed = Const(0, 1)
             flush_needed = False
-        # set to fault in decoder
-        # update (highest priority) instruction fault
-        rising_fetch_failed = rising_edge(m, fetch_failed)
-        with m.If(rising_fetch_failed):
-            sync += pdecode2.instr_fault.eq(1)
 
         with m.FSM(name="issue_fsm"):
 
@@ -909,15 +909,16 @@ class TestIssuerInternal(Elaboratable):
                     with m.If(exc_happened):
                         mmu = core.fus.get_exc("mmu0")
                         ldst = core.fus.get_exc("ldst0")
-                        with m.If(fetch_failed):
-                            # instruction fetch: exception is from MMU
-                            # reset instr_fault (highest priority)
-                            sync += pdecode2.ldst_exc.eq(mmu)
-                            sync += pdecode2.instr_fault.eq(0)
-                            if flush_needed:
-                                # request the icache to stop asserting "failed"
-                                comb += core.icache.flush_in.eq(1)
-                        with m.Else():
+                        if mmu is not None:
+                            with m.If(fetch_failed):
+                                # instruction fetch: exception is from MMU
+                                # reset instr_fault (highest priority)
+                                sync += pdecode2.ldst_exc.eq(mmu)
+                                sync += pdecode2.instr_fault.eq(0)
+                                if flush_needed:
+                                    # request icache to stop asserting "failed"
+                                    comb += core.icache.flush_in.eq(1)
+                        with m.If(~fetch_failed):
                             # otherwise assume it was a LDST exception
                             sync += pdecode2.ldst_exc.eq(ldst)
 
