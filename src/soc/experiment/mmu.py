@@ -372,6 +372,11 @@ class MMU(Elaboratable):
         self.rin = rin = RegStage("r_in")
         r = RegStage("r")
 
+        # get access to prtbl and pid for debug / testing purposes ONLY
+        # (actually, not needed, because setup_regs() triggers mmu direct)
+        # self._prtbl = r.prtbl
+        # self._pid = r.pid
+
         l_in  = self.l_in
         l_out = self.l_out
         d_out = self.d_out

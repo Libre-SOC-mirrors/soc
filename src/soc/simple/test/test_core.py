@@ -60,7 +60,7 @@ def set_mmu_spr(name, i, val, core):  # important keep pep8 formatting
     yield fsm.mmu.l_in.rs.eq(val)
     yield
     yield fsm.mmu.l_in.mtspr.eq(0)
-    print("mmu_spr was updated")
+    print("mmu_spr %s %d was updated %x" % (name, i, val))
 
 
 def setup_regs(pdecode2, core, test):
@@ -128,7 +128,10 @@ def setup_regs(pdecode2, core, test):
             sprname = spr_dict[sprname].SPR
         if sprname == 'XER':
             continue
+        print ('set spr %s val %x' % (sprname, val))
+
         fast = spr_to_fast_reg(sprname)
+
         if fast is None:
             # match behaviour of SPRMap in power_decoder2.py
             for i, x in enumerate(SPR):
@@ -138,7 +141,7 @@ def setup_regs(pdecode2, core, test):
                     if sprname not in mmu_sprs:
                         yield sregs.memory._array[i].eq(val)
                     else:
-                        yield from set_mmu_spr(sprname, i, val, core)
+                        yield from set_mmu_spr(sprname, x.value, val, core)
         else:
             print("setting fast reg %d (%s) to %x" %
                   (fast, sprname, val))
