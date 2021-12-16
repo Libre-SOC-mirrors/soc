@@ -113,11 +113,11 @@ class MMU(Elaboratable):
     (i.e. there is no gRA -> hRA translation).
     """
     def __init__(self):
-        self.l_in  = LoadStore1ToMMUType()
-        self.l_out = MMUToLoadStore1Type()
-        self.d_out = MMUToDCacheType()
-        self.d_in  = DCacheToMMUType()
-        self.i_out = MMUToICacheType()
+        self.l_in  = LoadStore1ToMMUType("l_in")
+        self.l_out = MMUToLoadStore1Type("l_out")
+        self.d_out = MMUToDCacheType("d_out")
+        self.d_in  = DCacheToMMUType("d_in")
+        self.i_out = MMUToICacheType("i_out")
 
     def radix_tree_idle(self, m, l_in, r, v):
         comb = m.d.comb
