@@ -1290,11 +1290,6 @@ class TestIssuerInternal(TestIssuerBase):
                         comb += core.icache.flush_in.eq(1)
                     # stop instruction fault
                     sync += pdecode2.instr_fault.eq(0)
-                    if flush_needed:
-                        # request the icache to stop asserting "failed"
-                        comb += core.icache.flush_in.eq(1)
-                    # stop instruction fault
-                    sync += pdecode2.instr_fault.eq(0)
 
         # check if svstate needs updating: if so, write it to State Regfile
         with m.If(self.update_svstate):
