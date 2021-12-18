@@ -1640,7 +1640,7 @@ class DCache(Elaboratable):
                     sync += r1.wb.stb.eq(0)
 
                 # Got ack ? complete.
-                with m.If(bus.ack):
+                with m.If(bus_ack):
                     sync += r1.state.eq(State.IDLE)
                     sync += r1.full.eq(0)
                     sync += r1.slow_valid.eq(1)

@@ -46,17 +46,19 @@ class MMUTestCase(TestAccumulatorBase):
     def case_5_ldst_exception(self):
         lst = [#"mtspr 720,1", # mtspr PRTBL,r1
                "stb 10,0(2)",
-               "addi 10,0, 2",
-               "lbz 6,0(2)",
+               "addi 10,0, -4",
+               "stb 10,0(5)",
+               "lhz 6,0(2)",
               ]
         initial_regs = [0] * 32
         initial_regs[1] = 0x1000000
         initial_regs[2] = 0x3456
         initial_regs[3] = 0x4321
         initial_regs[4] = 0x6543
+        initial_regs[5] = 0x3457
         initial_regs[10] = 0xfe
         initial_mem = {}
-        initial_msr = 0 << MSR.PR # must set "problem" state
+        initial_msr = 1 << MSR.PR # must set "problem" state
         initial_msr |= 1 << MSR.DR # set "virtual" state
         initial_sprs = {720: 0x1000000} # PRTBL
         print("MMUTEST: initial_msr=",initial_msr)

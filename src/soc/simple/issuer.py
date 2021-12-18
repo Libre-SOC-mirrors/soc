@@ -176,12 +176,18 @@ class TestIssuerBase(Elaboratable):
         self.allow_overlap = (hasattr(pspec, "allow_overlap") and
                               (pspec.allow_overlap == True))
 
+        # and get the core domain
+        self.core_domain = "coresync"
+        if (hasattr(pspec, "core_domain") and
+            isinstance(pspec.core_domain, str)):
+            self.core_domain = pspec.core_domain
+
         # JTAG interface.  add this right at the start because if it's
         # added it *modifies* the pspec, by adding enable/disable signals
         # for parts of the rest of the core
         self.jtag_en = hasattr(pspec, "debug") and pspec.debug == 'jtag'
-        self.dbg_domain = "sync"  # sigh "dbgsunc" too problematic
-        # self.dbg_domain = "dbgsync" # domain for DMI/JTAG clock
+        #self.dbg_domain = "sync"  # sigh "dbgsunc" too problematic
+        self.dbg_domain = "dbgsync" # domain for DMI/JTAG clock
         if self.jtag_en:
             # XXX MUST keep this up-to-date with litex, and
             # soc-cocotb-sim, and err.. all needs sorting out, argh
@@ -229,7 +235,7 @@ class TestIssuerBase(Elaboratable):
 
         # main instruction core.  suitable for prototyping / demo only
         self.core = core = NonProductionCore(pspec)
-        self.core_rst = ResetSignal("coresync")
+        self.core_rst = ResetSignal(self.core_domain)
 
         # instruction decoder.  goes into Trap Record
         #pdecode = create_pdecode()
@@ -255,6 +261,7 @@ class TestIssuerBase(Elaboratable):
 
         # DMI interface
         self.dbg = CoreDebug()
+        self.dbg_rst_i = Signal(reset_less=True)
 
         # instruction go/monitor
         self.pc_o = Signal(64, reset_less=True)
@@ -310,7 +317,7 @@ class TestIssuerBase(Elaboratable):
         # but NOT its reset signal. to cope with this, set every single
         # submodule explicitly in coresync domain, debug and JTAG
         # in their own one but using *external* reset.
-        csd = DomainRenamer("coresync")
+        csd = DomainRenamer(self.core_domain)
         dbd = DomainRenamer(self.dbg_domain)
 
         m.submodules.core = core = csd(self.core)
@@ -363,8 +370,10 @@ class TestIssuerBase(Elaboratable):
         # clock delay power-on reset
         cd_por = ClockDomain(reset_less=True)
         cd_sync = ClockDomain()
-        core_sync = ClockDomain("coresync")
-        m.domains += cd_por, cd_sync, core_sync
+        m.domains += cd_por, cd_sync
+        core_sync = ClockDomain(self.core_domain)
+        if self.core_domain != "sync":
+            m.domains += core_sync
         if self.dbg_domain != "sync":
             dbg_sync = ClockDomain(self.dbg_domain)
             m.domains += dbg_sync
@@ -376,14 +385,18 @@ class TestIssuerBase(Elaboratable):
         comb += cd_por.clk.eq(ClockSignal())
 
         # power-on reset delay
-        core_rst = ResetSignal("coresync")
-        comb += ti_rst.eq(delay != 0 | dbg.core_rst_o | ResetSignal())
-        comb += core_rst.eq(ti_rst)
+        core_rst = ResetSignal(self.core_domain)
+        if self.core_domain != "sync":
+            comb += ti_rst.eq(delay != 0 | dbg.core_rst_o | ResetSignal())
+            comb += core_rst.eq(ti_rst)
+        else:
+            with m.If(delay != 0 | dbg.core_rst_o):
+                comb += core_rst.eq(1)
 
-        # debug clock is same as coresync, but reset is *main external*
+        # connect external reset signal to DMI Reset
         if self.dbg_domain != "sync":
             dbg_rst = ResetSignal(self.dbg_domain)
-            comb += dbg_rst.eq(ResetSignal())
+            comb += dbg_rst.eq(self.dbg_rst_i)
 
         # busy/halted signals from core
         core_busy_o = ~core.p.o_ready | core.n.o_data.busy_o  # core is busy
@@ -1480,6 +1493,8 @@ class TestIssuer(Elaboratable):
         #self.ti = TestIssuerInternalInOrder(pspec)
         self.pll = DummyPLL(instance=True)
 
+        self.dbg_rst_i = Signal(reset_less=True)
+
         # PLL direct clock or not
         self.pll_en = hasattr(pspec, "use_pll") and pspec.use_pll
         if self.pll_en:
@@ -1526,23 +1541,24 @@ class TestIssuer(Elaboratable):
         # internal clock is set to selector clock-out.  has the side-effect of
         # running TestIssuer at this speed (see DomainRenamer("intclk") above)
         # debug clock runs at coresync internal clock
-        cd_coresync = ClockDomain("coresync")
-        #m.domains += cd_coresync
         if self.ti.dbg_domain != 'sync':
             cd_dbgsync = ClockDomain("dbgsync")
-            #m.domains += cd_dbgsync
-        intclk = ClockSignal("coresync")
+        intclk = ClockSignal(self.ti.core_domain)
         dbgclk = ClockSignal(self.ti.dbg_domain)
         # XXX BYPASS PLL XXX
         # XXX BYPASS PLL XXX
         # XXX BYPASS PLL XXX
         if self.pll_en:
             comb += intclk.eq(self.ref_clk)
+            assert self.ti.core_domain != 'sync', \
+                "cannot set core_domain to sync and use pll at the same time"
         else:
-            comb += intclk.eq(ClockSignal())
+            if self.ti.core_domain != 'sync':
+                comb += intclk.eq(ClockSignal())
         if self.ti.dbg_domain != 'sync':
             dbgclk = ClockSignal(self.ti.dbg_domain)
             comb += dbgclk.eq(intclk)
+        comb += self.ti.dbg_rst_i.eq(self.dbg_rst_i)
 
         return m
 

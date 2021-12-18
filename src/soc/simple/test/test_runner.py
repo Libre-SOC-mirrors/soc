@@ -204,6 +204,15 @@ class HDLRunner(StateRunner):
         #print ("end of test preparation", test.name)
 
     def setup_during_test(self):
+        # first run a manual hard-reset of the debug interface.
+        # core is counting down on a 3-clock delay at this point
+        yield self.issuer.dbg_rst_i.eq(1)
+        yield
+        yield self.issuer.dbg_rst_i.eq(0)
+
+        # now run a DMI-interface reset.  because DMI is running
+        # in dbgsync domain its reset is *NOT* connected to
+        # core reset (hence the dbg_rst_i blip, above)
         yield from set_dmi(self.dmi, DBGCore.CTRL, 1 << DBGCtrl.STOP)
         yield
         #print("test setup")
