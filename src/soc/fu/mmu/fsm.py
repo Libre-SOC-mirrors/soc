@@ -73,13 +73,14 @@ class FSMMMUStage(ControlBase):
         assert hasattr(self, "dcache"), "remember to call set_ldst_interface"
         m = super().elaborate(platform)
         comb, sync = m.d.comb, m.d.sync
-        dcache = self.dcache
-
-        # link mmu and dcache together
-        m.submodules.mmu = mmu = self.mmu
+        dcache, icache = self.dcache, self.icache
         ldst = self.ldst # managed externally: do not add here
+
+        # link mmu, dcache and icache together
+        m.submodules.mmu = mmu = self.mmu
         m.d.comb += dcache.m_in.eq(mmu.d_out) # MMUToDCacheType
         m.d.comb += mmu.d_in.eq(dcache.m_out) # DCacheToMMUType
+        m.d.comb += icache.m_in.eq(mmu.i_out) # MMUToICacheType
 
         l_in, l_out = mmu.l_in, mmu.l_out
         d_in, d_out = dcache.d_in, dcache.d_out
