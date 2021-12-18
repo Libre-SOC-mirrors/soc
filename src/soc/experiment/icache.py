@@ -834,10 +834,6 @@ class ICache(FetchUnitInterface, Elaboratable):
         plru_victim      = Signal(WAY_BITS)
         replace_way      = Signal(WAY_BITS)
 
-        # fake-up the wishbone stall signal to comply with pipeline mode
-        # same thing is done in dcache.py
-        comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
-
         # call sub-functions putting everything together,
         # using shared signals established above
         self.rams(m, r, cache_out_row, use_previous, replace_way, req_row)
@@ -887,6 +883,10 @@ class ICache(FetchUnitInterface, Elaboratable):
         comb += self.bus.ack.eq(ibus.ack)
         if hasattr(ibus, "stall"):
             comb += self.bus.stall.eq(ibus.stall)
+        else:
+            # fake-up the wishbone stall signal to comply with pipeline mode
+            # same thing is done in dcache.py
+            comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
 
         return m
 
