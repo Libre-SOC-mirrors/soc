@@ -54,9 +54,12 @@ class HDLState(State):
         log("class hdl pc", hex(self.pc))
 
     def get_mem(self):
-        # get the underlying HDL-simulated memory from the L0CacheBuffer
-        hdlmem = get_l0_mem(self.core.l0)
         self.mem = {}
+        # get the underlying HDL-simulated memory from the L0CacheBuffer
+        if hasattr(self.core, "icache"):
+            # err temporarily ignore memory
+            return # XXX have to work out how to deal with wb_get
+        hdlmem = get_l0_mem(self.core.l0)
         for i in range(hdlmem.depth):
             value = yield hdlmem._array[i] # should not really do this
             self.mem[i*8] = value
