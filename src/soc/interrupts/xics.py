@@ -16,6 +16,9 @@
 # highest priority interrupt currently presented (which is allowed
 # via XICS)
 #
+# Bugreports:
+#
+# * https://bugs.libre-soc.org/show_bug.cgi?id=407
 """
 from nmigen import Elaboratable, Module, Signal, Cat, Const, Record, Array, Mux
 from nmutil.iocontrol import RecordObject
