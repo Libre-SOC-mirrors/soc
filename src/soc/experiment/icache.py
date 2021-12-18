@@ -266,11 +266,9 @@ def write_tag(way, tagset, tag):
 
 # Simple hash for direct-mapped TLB index
 def hash_ea(addr):
-    hsh = addr[TLB_LG_PGSZ:TLB_LG_PGSZ + TLB_BITS] ^ addr[
-           TLB_LG_PGSZ + TLB_BITS:TLB_LG_PGSZ + 2 * TLB_BITS
-          ] ^ addr[
-           TLB_LG_PGSZ + 2 * TLB_BITS:TLB_LG_PGSZ + 3 * TLB_BITS
-          ]
+    hsh = (addr[TLB_LG_PGSZ:TLB_LG_PGSZ + TLB_BITS] ^
+           addr[TLB_LG_PGSZ + TLB_BITS:TLB_LG_PGSZ + 2 * TLB_BITS ] ^
+           addr[TLB_LG_PGSZ + 2 * TLB_BITS:TLB_LG_PGSZ + 3 * TLB_BITS])
     return hsh
 
 
