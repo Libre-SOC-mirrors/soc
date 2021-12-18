@@ -824,7 +824,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         req_is_miss      = Signal()
         req_laddr        = Signal(64)
 
-        tlb_req_index    = Signal(TLB_SIZE)
+        tlb_req_index    = Signal(TLB_BITS)
         real_addr        = Signal(REAL_ADDR_BITS)
         ra_valid         = Signal()
         priv_fault       = Signal()
