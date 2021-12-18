@@ -699,7 +699,7 @@ class FetchFSM(ControlBase):
             with m.State("IDLE"):
                 with m.If(~dbg.stopping_o & ~fetch_failed):
                     comb += fetch_pc_o_ready.eq(1)
-                with m.If(fetch_pc_i_valid & ~fetch_failed):
+                with m.If(fetch_pc_i_valid & ~pdecode2.instr_fault):
                     # instruction allowed to go: start by reading the PC
                     # capture the PC and also drop it into Insn Memory
                     # we have joined a pair of combinatorial memory
@@ -724,7 +724,8 @@ class FetchFSM(ControlBase):
                     # stopping: jump back to idle
                     m.next = "IDLE"
                 with m.Else():
-                    with m.If(self.imem.f_busy_o & ~fetch_failed):  # zzz...
+                    with m.If(self.imem.f_busy_o &
+                              ~pdecode2.instr_fault):  # zzz...
                         # busy but not fetch failed: stay in wait-read
                         comb += self.imem.a_i_valid.eq(1)
                         comb += self.imem.f_i_valid.eq(1)
@@ -1240,9 +1241,14 @@ class TestIssuerInternal(TestIssuerBase):
                         cur_vl = cur_state.svstate.vl
                         comb += is_last.eq(next_srcstep == cur_vl)
 
+                        with m.If(pdecode2.instr_fault):
+                            # reset instruction fault, try again
+                            sync += pdecode2.instr_fault.eq(0)
+                            m.next = "ISSUE_START"
+
                         # return directly to Decode if Execute generated an
                         # exception.
-                        with m.If(pdecode2.ldst_exc.happened):
+                        with m.Elif(pdecode2.ldst_exc.happened):
                             m.next = "DECODE_SV"
 
                         # if MSR, PC or SVSTATE were changed by the previous
@@ -1357,7 +1363,7 @@ class TestIssuerInternal(TestIssuerBase):
                         # there were *TWO* instructions:
                         # 1) the failed LDST 2) a TRAP.
                         with m.If(~pdecode2.ldst_exc.happened &
-                                  ~fetch_failed):
+                                   ~pdecode2.instr_fault):
                             comb += self.insn_done.eq(1)
                         m.next = "INSN_START"  # back to fetch
 

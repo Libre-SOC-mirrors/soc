@@ -309,7 +309,7 @@ class HDLRunner(StateRunner):
             if terminated:
                 break
 
-        if self.dut.allow_overlap:
+        if self.dut.allow_overlap: # or not self.dut.rom: ??
             # wait until all settled
             # XXX really this should be in DMI, which should in turn
             # use issuer.any_busy to not send back "stopped" signal
