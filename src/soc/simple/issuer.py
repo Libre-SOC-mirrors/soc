@@ -1415,7 +1415,8 @@ class TestIssuerInternal(TestIssuerBase):
         nia = Signal(64)
 
         # connect up debug signals
-        comb += dbg.terminate_i.eq(core.o.core_terminate_o)
+        with m.If(core.o.core_terminate_o):
+            comb += dbg.terminate_i.eq(1)
 
         # pass the prefix mode from Fetch to Issue, so the latter can loop
         # on VL==0

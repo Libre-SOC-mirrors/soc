@@ -435,7 +435,8 @@ class TestIssuerInternalInOrder(TestIssuerBase):
         nia = Signal(64)
 
         # connect up debug signals
-        comb += dbg.terminate_i.eq(core.o.core_terminate_o)
+        with m.If(core.o.core_terminate_o):
+            comb += dbg.terminate_i.eq(1)
 
         # there are *THREE^WFOUR-if-SVP64-enabled* FSMs, fetch (32/64-bit)
         # issue, decode/execute, now joined by "Predicate fetch/calculate".
