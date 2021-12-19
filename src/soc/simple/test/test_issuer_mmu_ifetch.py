@@ -39,33 +39,56 @@ from soc.experiment.test import pagetables
 
 class MMUTestCase(TestAccumulatorBase):
 
-    # MMUTEST: initial_msr= 16384
-    # msr 16384
-    # ISACaller initial_msr 16384
-    # FIXME msr does not get passed to LoadStore1
-    def case_5_ldst_exception(self):
-        lst = [#"mtspr 720,1", # mtspr PRTBL,r1
-               "stb 10,0(2)",
+    def cse_virtual_ld_st(self):
+        lst = ["stb 10,0(2)",
                "addi 10,0, -4",
                "stb 10,0(5)",
                "lhz 6,0(2)",
               ]
+
+        # set up regs
         initial_regs = [0] * 32
-        initial_regs[1] = 0x1000000
+        initial_regs[1] = 0x1000000 # hm, was going to do mtspr 720,1 with this
         initial_regs[2] = 0x3456
         initial_regs[3] = 0x4321
         initial_regs[4] = 0x6543
         initial_regs[5] = 0x3457
         initial_regs[10] = 0xfe
+
+        # no pre-loaded memory here
         initial_mem = {}
+
+        # set virtual and non-privileged
         initial_msr = 1 << MSR.PR # must set "problem" state
         initial_msr |= 1 << MSR.DR # set "virtual" state
+
+        # set PRTBL to 0x1000000
         initial_sprs = {720: 0x1000000} # PRTBL
+
         print("MMUTEST: initial_msr=",initial_msr)
         self.add_case(Program(lst, bigendian), initial_regs,
                              initial_mem=initial_mem,
                              initial_sprs=initial_sprs,
                              initial_msr=initial_msr)
+
+    def case_virtual_invalid_no_prtbl(self):
+        """virtual memory test but with no PRTBL set it is expected
+        to throw an "invalid" exception
+        """
+        lst = ["stb 10,0(2)",
+              ]
+
+        # set up regs
+        initial_regs = [0] * 32
+
+        # set virtual and non-privileged
+        initial_msr = 1 << MSR.PR # must set "problem" state
+        initial_msr |= 1 << MSR.DR # set "virtual" state
+
+        print("MMUTEST: initial_msr=",initial_msr)
+        self.add_case(Program(lst, bigendian), initial_regs,
+                             initial_msr=initial_msr,
+                             stop_at_pc=0x400) # stop at this exception addr
 
 if __name__ == "__main__":
     svp64 = True

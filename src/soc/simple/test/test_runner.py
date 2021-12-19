@@ -269,7 +269,10 @@ class HDLRunner(StateRunner):
         # just after the last instruction. if a load of an instruction is
         # requested at this address, the core is immediately put into "halt"
         # XXX: keep an eye out for in-order problems
-        yield from set_dmi(dmi, DBGCore.STOPADDR, len(instructions)*4)
+        hard_stop_addr = self.test.stop_at_pc
+        if hard_stop_addr is None:
+            hard_stop_addr = len(instructions)*4
+        yield from set_dmi(dmi, DBGCore.STOPADDR, hard_stop_addr)
 
         # run the loop of the instructions on the current test
         index = (yield self.issuer.cur_state.pc) // 4
@@ -292,7 +295,8 @@ class HDLRunner(StateRunner):
             counter = counter + 1
 
             # wait until executed
-            while not (yield self.issuer.insn_done):
+            while not ((yield self.issuer.insn_done) or
+                       (yield self.issuer.dbg.terminated_o)):
                 yield
 
             # okaaay long story: in overlap mode, PC is updated one cycle

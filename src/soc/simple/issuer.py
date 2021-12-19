@@ -1227,9 +1227,22 @@ class TestIssuerInternal(TestIssuerBase):
 
             # handshake with execution FSM, move to "wait" once acknowledged
             with m.State("INSN_EXECUTE"):
-                comb += exec_insn_i_valid.eq(1)  # trigger execute
-                with m.If(exec_insn_o_ready):   # execute acknowledged us
-                    m.next = "EXECUTE_WAIT"
+                if self.allow_overlap:
+                    stopping = dbg.stopping_o
+                else:
+                    stopping = Const(0)
+                with m.If(stopping):
+                    # stopping: jump back to idle
+                    m.next = "ISSUE_START"
+                    if flush_needed:
+                        # request the icache to stop asserting "failed"
+                        comb += core.icache.flush_in.eq(1)
+                    # stop instruction fault
+                    sync += pdecode2.instr_fault.eq(0)
+                with m.Else():
+                    comb += exec_insn_i_valid.eq(1)  # trigger execute
+                    with m.If(exec_insn_o_ready):   # execute acknowledged us
+                        m.next = "EXECUTE_WAIT"
 
             with m.State("EXECUTE_WAIT"):
                 # wait on "core stop" release, at instruction end
@@ -1324,6 +1337,9 @@ class TestIssuerInternal(TestIssuerBase):
                         comb += core.icache.flush_in.eq(1)
                     # stop instruction fault
                     sync += pdecode2.instr_fault.eq(0)
+                    # if terminated return to idle
+                    with m.If(dbg.terminate_i):
+                        m.next = "ISSUE_START"
 
         # check if svstate needs updating: if so, write it to State Regfile
         with m.If(self.update_svstate):
@@ -1342,6 +1358,7 @@ class TestIssuerInternal(TestIssuerBase):
 
         comb = m.d.comb
         sync = m.d.sync
+        dbg = self.dbg
         pdecode2 = self.pdecode2
 
         # temporaries
@@ -1394,6 +1411,10 @@ class TestIssuerInternal(TestIssuerBase):
                                    ~pdecode2.instr_fault):
                             comb += self.insn_done.eq(1)
                         m.next = "INSN_START"  # back to fetch
+                # terminate returns directly to INSN_START
+                with m.If(dbg.terminate_i):
+                    # comb += self.insn_done.eq(1) - no because it's not
+                    m.next = "INSN_START"  # back to fetch
 
     def elaborate(self, platform):
         m = super().elaborate(platform)
