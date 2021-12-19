@@ -265,6 +265,12 @@ class HDLRunner(StateRunner):
 
         print("instructions", instructions)
 
+        # before starting the simulation, set the core stop address to be
+        # just after the last instruction. if a load of an instruction is
+        # requested at this address, the core is immediately put into "halt"
+        # XXX: keep an eye out for in-order problems
+        yield from set_dmi(dmi, DBGCore.STOPADDR, len(instructions)*4)
+
         # run the loop of the instructions on the current test
         index = (yield self.issuer.cur_state.pc) // 4
         while index < len(instructions):
@@ -319,7 +325,6 @@ class HDLRunner(StateRunner):
                         break
                     yield
                 break
-
 
             terminated = yield self.issuer.dbg.terminated_o
             print("terminated(2)", terminated)

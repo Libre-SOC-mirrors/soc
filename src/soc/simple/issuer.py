@@ -525,6 +525,15 @@ class TestIssuerBase(Elaboratable):
         with m.If(core_rst):
             m.d.sync += self.cur_state.eq(0)
 
+        # check halted condition: requested PC to execute matches DMI stop addr
+        # and immediately stop. address of 0xffff_ffff_ffff_ffff can never
+        # match
+        halted = Signal()
+        comb += halted.eq(dbg.stop_addr_o == dbg.state.pc)
+        with m.If(halted):
+            comb += dbg.core_stopped_i.eq(1)
+            comb += dbg.terminate_i.eq(1)
+
         # PC and instruction from I-Memory
         comb += self.pc_o.eq(cur_state.pc)
         self.pc_changed = Signal()  # note write to PC
@@ -710,9 +719,10 @@ class FetchFSM(ControlBase):
 
             # waiting (zzz)
             with m.State("IDLE"):
-                with m.If(~dbg.stopping_o & ~fetch_failed):
+                with m.If(~dbg.stopping_o & ~fetch_failed & ~dbg.core_stop_o):
                     comb += fetch_pc_o_ready.eq(1)
-                with m.If(fetch_pc_i_valid & ~pdecode2.instr_fault):
+                with m.If(fetch_pc_i_valid & ~pdecode2.instr_fault
+                          & ~dbg.core_stop_o):
                     # instruction allowed to go: start by reading the PC
                     # capture the PC and also drop it into Insn Memory
                     # we have joined a pair of combinatorial memory
