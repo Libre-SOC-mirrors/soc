@@ -312,6 +312,14 @@ class HDLRunner(StateRunner):
                 yield from set_dmi(dmi, DBGCore.CTRL, 1 << DBGCtrl.STOP)
                 yield
                 yield
+                # hmm really should use DMI status check here but hey it's quick
+                while True:
+                    stopped = yield self.issuer.dbg.core_stop_o
+                    if stopped:
+                        break
+                    yield
+                break
+
 
             terminated = yield self.issuer.dbg.terminated_o
             print("terminated(2)", terminated)
