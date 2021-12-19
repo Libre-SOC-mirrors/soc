@@ -15,8 +15,8 @@ from soc.config.state import CoreState
 
 # DMI register addresses
 class DBGCore:
-    CTRL         = 0b0000
-    STAT         = 0b0001
+    CTRL         = 0b0000 # Control: start/stop/reset
+    STAT         = 0b0001 # Status (read started/stopped/stopping)
     NIA          = 0b0010 # NIA register (read only for now)
     MSR          = 0b0011 # MSR (read only)
     GSPR_IDX     = 0b0100 # GSPR register index
@@ -157,7 +157,7 @@ class CoreDebug(Elaboratable):
 
         LOG_INDEX_BITS = log2_int(self.LOG_LENGTH)
 
-        # Single cycle register accesses on DMI except for GSPR data
+        # Single cycle register accesses on DMI except for registers
         with m.Switch(dmi.addr_i):
             with m.Case(DBGCore.GSPR_DATA):
                 comb += dmi.ack_o.eq(d_gpr.ack)
@@ -169,6 +169,7 @@ class CoreDebug(Elaboratable):
                 comb += dmi.ack_o.eq(d_xer.ack)
                 comb += d_xer.req.eq(dmi.req_i)
             with m.Default():
+                # everything else is immediate-acknowledgement (combinatorial)
                 comb += dmi.ack_o.eq(dmi.req_i)
 
         # Status register read composition (DBUG_CORE_STAT_xxx)
@@ -178,23 +179,23 @@ class CoreDebug(Elaboratable):
 
         # DMI read data mux
         with m.Switch(dmi.addr_i):
-            with m.Case( DBGCore.STAT):
+            with m.Case( DBGCore.STAT):               # Status register
                 comb += dmi.dout.eq(stat_reg)
-            with m.Case( DBGCore.NIA):
+            with m.Case( DBGCore.NIA):                # NIA (PC)
                 comb += dmi.dout.eq(self.state.pc)
-            with m.Case( DBGCore.MSR):
+            with m.Case( DBGCore.MSR):                # MSR
                 comb += dmi.dout.eq(self.state.msr)
-            with m.Case( DBGCore.SVSTATE):
+            with m.Case( DBGCore.SVSTATE):            # SVSTATE
                 comb += dmi.dout.eq(self.state.svstate)
-            with m.Case( DBGCore.GSPR_DATA):
+            with m.Case( DBGCore.GSPR_DATA):          # GPR
                 comb += dmi.dout.eq(d_gpr.data)
-            with m.Case( DBGCore.LOG_ADDR):
+            with m.Case( DBGCore.LOG_ADDR):           # Logging
                 comb += dmi.dout.eq(Cat(log_dmi_addr, self.log_write_addr_o))
             with m.Case( DBGCore.LOG_DATA):
                 comb += dmi.dout.eq(log_dmi_data)
-            with m.Case(DBGCore.CR):
+            with m.Case(DBGCore.CR):                  # CR
                 comb += dmi.dout.eq(d_cr.data)
-            with m.Case(DBGCore.XER):
+            with m.Case(DBGCore.XER):                 # XER
                 comb += dmi.dout.eq(d_xer.data)
             with m.Case(DBGCore.STOPADDR):            # Halt PC
                 comb += dmi.dout.eq(self.stop_addr_o)
