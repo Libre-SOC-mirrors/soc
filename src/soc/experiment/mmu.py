@@ -122,6 +122,8 @@ class RegStage(RecordObject):
         # there are 4 quadrants (0-3): here we only support 2 (pt0 and pt3)
         # these are bits 62-63 of any given address.
         # except in segment_check, bit 62 is ignored
+        # Quadrant Select can be seen in v3.0C 6.7.10 p1015 book III figure 36
+        # and is further described in 6.7.11.3 p1019
         self.pgtbl0 = Signal(64)
         self.pt0_valid = Signal()
         self.pgtbl3 = Signal(64)
