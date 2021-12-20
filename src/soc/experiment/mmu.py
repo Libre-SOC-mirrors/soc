@@ -105,6 +105,19 @@ class RegStage(RecordObject):
         self.rc_error = Signal()
 
 
+# Page Table Record - note that HR bit is treated as part of rts below
+# v3.0C Book III Section 6.7.6.1 p1003
+class PGTBL(RecordObject):
+    def __init__(self, name=None):
+        super().__init__(name=name)
+        self.rpds  = Signal(5)  # Root Page Directory Size  59:63 LSB0 0:4
+        self.rts2  = Signal(3)  # Radix Tree Size part 2    56:58 LSB0 5:7
+        self.rpdb  = Signal(52) # Root Page Directory Base  4:55  LSB0 8:59
+        self.s     = Signal(1)  # Host Secure               3     LSB0 60
+        self.rts1  = Signal(2)  # Radix Tree Size part 1    1:2   LSB0 61:62
+        self.hr    = Signal(1)  # Host Radix                0     LSB0 63
+
+
 class MMU(Elaboratable):
     """Radix MMU
 
@@ -124,7 +137,7 @@ class MMU(Elaboratable):
         sync = m.d.sync
 
         pt_valid = Signal()
-        pgtbl = Signal(64)
+        pgtbl = PGTBL("pgtbl")
         rts = Signal(6)
         mbits = Signal(6)
 
@@ -136,18 +149,19 @@ class MMU(Elaboratable):
             comb += pt_valid.eq(r.pt3_valid)
 
         # rts == radix tree size, number of address bits
-        # being translated
-        comb += rts.eq(Cat(pgtbl[5:8], pgtbl[61:63]))
+        # being translated.  takes bits 5:7 and 61:63
+        comb += rts.eq(Cat(pgtbl.rts2, pgtbl.rts1, pgtbl.hr))
 
         # mbits == number of address bits to index top
-        # level of tree
-        comb += mbits.eq(pgtbl[0:5])
+        # level of tree.  takes bits 0:4
+        comb += mbits.eq(pgtbl.rpds)
 
         # set v.shift to rts so that we can use finalmask
-        # for the segment check
+        # for the segment check.
+        # note: rpdb (52 bits long) is truncated to 48 bits
         comb += v.shift.eq(rts)
         comb += v.mask_size.eq(mbits[0:5])
-        comb += v.pgbase.eq(Cat(C(0, 8), pgtbl[8:56]))
+        comb += v.pgbase.eq(Cat(C(0, 8), pgtbl.rpdb[:48])) # bits 8:55
 
         with m.If(l_in.valid):
             comb += v.addr.eq(l_in.addr)
