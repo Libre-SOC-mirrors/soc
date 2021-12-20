@@ -32,8 +32,21 @@ from soc.experiment.mem_types import (LoadStore1ToMMUType,
                                  DCacheToMMUType,
                                  MMUToICacheType)
 
+# Radix Tree Page Directory Entry Record, TODO put this somewhere sensible
+# v3.0C Book III p1015-1016 section 6.7.10.1
+class RTPDE(RecordObject):
+    def __init__(self, name=None):
+        super().__init__(name=name)
+        self.nls   = Signal(5)  # Nextded Access Auth bits 59:63 LSB0 0:4
+        self.rs1   = Signal(3)  # Reserved            bits 56:58 LSB0 5:7
+        self.nlb   = Signal(52) # Next Level Base     bit  4:55  LSB0 8:59
+        self.rs2   = Signal(2)  # Reserved            bit  2:3   LSB0 60:61
+        self.leaf  = Signal(1)  # leaf                bit  1     LSB0 62
+        self.valid = Signal(1)  # valid               bit  0     LSB0 63
+
+
 # Radix Tree Page Table Entry Record, TODO put this somewhere sensible
-# v3.0C Book III p1016 section 7.7.10.2
+# v3.0C Book III p1016 section 6.7.10.2
 class RTPTE(RecordObject):
     def __init__(self, name=None):
         super().__init__(name=name)
@@ -277,7 +290,8 @@ class MMU(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
 
-        rpte = RTPTE(name="radix_rpte")
+        rpte = RTPTE(name="radix_rpte") # page-table (leaf) entry
+        rpde = RTPDE(name="radix_rpde") # page-directory (non-leaf) entry
 
         perm_ok = Signal()
         rc_ok = Signal()
@@ -296,9 +310,10 @@ class MMU(Elaboratable):
         # set pde and interpret as Radix Tree Page Table Entry (leaf=1 case)
         comb += v.pde.eq(data)
         comb += rpte.eq(data)
+        comb += rpde.eq(data)
 
-        # valid & leaf
         with m.If(valid):
+            # valid & leaf: RADIX Page-Table Entry
             with m.If(leaf):
                 # check permissions and RC bits
                 with m.If(r.priv | ~eaa[EAA_PRIV]):
@@ -309,8 +324,9 @@ class MMU(Elaboratable):
                         # no IAMR, so no KUEP support for now
                         # deny execute permission if cache inhibited
                         comb += perm_ok.eq(eaa[EAA_EXE] & ~rpte.att[1])
-
                 comb += rc_ok.eq(rpte.r & (rpte.c | ~r.store))
+
+                # permissions / rc ok, load TLB, otherwise report error
                 with m.If(perm_ok & rc_ok):
                     comb += v.state.eq(State.RADIX_LOAD_TLB)
                 with m.Else():
@@ -319,9 +335,9 @@ class MMU(Elaboratable):
                     # permission error takes precedence over RC error
                     comb += v.rc_error.eq(perm_ok)
 
-            # valid & !leaf
+            # valid & !leaf: RADIX Page-Directory Entry
             with m.Else():
-                comb += mbits.eq(data[0:5])
+                comb += mbits.eq(rpde.nls) # 5 bits NLS into 6-bit-long mbits
                 comb += badtree.eq((mbits < 5) |
                                    (mbits > 16) |
                                    (mbits > r.shift))
@@ -330,8 +346,9 @@ class MMU(Elaboratable):
                     comb += v.badtree.eq(1)
                 with m.Else():
                     comb += v.shift.eq(r.shift - mbits)
-                    comb += v.mask_size.eq(mbits[0:5])
-                    comb += v.pgbase.eq(Cat(C(0, 8), data[8:56]))
+                    comb += v.mask_size.eq(mbits)
+                    # pagebase is first 48 bits of NLB, shifted up 1 byte
+                    comb += v.pgbase.eq(Cat(C(0, 8), rpde.nlb[:48]))
                     comb += v.state.eq(State.RADIX_LOOKUP)
 
         with m.Else():
