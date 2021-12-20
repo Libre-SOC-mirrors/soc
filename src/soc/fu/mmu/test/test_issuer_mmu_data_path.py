@@ -13,26 +13,40 @@ class MMUTestCase(TestAccumulatorBase):
     # libre-soc has own SPR unit
     # other instructions here -> must be load/store
 
-    def case_mmu_ldst(self):
+    def case_mmu_dar(self):
+        lst = [ "mfspr 1, 19",     # DAR to reg 1
+              ]
+
+        initial_regs = [0] * 32
+        initial_regs[1] = 0x2
+
+        initial_sprs = {'DAR': 0x87654321,
+                        }
+        self.add_case(Program(lst, bigendian),
+                      initial_regs, initial_sprs)
+
+    def cse_mmu_ldst(self):
         lst = [
                 "dcbz 1,2",
                 "tlbie 0,0,0,0,0", # RB,RS,RIC,PRS,R
                 "mtspr 18, 1",     # reg 1 to DSISR
                 "mtspr 19, 2",     # reg 2 to DAR
-                "mfspr 1, 18",     # DSISR to reg 1
-                "mfspr 2, 19",     # DAR to reg 2
+                "mfspr 5, 18",     # DSISR to reg 5
+                "mfspr 6, 19",     # DAR to reg 6
                 "mtspr 48, 3",    # set MMU PID
                 "mtspr 720, 4",    # set MMU PRTBL
-                "lhz 3, 0(1)"      # load some data
+                "lhz 3, 0(1)",     # load some data
+                "addi 7, 0, 1"
               ]
 
         initial_regs = [0] * 32
-        initial_regs[3] = 1
+        initial_regs[1] = 0x2
+        initial_regs[2] = 0x2020
+        initial_regs[3] = 5
         initial_regs[4] = 0xDEADBEEF
-        #initial_regs[1] = 0xDEADBEEF
 
-        #FIXME initial_sprs = {'DSISR': 0x12345678, 'DAR': 0x87654321}
-        initial_sprs = {}
+        initial_sprs = {'DSISR': 0x12345678, 'DAR': 0x87654321,
+                        'PIDR': 0xabcd, 'PRTBL': 0x0def}
         self.add_case(Program(lst, bigendian),
                       initial_regs, initial_sprs)
 
@@ -40,6 +54,8 @@ class MMUTestCase(TestAccumulatorBase):
 if __name__ == "__main__":
     unittest.main(exit=False)
     suite = unittest.TestSuite()
-    suite.addTest(TestRunner(MMUTestCase().test_data,microwatt_mmu=True))
+    suite.addTest(TestRunner(MMUTestCase().test_data,
+                             microwatt_mmu=True,
+                             svp64=False))
     runner = unittest.TextTestRunner()
     runner.run(suite)
