@@ -168,12 +168,12 @@ class MMU(Elaboratable):
         rts = Signal(6)
         mbits = Signal(6)
 
-        with m.If(~l_in.addr[63]):
-            comb += pgtbl.eq(r.pgtbl0)
-            comb += pt_valid.eq(r.pt0_valid)
-        with m.Else():
+        with m.If(l_in.addr[63]):
             comb += pgtbl.eq(r.pgtbl3)
             comb += pt_valid.eq(r.pt3_valid)
+        with m.Else():
+            comb += pgtbl.eq(r.pgtbl0)
+            comb += pt_valid.eq(r.pt0_valid)
 
         # rts == radix tree size, number of address bits
         # being translated.  takes bits 5:7 and 61:63
