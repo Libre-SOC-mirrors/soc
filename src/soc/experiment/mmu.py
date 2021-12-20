@@ -539,12 +539,14 @@ class MMU(Elaboratable):
                 sync += Display("   RADIX_FINISH")
                 comb += v.state.eq(State.IDLE)
 
+        # check and report either error or done.
         with m.If((v.state == State.RADIX_FINISH) |
                  ((v.state == State.RADIX_LOAD_TLB) & r.iside)):
             comb += v.err.eq(v.invalid | v.badtree | v.segerror
                              | v.perm_err | v.rc_error)
             comb += v.done.eq(~v.err)
 
+        # PID is only valid if MSB of address is zero
         with m.If(~r.addr[63]):
             comb += effpid.eq(r.pid)
 
