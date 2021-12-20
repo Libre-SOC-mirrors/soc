@@ -73,6 +73,19 @@ class State(Enum):
     RADIX_FINISH = 9
 
 
+# Process Table Record - near-identical to Page Table Record (same format)
+# v3.0C Book III Section 6.7.6.2 p1004
+class PRTBL(RecordObject):
+    def __init__(self, name=None):
+        super().__init__(name=name)
+        self.rpds  = Signal(5)  # Root Page Directory Size  59:63 LSB0 0:4
+        self.rts2  = Signal(3)  # Radix Tree Size part 2    56:58 LSB0 5:7
+        self.rpdb  = Signal(52) # Root Page Directory Base  4:55  LSB0 8:59
+        self.rsv2  = Signal(1)  # reserved                  3     LSB0 60
+        self.rts1  = Signal(2)  # Radix Tree Size part 1    1:2   LSB0 61:62
+        self.rsv1  = Signal(1)  # reserved                  0     LSB0 63
+
+
 class RegStage(RecordObject):
     def __init__(self, name=None):
         super().__init__(name=name)
@@ -106,6 +119,7 @@ class RegStage(RecordObject):
 
 
 # Page Table Record - note that HR bit is treated as part of rts below
+# (near-identical to Process Table Record - same format)
 # v3.0C Book III Section 6.7.6.1 p1003
 class PGTBL(RecordObject):
     def __init__(self, name=None):
@@ -199,7 +213,9 @@ class MMU(Elaboratable):
                     # set v.shift so we can use finalmask
                     # for generating the process table
                     # entry address
-                    comb += v.shift.eq(r.prtbl[0:5])
+                    prtbl = PRTBL("prtbl")
+                    comb += prtbl.eq(r.prtbl)
+                    comb += v.shift.eq(prtbl.rpds)
                     comb += v.state.eq(State.PROC_TBL_READ)
 
                 with m.Elif(mbits == 0):
@@ -517,8 +533,11 @@ class MMU(Elaboratable):
 
         # calculate Process Table Address
         pr24 = Signal(24, reset_less=True)
-        comb += pr24.eq(masked(r.prtbl[12:36], effpid[8:32], finalmask))
-        comb += prtb_adr.eq(Cat(C(0, 4), effpid[0:8], pr24, r.prtbl[36:56]))
+        prtbla = PRTBL("prtbla")
+        comb += prtbla.eq(r.prtbl)
+        rpdb = prtbla.rpdb
+        comb += pr24.eq(masked(rpdb[4:28], effpid[8:32], finalmask))
+        comb += prtb_adr.eq(Cat(C(0, 4), effpid[0:8], pr24, rpdb[28:48]))
 
         # calculate Page Table Address
         pg16 = Signal(16, reset_less=True)
