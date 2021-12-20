@@ -109,17 +109,24 @@ class RegStage(RecordObject):
         self.priv = Signal()
         self.addr = Signal(64)
         self.inval_all = Signal()
+
         # config SPRs
         self.prtbl = Signal(64)
         self.pid = Signal(32)
+
         # internal state
         self.state = Signal(State) # resets to IDLE
         self.done = Signal()
         self.err = Signal()
+
+        # there are 4 quadrants (0-3): here we only support 2 (pt0 and pt3)
+        # these are bits 62-63 of any given address.
+        # except in segment_check, bit 62 is ignored
         self.pgtbl0 = Signal(64)
         self.pt0_valid = Signal()
         self.pgtbl3 = Signal(64)
         self.pt3_valid = Signal()
+
         self.shift = Signal(6)
         self.mask_size = Signal(5)
         self.pgbase = Signal(56)
@@ -168,7 +175,7 @@ class MMU(Elaboratable):
         rts = Signal(6)
         mbits = Signal(6)
 
-        with m.If(l_in.addr[63]):
+        with m.If(l_in.addr[63]): # quadrant 3
             comb += pgtbl.eq(r.pgtbl3)
             comb += pt_valid.eq(r.pt3_valid)
         with m.Else():
@@ -258,7 +265,7 @@ class MMU(Elaboratable):
 
     def proc_tbl_wait(self, m, v, r, data):
         comb = m.d.comb
-        with m.If(r.addr[63]):
+        with m.If(r.addr[63]): # top bit of quadrant selects pt3
             comb += v.pgtbl3.eq(data)
             comb += v.pt3_valid.eq(1)
         with m.Else():
@@ -366,7 +373,8 @@ class MMU(Elaboratable):
         comb += mbits.eq(r.mask_size)
         comb += v.shift.eq(r.shift + (31 - 12) - mbits)
         comb += nonzero.eq((r.addr[31:62] & ~finalmask[0:31]).bool())
-        with m.If((r.addr[63] ^ r.addr[62]) | nonzero):
+        with m.If((r.addr[63] ^ r.addr[62]) # pt3 == 0b11 and pt1 == 0b00
+                  | nonzero):
             comb += v.state.eq(State.RADIX_FINISH)
             comb += v.segerror.eq(1)
         with m.Elif((mbits < 5) | (mbits > 16) |
@@ -546,8 +554,8 @@ class MMU(Elaboratable):
                              | v.perm_err | v.rc_error)
             comb += v.done.eq(~v.err)
 
-        # PID is only valid if MSB of address is zero
-        with m.If(~r.addr[63]):
+        # PID is only valid if MSB of address is zero, top 2 bits are Quadrant
+        with m.If(~r.addr[63]): # quadrant 0 (pt0)
             comb += effpid.eq(r.pid)
 
         # calculate Process Table Address
