@@ -50,7 +50,8 @@ from openpower.util import spr_to_fast_reg
 from openpower.consts import StateRegsEnum
 
 # list of SPRs that are controlled and managed by the MMU
-mmu_sprs = ["PRTBL", "DSISR", "DAR", "PIDR"]
+mmu_sprs = ["PRTBL", "PIDR"]
+ldst_sprs = ["DAR", "DSISR"]
 
 
 def set_mmu_spr(name, i, val, core):  # important keep pep8 formatting
@@ -61,6 +62,22 @@ def set_mmu_spr(name, i, val, core):  # important keep pep8 formatting
     yield
     yield fsm.mmu.l_in.mtspr.eq(0)
     print("mmu_spr %s %d was updated %x" % (name, i, val))
+
+
+def set_ldst_spr(name, i, val, core):  # important keep pep8 formatting
+    ldst = core.fus.get_fu("mmu0").alu.ldst # awkward to get at but it works
+    yield ldst.sprval_in.eq(val)
+    yield ldst.mmu_set_spr.eq(1)
+    if name == 'DAR':
+        yield ldst.mmu_set_dar.eq(1)
+        yield
+        yield ldst.mmu_set_dar.eq(0)
+    else:
+        yield ldst.mmu_set_dsisr.eq(1)
+        yield
+        yield ldst.mmu_set_dsisr.eq(0)
+    yield ldst.mmu_set_spr.eq(0)
+    print("ldst_spr %s %d was updated %x" % (name, i, val))
 
 
 def setup_regs(pdecode2, core, test):
@@ -138,10 +155,12 @@ def setup_regs(pdecode2, core, test):
                 if sprname == x.name:
                     print("setting slow SPR %d (%s) to %x" %
                           (i, sprname, val))
-                    if sprname not in mmu_sprs:
-                        yield sregs.memory._array[i].eq(val)
-                    else:
+                    if sprname in mmu_sprs:
                         yield from set_mmu_spr(sprname, x.value, val, core)
+                    elif sprname in ldst_sprs:
+                        yield from set_ldst_spr(sprname, x.value, val, core)
+                    else:
+                        yield sregs.memory._array[i].eq(val)
         else:
             print("setting fast reg %d (%s) to %x" %
                   (fast, sprname, val))
