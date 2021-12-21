@@ -77,9 +77,10 @@ if __name__ == '__main__':
     # decide which memory type to configure
     if args.mmu:
         ldst_ifacetype = 'mmu_cache_wb'
+        imem_ifacetype = 'mmu_cache_wb'
     else:
         ldst_ifacetype = 'bare_wb'
-    imem_ifacetype = 'bare_wb'
+        imem_ifacetype = 'bare_wb'
 
     pspec = TestMemPspec(ldst_ifacetype=ldst_ifacetype,
                          imem_ifacetype=imem_ifacetype,
