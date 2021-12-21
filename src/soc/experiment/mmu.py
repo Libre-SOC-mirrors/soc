@@ -376,6 +376,9 @@ class MMU(Elaboratable):
                 sync += Display("MMUBUG: non-present PTE, generate a DSI")
 
     def segment_check(self, m, v, r, data, finalmask):
+        """segment_check: checks validity of the request before doing a
+        RADIX lookup. reports either segment error or bad tree if not ok
+        """
         comb = m.d.comb
 
         mbits = Signal(6)
