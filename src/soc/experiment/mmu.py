@@ -169,6 +169,11 @@ class MMU(Elaboratable):
         self.i_out = MMUToICacheType("i_out")
 
     def radix_tree_idle(self, m, l_in, r, v):
+        """radix_tree_idle - the main decision-point.  valid actions include:
+        * LDST incoming TLBIE request (invalidate TLB entry)
+        * LDST incoming RADIX walk request
+        * set either PRTBL or PID SPRs (which then fires a TLB invalidate)
+        """
         comb = m.d.comb
         sync = m.d.sync
 
@@ -200,6 +205,9 @@ class MMU(Elaboratable):
 
         # create the page base from root page directory base (48 bits with 8 0s)
         comb += v.pgbase.eq(Cat(C(0, 8), pgtbl.rpdb[:48])) # bits 8:55
+
+        # request either TLB invalidate
+        # or start a RADIX walk
 
         with m.If(l_in.valid):
             comb += v.addr.eq(l_in.addr)
@@ -252,10 +260,13 @@ class MMU(Elaboratable):
                 with m.Else():
                     comb += v.state.eq(State.SEGMENT_CHECK)
 
+        # set either PID or PRTBL SPRs
+        # (then invalidate TLBs)
+
         with m.If(l_in.mtspr):
             # Move to PID needs to invalidate L1 TLBs
-            # and cached pgtbl0 value.  Move to PRTBL
-            # does that plus invalidating the cached
+            # and cached pgtbl0 value.
+            # Move to PRTBL does that plus invalidating the cached
             # pgtbl3 value as well.
             with m.If(~l_in.sprn[9]):
                 comb += v.pid.eq(l_in.rs[0:32])
@@ -269,6 +280,8 @@ class MMU(Elaboratable):
 
     def proc_tbl_wait(self, m, v, r, data):
         comb = m.d.comb
+        rts = Signal(6)
+        mbits = Signal(6)
         prtbl = PRTBL("prtblw")
         comb += prtbl.eq(data)
 
@@ -278,9 +291,6 @@ class MMU(Elaboratable):
         with m.Else():
             comb += v.pgtbl0.eq(prtbl)
             comb += v.pt0_valid.eq(1)
-
-        rts = Signal(6)
-        mbits = Signal(6)
 
         # rts == radix tree size, # address bits being translated
         comb += rts.eq(Cat(prtbl.rts2, prtbl.rts1, prtbl.rsv1))
@@ -300,7 +310,7 @@ class MMU(Elaboratable):
         with m.Else():
             comb += v.state.eq(State.RADIX_FINISH)
             comb += v.invalid.eq(1)
-            if(display_invalid): m.d.sync += Display("MMUBUG: mbits is invalid")
+            if (display_invalid): m.d.sync += Display("MMU: mbits is invalid")
 
     def radix_read_wait(self, m, v, r, d_in, data):
         comb = m.d.comb
@@ -372,8 +382,8 @@ class MMU(Elaboratable):
             # non-present PTE, generate a DSI
             comb += v.state.eq(State.RADIX_FINISH)
             comb += v.invalid.eq(1)
-            if(display_invalid):
-                sync += Display("MMUBUG: non-present PTE, generate a DSI")
+            if (display_invalid):
+                sync += Display("MMU: non-present PTE, generate a DSI")
 
     def segment_check(self, m, v, r, data, finalmask):
         """segment_check: checks validity of the request before doing a
@@ -425,6 +435,8 @@ class MMU(Elaboratable):
         with m.If(r.state == State.RADIX_LOOKUP):
             sync += Display(f"send load addr=%x addrsh=%d mask=%x",
                             d_out.addr, addrsh, mask)
+
+        # update the internal register
         sync += r.eq(rin)
 
     def elaborate(self, platform):
