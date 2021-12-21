@@ -13,12 +13,22 @@ class MMUTestCase(TestAccumulatorBase):
     # libre-soc has own SPR unit
     # other instructions here -> must be load/store
 
+    def cse_dcbz(self):
+        lst = [
+                "dcbz 1,2",
+              ]
+
+        initial_regs = [0] * 32
+        initial_regs[1] = 0x2
+        initial_regs[2] = 0x2020
+
+        self.add_case(Program(lst, bigendian),
+                      initial_regs, initial_mem={})
+
     def case_mmu_dar(self):
         lst = [
-                 "mfspr 1, 720",     # DAR to reg 1
-                "addi 7, 0, 1",
+                "mfspr 1, 720",     # DAR to reg 1
                 "mtspr 19, 3",      # reg 3 to DAR
-                "mulli 7, 0, 1",
               ]
 
         initial_regs = [0] * 32
@@ -28,11 +38,11 @@ class MMUTestCase(TestAccumulatorBase):
         initial_sprs = {'DAR': 0x87654321,
                         }
         self.add_case(Program(lst, bigendian),
-                      initial_regs, initial_sprs)
+                      initial_regs, initial_sprs, initial_mem={})
 
-    def cse_mmu_ldst(self):
+    def case_mmu_ldst(self):
         lst = [
-                "dcbz 1,2",
+                "dcbz 1,0",
                 "tlbie 0,0,0,0,0", # RB,RS,RIC,PRS,R
                 "mtspr 18, 1",     # reg 1 to DSISR
                 "mtspr 19, 2",     # reg 2 to DAR
@@ -53,7 +63,7 @@ class MMUTestCase(TestAccumulatorBase):
         initial_sprs = {'DSISR': 0x12345678, 'DAR': 0x87654321,
                         'PIDR': 0xabcd, 'PRTBL': 0x0def}
         self.add_case(Program(lst, bigendian),
-                      initial_regs, initial_sprs)
+                      initial_regs, initial_sprs, initial_mem={})
 
 
 if __name__ == "__main__":

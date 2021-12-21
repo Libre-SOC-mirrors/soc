@@ -800,7 +800,11 @@ class FetchFSM(ControlBase):
                     comb += self.imem.f_i_valid.eq(1)
                 with m.Else():
                     # not busy: instruction fetched
-                    insn = get_insn(self.imem.f_instr_o, cur_state.pc+4)
+                    if hasattr(core, "icache"):
+                        # blech, icache returns actual instruction
+                        insn = self.imem.f_instr_o
+                    else:
+                        insn = get_insn(self.imem.f_instr_o, cur_state.pc+4)
                     sync += dec_opcode_o.eq(insn)
                     m.next = "INSN_READY"
                     # TODO: probably can start looking at pdecode2.rm_dec

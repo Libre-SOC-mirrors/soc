@@ -246,7 +246,7 @@ class HDLRunner(StateRunner):
             yield from setup_i_memory(imem, pc, instructions, self.dut.rom)
             yield from setup_tst_memory(l0, self.test.mem)
         else:
-            insert_into_rom(pc, instructions, self.dut.rom)
+            insert_into_rom(pc, instructions, self.dut.default_mem)
         print("about to setup regs")
         yield from setup_regs(pdecode2, core, self.test)
         #print("setup mem and regs done")
