@@ -99,10 +99,10 @@ if __name__ == '__main__':
                          sram4x4kblock=args.enable_sram4x4kblock, # add SRAMs
                          debug=args.debug,      # set to jtag or dmi
                          svp64=args.svp64,      # enable SVP64
-                         mmu=args.mmu,          # enable MMU
+                         microwatt_mmu=args.mmu,          # enable MMU
                          units=units)
 
-    print("mmu", pspec.__dict__["mmu"])
+    print("mmu", pspec.__dict__["microwatt_mmu"])
     print("nocore", pspec.__dict__["nocore"])
     print("regreduce", pspec.__dict__["regreduce"])
     print("gpio", pspec.__dict__["gpio"])
