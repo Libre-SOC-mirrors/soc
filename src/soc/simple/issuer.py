@@ -750,6 +750,7 @@ class FetchFSM(ControlBase):
                     with m.If(self.imem.f_busy_o &
                               ~pdecode2.instr_fault):  # zzz...
                         # busy but not fetch failed: stay in wait-read
+                        comb += self.imem.a_pc_i.eq(pc)
                         comb += self.imem.a_i_valid.eq(1)
                         comb += self.imem.f_i_valid.eq(1)
                     with m.Else():
