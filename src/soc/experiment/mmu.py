@@ -326,13 +326,14 @@ class MMU(Elaboratable):
             with m.If(leaf):
                 # check permissions and RC bits
                 with m.If(r.priv | ~eaa[EAA_PRIV]):
-                    with m.If(~r.iside):
-                        comb += perm_ok.eq(eaa[EAA_WR] | 
-                                          (eaa[EAA_RD] & ~r.store))
-                    with m.Else():
+                    with m.If(r.iside): # instruction-side request
                         # no IAMR, so no KUEP support for now
                         # deny execute permission if cache inhibited
                         comb += perm_ok.eq(eaa[EAA_EXE] & ~rpte.att[1])
+                    with m.Else():
+                        # Load/Store (read/write)
+                        comb += perm_ok.eq(eaa[EAA_WR] |
+                                          (eaa[EAA_RD] & ~r.store))
                 comb += rc_ok.eq(rpte.r & (rpte.c | ~r.store))
 
                 # permissions / rc ok, load TLB, otherwise report error
