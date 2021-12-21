@@ -14,11 +14,16 @@ class MMUTestCase(TestAccumulatorBase):
     # other instructions here -> must be load/store
 
     def case_mmu_dar(self):
-        lst = [ "mfspr 1, 19",     # DAR to reg 1
+        lst = [
+                 "mfspr 1, 720",     # DAR to reg 1
+                "addi 7, 0, 1",
+                "mtspr 19, 3",      # reg 3 to DAR
+                "mulli 7, 0, 1",
               ]
 
         initial_regs = [0] * 32
         initial_regs[1] = 0x2
+        initial_regs[3] = 0x5
 
         initial_sprs = {'DAR': 0x87654321,
                         }
@@ -52,10 +57,12 @@ class MMUTestCase(TestAccumulatorBase):
 
 
 if __name__ == "__main__":
+    mem = {}
     unittest.main(exit=False)
     suite = unittest.TestSuite()
     suite.addTest(TestRunner(MMUTestCase().test_data,
                              microwatt_mmu=True,
-                             svp64=False))
+                             svp64=False,
+                             rom=mem))
     runner = unittest.TextTestRunner()
     runner.run(suite)

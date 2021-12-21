@@ -242,7 +242,7 @@ class HDLRunner(StateRunner):
 
         # XXX for now, when ROM (run under wb_get) is detected,
         # skip setup of memories.  must be done a different way
-        if not self.dut.rom:
+        if self.dut.rom is None:
             yield from setup_i_memory(imem, pc, instructions, self.dut.rom)
             yield from setup_tst_memory(l0, self.test.mem)
         else:
