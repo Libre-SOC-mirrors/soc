@@ -197,6 +197,8 @@ class MMU(Elaboratable):
         # note: rpdb (52 bits long) is truncated to 48 bits
         comb += v.shift.eq(rts)
         comb += v.mask_size.eq(mbits[0:5])
+
+        # create the page base from root page directory base (48 bits with 8 0s)
         comb += v.pgbase.eq(Cat(C(0, 8), pgtbl.rpdb[:48])) # bits 8:55
 
         with m.If(l_in.valid):
@@ -267,26 +269,31 @@ class MMU(Elaboratable):
 
     def proc_tbl_wait(self, m, v, r, data):
         comb = m.d.comb
+        prtbl = PRTBL("prtblw")
+        comb += prtbl.eq(data)
+
         with m.If(r.addr[63]): # top bit of quadrant selects pt3
-            comb += v.pgtbl3.eq(data)
+            comb += v.pgtbl3.eq(prtbl)
             comb += v.pt3_valid.eq(1)
         with m.Else():
-            comb += v.pgtbl0.eq(data)
+            comb += v.pgtbl0.eq(prtbl)
             comb += v.pt0_valid.eq(1)
 
         rts = Signal(6)
         mbits = Signal(6)
 
         # rts == radix tree size, # address bits being translated
-        comb += rts.eq(Cat(data[5:8], data[61:63]))
+        comb += rts.eq(Cat(prtbl.rts2, prtbl.rts1, prtbl.rsv1))
 
         # mbits == # address bits to index top level of tree
-        comb += mbits.eq(data[0:5])
+        comb += mbits.eq(prtbl.rpds)
 
         # set v.shift to rts so that we can use finalmask for the segment check
         comb += v.shift.eq(rts)
         comb += v.mask_size.eq(mbits[0:5])
-        comb += v.pgbase.eq(Cat(C(0, 8), data[8:56]))
+
+        # create the page base from root page directory base (48 bits with 8 0s)
+        comb += v.pgbase.eq(Cat(C(0, 8), prtbl.rpdb[:48])) # bits 8:55
 
         with m.If(mbits):
             comb += v.state.eq(State.SEGMENT_CHECK)
