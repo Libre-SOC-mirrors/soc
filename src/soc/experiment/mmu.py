@@ -190,8 +190,8 @@ class MMU(Elaboratable):
             comb += pt_valid.eq(r.pt0_valid)
 
         # rts == radix tree size, number of address bits
-        # being translated.  takes bits 5:7 and 61:63
-        comb += rts.eq(Cat(pgtbl.rts2, pgtbl.rts1, pgtbl.hr))
+        # being translated.  takes bits 5:7 and 61:62
+        comb += rts.eq(Cat(pgtbl.rts2, pgtbl.rts1, Const(0)))
 
         # mbits == number of address bits to index top
         # level of tree.  takes bits 0:4
@@ -293,7 +293,7 @@ class MMU(Elaboratable):
             comb += v.pt0_valid.eq(1)
 
         # rts == radix tree size, # address bits being translated
-        comb += rts.eq(Cat(prtbl.rts2, prtbl.rts1, prtbl.rsv1))
+        comb += rts.eq(Cat(prtbl.rts2, prtbl.rts1, Const(0)))
 
         # mbits == # address bits to index top level of tree
         comb += mbits.eq(prtbl.rpds)
