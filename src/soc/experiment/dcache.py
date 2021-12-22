@@ -1574,19 +1574,17 @@ class DCache(Elaboratable):
 
             with m.Case(State.STORE_WAIT_ACK):
                 st_stbs_done = Signal()
-                acks        = Signal(3)
                 adjust_acks = Signal(3)
 
                 comb += st_stbs_done.eq(~r1.wb.stb)
-                comb += acks.eq(r1.acks_pending)
 
                 with m.If(r1.inc_acks != r1.dec_acks):
                     with m.If(r1.inc_acks):
-                        comb += adjust_acks.eq(acks + 1)
+                        comb += adjust_acks.eq(r1.acks_pending + 1)
                     with m.Else():
-                        comb += adjust_acks.eq(acks - 1)
+                        comb += adjust_acks.eq(r1.acks_pending - 1)
                 with m.Else():
-                    comb += adjust_acks.eq(acks)
+                    comb += adjust_acks.eq(r1.acks_pending)
 
                 sync += r1.acks_pending.eq(adjust_acks)
 
