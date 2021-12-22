@@ -250,7 +250,7 @@ class LoadStore1(PortInterfaceBase):
                         sync += self.state.eq(State.IDLE)
                         sync += ldst_r.eq(0)
                         sync += Display("cache error -> update dsisr")
-                        sync += self.dsisr[63 - 38].eq(~self.load)
+                        sync += self.dsisr[63 - 38].eq(~ldst_r.load)
                         # XXX there is no architected bit for this
                         # (probably should be a machine check in fact)
                         sync += self.dsisr[63 - 35].eq(d_in.cache_paradox)
@@ -296,10 +296,9 @@ class LoadStore1(PortInterfaceBase):
                     comb += exception.eq(1)
                     comb += self.done.eq(1)
                     sync += Display("MMU RADIX exception thrown")
-                    sync += Display("TODO: notify MMU of change to dsisr")
                     sync += self.dsisr[63 - 33].eq(m_in.invalid)
                     sync += self.dsisr[63 - 36].eq(m_in.perm_error) # noexec
-                    sync += self.dsisr[63 - 38].eq(~self.load)
+                    sync += self.dsisr[63 - 38].eq(~ldst_r.load)
                     sync += self.dsisr[63 - 44].eq(m_in.badtree)
                     sync += self.dsisr[63 - 45].eq(m_in.rc_error)
                     sync += self.state.eq(State.IDLE)
