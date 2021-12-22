@@ -42,11 +42,11 @@ def msr_copy(msr_o, msr_i, zero_me=True):
     return l
 
 
-def msr_check_pr(m, msr):
+def msr_check_pr(m, d_in, msr):
     """msr_check_pr: checks "problem state"
     """
     comb = m.d.comb
-    with m.If(msr[MSR.PR]):
+    with m.If(d_in[MSR.PR]):
         comb += msr[MSR.EE].eq(1) # set external interrupt bit
         comb += msr[MSR.IR].eq(1) # set instruction relocation bit
         comb += msr[MSR.DR].eq(1) # set data relocation bit
@@ -257,7 +257,8 @@ class TrapMainStage(PipeModBase):
                         # mtmsr - 32-bit, only room for bottom 32 LSB flags
                         for stt, end in [(1,12), (13, 32)]:
                             comb += msr_o.data[stt:end].eq(a_i[stt:end])
-                    msr_check_pr(m, msr_o.data)
+                    # check problem state: if set, not permitted to set EE,IR,DR
+                    msr_check_pr(m, a_i, msr_o.data)
 
                 # Per https://bugs.libre-soc.org/show_bug.cgi?id=325#c123,
                 # this actually *is* in the microwatt code now.
@@ -301,8 +302,8 @@ class TrapMainStage(PipeModBase):
                     with m.Else():
                         comb += field(msr_o, 51).eq(field(msr_i, 51)) # ME
 
-                # check problem state
-                msr_check_pr(m, msr_o.data)
+                # check problem state: if set, not permitted to set EE,IR,DR
+                msr_check_pr(m, srr1_i, msr_o.data)
 
                 # don't understand but it's in the spec.  again: bits 32-34
                 # are copied from srr1_i and need *restoring* to msr_i
