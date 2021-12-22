@@ -191,7 +191,7 @@ class MMU(Elaboratable):
 
         # rts == radix tree size, number of address bits
         # being translated.  takes bits 5:7 and 61:62
-        comb += rts.eq(Cat(pgtbl.rts2, pgtbl.rts1, Const(0)))
+        comb += rts.eq(Cat(pgtbl.rts2, pgtbl.rts1, C(0)))
 
         # mbits == number of address bits to index top
         # level of tree.  takes bits 0:4
