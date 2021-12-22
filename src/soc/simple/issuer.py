@@ -719,7 +719,9 @@ class FetchFSM(ControlBase):
 
             # waiting (zzz)
             with m.State("IDLE"):
-                with m.If(~dbg.stopping_o & ~fetch_failed & ~dbg.core_stop_o):
+                # fetch allowed if not failed and stopped but not stepping
+                # (see dmi.py for how core_stop_o is generated)
+                with m.If(~fetch_failed & ~dbg.core_stop_o):
                     comb += fetch_pc_o_ready.eq(1)
                 with m.If(fetch_pc_i_valid & ~pdecode2.instr_fault
                           & ~dbg.core_stop_o):
@@ -739,10 +741,11 @@ class FetchFSM(ControlBase):
 
             # dummy pause to find out why simulation is not keeping up
             with m.State("INSN_READ"):
-                if self.allow_overlap:
-                    stopping = dbg.stopping_o
-                else:
-                    stopping = Const(0)
+                # when using "single-step" mode, checking dbg.stopping_o
+                # prevents progress.  allow fetch to proceed once started
+                stopping = Const(0)
+                #if self.allow_overlap:
+                #    stopping = dbg.stopping_o
                 with m.If(stopping):
                     # stopping: jump back to idle
                     m.next = "IDLE"
@@ -1085,7 +1088,7 @@ class TestIssuerInternal(TestIssuerBase):
                         m.next = "INSN_WAIT"
                 with m.Else():
                     # tell core it's stopped, and acknowledge debug handshake
-                    comb += dbg.core_stopped_i.eq(1)
+                    #comb += dbg.core_stopped_i.eq(1)
                     # while stopped, allow updating SVSTATE
                     with m.If(self.svstate_i.ok):
                         comb += new_svstate.eq(self.svstate_i.data)
@@ -1094,10 +1097,11 @@ class TestIssuerInternal(TestIssuerBase):
 
             # wait for an instruction to arrive from Fetch
             with m.State("INSN_WAIT"):
-                if self.allow_overlap:
-                    stopping = dbg.stopping_o
-                else:
-                    stopping = Const(0)
+                # when using "single-step" mode, checking dbg.stopping_o
+                # prevents progress.  allow issue to proceed once started
+                stopping = Const(0)
+                #if self.allow_overlap:
+                #    stopping = dbg.stopping_o
                 with m.If(stopping):
                     # stopping: jump back to idle
                     m.next = "ISSUE_START"
@@ -1232,10 +1236,11 @@ class TestIssuerInternal(TestIssuerBase):
 
             # handshake with execution FSM, move to "wait" once acknowledged
             with m.State("INSN_EXECUTE"):
-                if self.allow_overlap:
-                    stopping = dbg.stopping_o
-                else:
-                    stopping = Const(0)
+                # when using "single-step" mode, checking dbg.stopping_o
+                # prevents progress.  allow execute to proceed once started
+                stopping = Const(0)
+                #if self.allow_overlap:
+                #    stopping = dbg.stopping_o
                 with m.If(stopping):
                     # stopping: jump back to idle
                     m.next = "ISSUE_START"
