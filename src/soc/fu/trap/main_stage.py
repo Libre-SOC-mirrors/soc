@@ -233,7 +233,8 @@ class TrapMainStage(PipeModBase):
             # MTMSR/D.  v3.0B p TODO - move to MSR
 
             with m.Case(MicrOp.OP_MTMSRD, MicrOp.OP_MTMSR):
-                L = self.fields.FormX.L[0:-1] # X-Form field L
+                # L => bit 16 in LSB0, bit 15 in MSB0 order
+                L = self.fields.FormX.L1[0:1] # X-Form field L1
                 # start with copy of msr
                 comb += msr_o.eq(msr_i)
                 with m.If(L):
