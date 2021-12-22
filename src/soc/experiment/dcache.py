@@ -1180,9 +1180,7 @@ class DCache(Elaboratable):
         # a Binary-to-Unary one-hots here.  replace-way one-hot is gated
         # (enabled) by bus.ack, not-write-bram, and state RELOAD_WAIT_ACK
         m.submodules.rams_replace_way_e = rwe = Decoder(NUM_WAYS)
-        bus_ack = Signal()
-        comb += bus_ack.eq(bus.ack) # o dear - Simulation bug....
-        comb += rwe.n.eq(~((r1.state == State.RELOAD_WAIT_ACK) & bus_ack &
+        comb += rwe.n.eq(~((r1.state == State.RELOAD_WAIT_ACK) & bus.ack &
                    ~r1.write_bram))
         comb += rwe.i.eq(replace_way)
 
@@ -1531,10 +1529,7 @@ class DCache(Elaboratable):
                     sync += r1.wb.adr[:LINE_OFF_BITS-ROW_OFF_BITS].eq(row+1)
 
                 # Incoming acks processing
-                bus_ack = Signal()
-                comb += bus_ack.eq(bus.ack) # o dear - Simulation bug....
-                sync += r1.forward_valid1.eq(bus_ack)
-                with m.If(bus_ack):
+                with m.If(bus.ack):
                     srow = Signal(ROW_LINE_BITS)
                     comb += srow.eq(r1.store_row)
                     sync += r1.rows_valid[srow].eq(1)
@@ -1626,7 +1621,7 @@ class DCache(Elaboratable):
 
                 # Got ack ? See if complete.
                 sync += Display("got ack %d %d stbs %d adjust_acks %d",
-                                bus_ack, bus.ack, st_stbs_done, adjust_acks)
+                                bus.ack, bus.ack, st_stbs_done, adjust_acks)
                 with m.If(bus.ack):
                     with m.If(st_stbs_done & (adjust_acks == 1)):
                         sync += r1.state.eq(State.IDLE)
@@ -1640,7 +1635,7 @@ class DCache(Elaboratable):
                     sync += r1.wb.stb.eq(0)
 
                 # Got ack ? complete.
-                with m.If(bus_ack):
+                with m.If(bus.ack):
                     sync += r1.state.eq(State.IDLE)
                     sync += r1.full.eq(0)
                     sync += r1.slow_valid.eq(1)
@@ -1749,9 +1744,7 @@ class DCache(Elaboratable):
         # deal with litex not doing wishbone pipeline mode
         # XXX in wrong way.  FIFOs are needed in the SRAM test
         # so that stb/ack match up. same thing done in icache.py
-        bus_ack = Signal()
-        comb += bus_ack.eq(self.bus.ack) # o dear - Simulation bug....
-        comb += self.bus.stall.eq(self.bus.cyc & ~bus_ack)
+        comb += self.bus.stall.eq(self.bus.cyc & ~bus.ack)
 
         # Wire up wishbone request latch out of stage 1
         comb += self.bus.we.eq(r1.wb.we)
