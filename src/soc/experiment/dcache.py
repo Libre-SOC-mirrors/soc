@@ -1744,7 +1744,7 @@ class DCache(Elaboratable):
         # deal with litex not doing wishbone pipeline mode
         # XXX in wrong way.  FIFOs are needed in the SRAM test
         # so that stb/ack match up. same thing done in icache.py
-        comb += self.bus.stall.eq(self.bus.cyc & ~bus.ack)
+        comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
 
         # Wire up wishbone request latch out of stage 1
         comb += self.bus.we.eq(r1.wb.we)
