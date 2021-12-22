@@ -713,7 +713,7 @@ class FetchFSM(ControlBase):
         # set priv / virt mode on I-Cache, sigh
         if isinstance(self.imem, ICache):
             comb += self.imem.i_in.priv_mode.eq(~msr[MSR.PR])
-            comb += self.imem.i_in.virt_mode.eq(msr[MSR.DR])
+            comb += self.imem.i_in.virt_mode.eq(msr[MSR.IR]) # Instr. Redir (VM)
 
         with m.FSM(name='fetch_fsm'):
 
