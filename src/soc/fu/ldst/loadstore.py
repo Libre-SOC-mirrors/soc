@@ -303,6 +303,8 @@ class LoadStore1(PortInterfaceBase):
                     sync += self.dsisr[63 - 44].eq(m_in.badtree)
                     sync += self.dsisr[63 - 45].eq(m_in.rc_error)
                     sync += self.state.eq(State.IDLE)
+                    # exception thrown, clear out instruction fault state
+                    sync += self.r_instr_fault.eq(0)
 
             with m.Case(State.TLBIE_WAIT):
                 pass
