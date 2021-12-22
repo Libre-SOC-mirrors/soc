@@ -255,6 +255,7 @@ class LoadStore1(PortInterfaceBase):
                         # XXX there is no architected bit for this
                         # (probably should be a machine check in fact)
                         sync += self.dsisr[63 - 35].eq(d_in.cache_paradox)
+                        sync += self.r_instr_fault.eq(0)
 
                     with m.Else():
                         # Look up the translation for TLB miss
