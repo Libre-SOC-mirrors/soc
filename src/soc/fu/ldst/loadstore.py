@@ -40,7 +40,6 @@ class State(Enum):
     IDLE = 0       # ready for instruction
     ACK_WAIT = 1   # waiting for ack from dcache
     MMU_LOOKUP = 2 # waiting for MMU to look up translation
-    TLBIE_WAIT = 3 # waiting for MMU to finish doing a tlbie
 
 
 # captures the LDSTRequest from the PortInterface, which "blips" most
@@ -306,9 +305,6 @@ class LoadStore1(PortInterfaceBase):
                     sync += self.state.eq(State.IDLE)
                     # exception thrown, clear out instruction fault state
                     sync += self.r_instr_fault.eq(0)
-
-            with m.Case(State.TLBIE_WAIT):
-                pass
 
         # MMU FSM communicating a request to update DSISR or DAR (OP_MTSPR)
         with m.If(self.mmu_set_spr):
