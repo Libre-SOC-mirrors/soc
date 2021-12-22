@@ -233,6 +233,8 @@ class LoadStore1(PortInterfaceBase):
                         sync += self.r_instr_fault.eq(1)
                         comb += maddr.eq(self.maddr)
                         sync += self.state.eq(State.MMU_LOOKUP)
+                    with m.Else():
+                        sync += self.r_instr_fault.eq(0)
                 with m.Else():
                     sync += ldst_r.eq(0)
 
