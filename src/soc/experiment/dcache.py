@@ -1529,6 +1529,7 @@ class DCache(Elaboratable):
                     sync += r1.wb.adr[:LINE_OFF_BITS-ROW_OFF_BITS].eq(row+1)
 
                 # Incoming acks processing
+                sync += r1.forward_valid1.eq(bus.ack)
                 with m.If(bus.ack):
                     srow = Signal(ROW_LINE_BITS)
                     comb += srow.eq(r1.store_row)
