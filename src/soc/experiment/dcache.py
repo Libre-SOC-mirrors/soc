@@ -628,9 +628,9 @@ class DCachePendingHit(Elaboratable):
         with m.If(virt_mode):
             for j in range(TLB_NUM_WAYS): # tlb_num_way_t
                 s_tag       = Signal(TAG_BITS, name="s_tag%d" % j)
-                s_hit       = Signal()
-                s_pte       = Signal(TLB_PTE_BITS)
-                s_ra        = Signal(REAL_ADDR_BITS)
+                s_hit       = Signal(name="s_hit%d" % j)
+                s_pte       = Signal(TLB_PTE_BITS, name="s_pte%d" % j)
+                s_ra        = Signal(REAL_ADDR_BITS, name="s_ra%d" % j)
                 # read the PTE, calc the Real Address, get tge tag
                 comb += s_pte.eq(read_tlb_pte(j, tlb_way.pte))
                 comb += s_ra.eq(Cat(req_addr[0:TLB_LG_PGSZ],
