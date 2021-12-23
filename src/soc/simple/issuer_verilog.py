@@ -4,6 +4,7 @@
 import argparse
 from nmigen.cli import verilog
 
+from openpower.consts import MSR
 from soc.config.test.test_loadstore import TestMemPspec
 from soc.simple.issuer import TestIssuer
 
@@ -82,6 +83,9 @@ if __name__ == '__main__':
         ldst_ifacetype = 'bare_wb'
         imem_ifacetype = 'bare_wb'
 
+    # default MSR (TODO, provide option to set default PC as well)
+    msr_reset = (1<<MSR.LE) | (1<<MSR.SF) # 64-bit, little-endian default
+
     pspec = TestMemPspec(ldst_ifacetype=ldst_ifacetype,
                          imem_ifacetype=imem_ifacetype,
                          addr_wid=48,
@@ -101,7 +105,8 @@ if __name__ == '__main__':
                          debug=args.debug,      # set to jtag or dmi
                          svp64=args.svp64,      # enable SVP64
                          microwatt_mmu=args.mmu,          # enable MMU
-                         units=units)
+                         units=units,
+                         msr_reset=msr_reset)
 
     print("mmu", pspec.__dict__["microwatt_mmu"])
     print("nocore", pspec.__dict__["nocore"])
