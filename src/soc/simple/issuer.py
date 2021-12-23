@@ -1088,7 +1088,7 @@ class TestIssuerInternal(TestIssuerBase):
                         m.next = "INSN_WAIT"
                 with m.Else():
                     # tell core it's stopped, and acknowledge debug handshake
-                    #comb += dbg.core_stopped_i.eq(1)
+                    comb += dbg.core_stopped_i.eq(1)
                     # while stopped, allow updating SVSTATE
                     with m.If(self.svstate_i.ok):
                         comb += new_svstate.eq(self.svstate_i.data)
