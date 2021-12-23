@@ -1255,101 +1255,88 @@ class TestIssuerInternal(TestIssuerBase):
                         m.next = "EXECUTE_WAIT"
 
             with m.State("EXECUTE_WAIT"):
-                # wait on "core stop" release, at instruction end
-                # need to do this here, in case we are in a VL>1 loop
-                with m.If(~dbg.core_stop_o & ~core_rst):
-                    comb += exec_pc_i_ready.eq(1)
-                    # see https://bugs.libre-soc.org/show_bug.cgi?id=636
-                    # the exception info needs to be blatted into
-                    # pdecode.ldst_exc, and the instruction "re-run".
-                    # when ldst_exc.happened is set, the PowerDecoder2
-                    # reacts very differently: it re-writes the instruction
-                    # with a "trap" (calls PowerDecoder2.trap()) which
-                    # will *overwrite* whatever was requested and jump the
-                    # PC to the exception address, as well as alter MSR.
-                    # nothing else needs to be done other than to note
-                    # the change of PC and MSR (and, later, SVSTATE)
-                    with m.If(exc_happened):
-                        mmu = core.fus.get_exc("mmu0")
-                        ldst = core.fus.get_exc("ldst0")
-                        if mmu is not None:
-                            with m.If(fetch_failed):
-                                # instruction fetch: exception is from MMU
-                                # reset instr_fault (highest priority)
-                                sync += pdecode2.ldst_exc.eq(mmu)
-                                sync += pdecode2.instr_fault.eq(0)
-                                if flush_needed:
-                                    # request icache to stop asserting "failed"
-                                    comb += core.icache.flush_in.eq(1)
-                        with m.If(~fetch_failed):
-                            # otherwise assume it was a LDST exception
-                            sync += pdecode2.ldst_exc.eq(ldst)
-
-                    with m.If(exec_pc_o_valid):
-
-                        # was this the last loop iteration?
-                        is_last = Signal()
-                        cur_vl = cur_state.svstate.vl
-                        comb += is_last.eq(next_srcstep == cur_vl)
-
-                        with m.If(pdecode2.instr_fault):
-                            # reset instruction fault, try again
+                comb += exec_pc_i_ready.eq(1)
+                # see https://bugs.libre-soc.org/show_bug.cgi?id=636
+                # the exception info needs to be blatted into
+                # pdecode.ldst_exc, and the instruction "re-run".
+                # when ldst_exc.happened is set, the PowerDecoder2
+                # reacts very differently: it re-writes the instruction
+                # with a "trap" (calls PowerDecoder2.trap()) which
+                # will *overwrite* whatever was requested and jump the
+                # PC to the exception address, as well as alter MSR.
+                # nothing else needs to be done other than to note
+                # the change of PC and MSR (and, later, SVSTATE)
+                with m.If(exc_happened):
+                    mmu = core.fus.get_exc("mmu0")
+                    ldst = core.fus.get_exc("ldst0")
+                    if mmu is not None:
+                        with m.If(fetch_failed):
+                            # instruction fetch: exception is from MMU
+                            # reset instr_fault (highest priority)
+                            sync += pdecode2.ldst_exc.eq(mmu)
                             sync += pdecode2.instr_fault.eq(0)
-                            m.next = "ISSUE_START"
+                            if flush_needed:
+                                # request icache to stop asserting "failed"
+                                comb += core.icache.flush_in.eq(1)
+                    with m.If(~fetch_failed):
+                        # otherwise assume it was a LDST exception
+                        sync += pdecode2.ldst_exc.eq(ldst)
 
-                        # return directly to Decode if Execute generated an
-                        # exception.
-                        with m.Elif(pdecode2.ldst_exc.happened):
-                            m.next = "DECODE_SV"
+                with m.If(exec_pc_o_valid):
 
-                        # if MSR, PC or SVSTATE were changed by the previous
-                        # instruction, go directly back to Fetch, without
-                        # updating either MSR PC or SVSTATE
-                        with m.Elif(self.msr_changed | self.pc_changed |
-                                    self.sv_changed):
-                            m.next = "ISSUE_START"
+                    # was this the last loop iteration?
+                    is_last = Signal()
+                    cur_vl = cur_state.svstate.vl
+                    comb += is_last.eq(next_srcstep == cur_vl)
 
-                        # also return to Fetch, when no output was a vector
-                        # (regardless of SRCSTEP and VL), or when the last
-                        # instruction was really the last one of the VL loop
-                        with m.Elif((~pdecode2.loop_continue) | is_last):
-                            # before going back to fetch, update the PC state
-                            # register with the NIA.
-                            # ok here we are not reading the branch unit.
-                            # TODO: this just blithely overwrites whatever
-                            #       pipeline updated the PC
-                            comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
-                            comb += self.state_w_pc.i_data.eq(nia)
-                            # reset SRCSTEP before returning to Fetch
-                            if self.svp64_en:
-                                with m.If(pdecode2.loop_continue):
-                                    comb += new_svstate.srcstep.eq(0)
-                                    comb += new_svstate.dststep.eq(0)
-                                    comb += self.update_svstate.eq(1)
-                            else:
+                    with m.If(pdecode2.instr_fault):
+                        # reset instruction fault, try again
+                        sync += pdecode2.instr_fault.eq(0)
+                        m.next = "ISSUE_START"
+
+                    # return directly to Decode if Execute generated an
+                    # exception.
+                    with m.Elif(pdecode2.ldst_exc.happened):
+                        m.next = "DECODE_SV"
+
+                    # if MSR, PC or SVSTATE were changed by the previous
+                    # instruction, go directly back to Fetch, without
+                    # updating either MSR PC or SVSTATE
+                    with m.Elif(self.msr_changed | self.pc_changed |
+                                self.sv_changed):
+                        m.next = "ISSUE_START"
+
+                    # also return to Fetch, when no output was a vector
+                    # (regardless of SRCSTEP and VL), or when the last
+                    # instruction was really the last one of the VL loop
+                    with m.Elif((~pdecode2.loop_continue) | is_last):
+                        # before going back to fetch, update the PC state
+                        # register with the NIA.
+                        # ok here we are not reading the branch unit.
+                        # TODO: this just blithely overwrites whatever
+                        #       pipeline updated the PC
+                        comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
+                        comb += self.state_w_pc.i_data.eq(nia)
+                        # reset SRCSTEP before returning to Fetch
+                        if self.svp64_en:
+                            with m.If(pdecode2.loop_continue):
                                 comb += new_svstate.srcstep.eq(0)
                                 comb += new_svstate.dststep.eq(0)
                                 comb += self.update_svstate.eq(1)
-                            m.next = "ISSUE_START"
-
-                        # returning to Execute? then, first update SRCSTEP
-                        with m.Else():
-                            comb += new_svstate.srcstep.eq(next_srcstep)
-                            comb += new_svstate.dststep.eq(next_dststep)
+                        else:
+                            comb += new_svstate.srcstep.eq(0)
+                            comb += new_svstate.dststep.eq(0)
                             comb += self.update_svstate.eq(1)
-                            # return to mask skip loop
-                            m.next = "PRED_SKIP"
-
-                with m.Else():
-                    comb += dbg.core_stopped_i.eq(1)
-                    if flush_needed:
-                        # request the icache to stop asserting "failed"
-                        comb += core.icache.flush_in.eq(1)
-                    # stop instruction fault
-                    sync += pdecode2.instr_fault.eq(0)
-                    # if terminated return to idle
-                    with m.If(dbg.terminate_i):
                         m.next = "ISSUE_START"
+
+                    # returning to Execute? then, first update SRCSTEP
+                    with m.Else():
+                        comb += new_svstate.srcstep.eq(next_srcstep)
+                        comb += new_svstate.dststep.eq(next_dststep)
+                        comb += self.update_svstate.eq(1)
+                        # return to mask skip loop
+                        m.next = "PRED_SKIP"
+
 
         # check if svstate needs updating: if so, write it to State Regfile
         with m.If(self.update_svstate):
