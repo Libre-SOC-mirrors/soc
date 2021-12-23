@@ -70,8 +70,8 @@ class StateRegs(RegFileArray, StateRegsEnum):
     (d_rd2)
 
     """
-    def __init__(self, svp64_en=False, regreduce_en=False):
-        super().__init__(64, StateRegsEnum.N_REGS)
+    def __init__(self, svp64_en=False, regreduce_en=False, resets=None):
+        super().__init__(64, StateRegsEnum.N_REGS, resets=resets)
         wr_spec, rd_spec = self.get_port_specs()
         create_ports(self, wr_spec, rd_spec)
 
@@ -255,7 +255,8 @@ class RegFiles:
               ('fast', FastRegs),
               ('state', StateRegs),
               ('spr', SPRRegs),]
-    def __init__(self, pspec, make_hazard_vecs=False):
+    def __init__(self, pspec, make_hazard_vecs=False,
+                      state_resets=None): # state file reset values
         # test is SVP64 is to be enabled
         svp64_en = hasattr(pspec, "svp64") and (pspec.svp64 == True)
 
@@ -266,7 +267,10 @@ class RegFiles:
         self.rf = {} # register file dict
         # create regfiles here, Factory style
         for (name, kls) in RegFiles.regkls:
-            rf = self.rf[name] = kls(svp64_en, regreduce_en)
+            kwargs = {'svp64_en': svp64_en, 'regreduce_en': regreduce_en}
+            if name == 'state':
+                kwargs['resets'] = state_resets
+            rf = self.rf[name] = kls(**kwargs)
             # also add these as instances, self.state, self.fast, self.cr etc.
             setattr(self, name, rf)
 
