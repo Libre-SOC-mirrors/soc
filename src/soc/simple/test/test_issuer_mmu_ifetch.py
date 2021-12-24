@@ -39,7 +39,7 @@ from soc.experiment.test import pagetables
 
 class MMUTestCase(TestAccumulatorBase):
 
-    def cse_virtual_ld_st(self):
+    def case_virtual_ld_st(self):
         lst = ["stb 10,0(2)",
                "addi 10,0, -4",
                "stb 10,0(5)",
@@ -60,7 +60,8 @@ class MMUTestCase(TestAccumulatorBase):
 
         # set virtual and non-privileged
         initial_msr = 1 << MSR.PR # must set "problem" state
-        initial_msr |= 1 << MSR.DR # set "virtual" state
+        initial_msr |= 1 << MSR.DR # set "virtual" state for data
+        initial_msr |= 1 << MSR.IR # set "virtual" state for instructions
 
         # set PRTBL to 0x1000000
         initial_sprs = {720: 0x1000000} # PRTBL
@@ -83,7 +84,8 @@ class MMUTestCase(TestAccumulatorBase):
 
         # set virtual and non-privileged
         initial_msr = 1 << MSR.PR # must set "problem" state
-        initial_msr |= 1 << MSR.DR # set "virtual" state
+        initial_msr |= 1 << MSR.DR # set "virtual" state for data
+        initial_msr |= 1 << MSR.IR # set "virtual" state for instructions
 
         print("MMUTEST: initial_msr=",initial_msr)
         self.add_case(Program(lst, bigendian), initial_regs,
