@@ -167,8 +167,10 @@ def _test_loadstore1_ifetch_iface(dut, mem):
 
     wbget.stop = True
 
+
 def write_mem2(mem, addr, i1, i2):
     mem[addr] = i1 | i2<<32
+
 
 #TODO: use fetch interface here
 def lookup_virt(dut,addr):
@@ -192,6 +194,7 @@ def lookup_virt(dut,addr):
     yield icache.a_i_valid.eq(0)
 
     return valid,failed
+
 
 def mmu_lookup(dut,addr):
     ldst = dut.submodules.ldst
@@ -266,6 +269,7 @@ def _test_loadstore1_ifetch_multi(dut, mem):
             assert(valid==1)
 
     wbget.stop = True
+
 
 def _test_loadstore1_ifetch(dut, mem):
     """test_loadstore1_ifetch
