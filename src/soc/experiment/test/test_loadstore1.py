@@ -503,9 +503,9 @@ def _test_loadstore1(dut, mem):
 
     addr = 0x100e0
     data = 0xf553b658ba7e1f51
+    msr = MSRSpec(pr=0, dr=0, sf=0)
 
     if test_dcbz:
-        msr = MSRSpec(pr=0, dr=0, sf=0)
         yield from pi_st(pi, addr, data, 8, msr=msr)
         yield
 
