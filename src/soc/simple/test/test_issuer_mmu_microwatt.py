@@ -27,6 +27,8 @@ from openpower.test.mmu.mmu_rom_cases import MMUTestCaseROM, default_mem
 from openpower.test.ldst.ldst_cases import LDSTTestCase
 from openpower.test.ldst.ldst_exc_cases import LDSTExceptionTestCase
 #from openpower.simulator.test_sim import (GeneralTestCases, AttnTestCase)
+from soc.experiment.test import pagetables
+
 
 from openpower.simulator.program import Program
 from openpower.endian import bigendian
@@ -48,12 +50,8 @@ class MMUTestCase(TestAccumulatorBase):
         initial_regs = [0] * 32
         initial_regs[2] = 0x124108
 
-        # no pre-loaded memory here
-        initial_mem = {
-             0x12010: 0x0a00010000000000,
-             0x10000: 0x0930010000000080,
-             0x8108: 0x0000000badc0ffee,
-        }
+        # memory same as microwatt test
+        initial_mem = pagetables.microwatt_test3
 
         # set virtual and non-privileged
         # msr: 8000000000000011
@@ -74,13 +72,6 @@ class MMUTestCase(TestAccumulatorBase):
                              initial_msr=initial_msr)
 
 
-
-mmu_test3 = {
-             0x12010: 0x0a00010000000000,
-             0x10000: 0x0930010000000080,
-             0x8108: 0x0000000badc0ffee,
-            }
-
 if __name__ == "__main__":
     svp64 = True
     if len(sys.argv) == 2:
@@ -96,7 +87,7 @@ if __name__ == "__main__":
     # MMU/DCache integration tests
     suite.addTest(TestRunner(MMUTestCase().test_data, svp64=svp64,
                               microwatt_mmu=True,
-                              rom=mmu_test3))
+                              rom=pagetables.microwatt_test3))
 
     runner = unittest.TextTestRunner()
     runner.run(suite)
