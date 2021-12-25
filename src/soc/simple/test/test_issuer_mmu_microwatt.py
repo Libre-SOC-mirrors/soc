@@ -51,7 +51,7 @@ class MMUTestCase(TestAccumulatorBase):
         initial_regs[2] = 0x124108
 
         # memory same as microwatt test
-        initial_mem = pagetables.microwatt_test3
+        initial_mem = pagetables.microwatt_test2
 
         # set virtual and non-privileged
         # msr: 8000000000000011
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # MMU/DCache integration tests
     suite.addTest(TestRunner(MMUTestCase().test_data, svp64=svp64,
                               microwatt_mmu=True,
-                              rom=pagetables.microwatt_test3))
+                              rom=pagetables.microwatt_test2))
 
     runner = unittest.TextTestRunner()
     runner.run(suite)
