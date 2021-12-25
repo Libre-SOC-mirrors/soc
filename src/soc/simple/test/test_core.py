@@ -61,6 +61,12 @@ def set_mmu_spr(name, i, val, core):  # important keep pep8 formatting
     yield fsm.mmu.l_in.rs.eq(val)
     yield
     yield fsm.mmu.l_in.mtspr.eq(0)
+    while True:
+        done = yield fsm.mmu.l_out.done
+        if done:
+            break
+        yield
+    yield
     print("mmu_spr %s %d was updated %x" % (name, i, val))
 
 
@@ -153,8 +159,8 @@ def setup_regs(pdecode2, core, test):
             # match behaviour of SPRMap in power_decoder2.py
             for i, x in enumerate(SPR):
                 if sprname == x.name:
-                    print("setting slow SPR %d (%s) to %x" %
-                          (i, sprname, val))
+                    print("setting slow SPR %d (%s/%d) to %x" %
+                          (i, sprname, x.value, val))
                     if sprname in mmu_sprs:
                         yield from set_mmu_spr(sprname, x.value, val, core)
                     elif sprname in ldst_sprs:
