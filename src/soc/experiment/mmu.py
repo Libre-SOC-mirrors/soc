@@ -215,10 +215,10 @@ class MMU(Elaboratable):
             comb += v.store.eq(~(l_in.load | l_in.iside))
             comb += v.priv.eq(l_in.priv)
 
-            comb += Display("state %d l_in.valid addr %x iside %d store %d "
-                            "rts %x mbits %x pt_valid %d",
+            sync += Display("state %d l_in.valid addr %x iside %d store %d "
+                            "rpdb %x rts %d mbits %d pt_valid %d",
                             v.state, v.addr, v.iside, v.store,
-                            rts, mbits, pt_valid)
+                            pgtbl.rpdb, rts, mbits, pt_valid)
 
             with m.If(l_in.tlbie):
                 # Invalidate all iTLB/dTLB entries for
@@ -280,6 +280,7 @@ class MMU(Elaboratable):
 
     def proc_tbl_wait(self, m, v, r, data):
         comb = m.d.comb
+        sync = m.d.sync
         rts = Signal(6)
         mbits = Signal(6)
         prtbl = PRTBL("prtblw")
@@ -307,6 +308,12 @@ class MMU(Elaboratable):
 
         with m.If(mbits):
             comb += v.state.eq(State.SEGMENT_CHECK)
+            sync += Display("PROC TBL %d data %x rts1 %x rts2 %x rts %d"
+                            "rpdb %x mbits %d pgbase %x "
+                            " pt0_valid %d, pt3_valid %d",
+                            v.state, data, prtbl.rts1, prtbl.rts2, rts,
+                            prtbl.rpdb, mbits, v.pgbase,
+                            v.pt0_valid, v.pt3_valid)
         with m.Else():
             comb += v.state.eq(State.RADIX_FINISH)
             comb += v.invalid.eq(1)
@@ -327,7 +334,7 @@ class MMU(Elaboratable):
         leaf = rpte.leaf
         badtree = Signal()
 
-        comb += Display("RDW %016x done %d "
+        sync += Display("RDW %016x done %d "
                         "perm %d rc %d mbits %d shf %d "
                         "valid %d leaf %d bad %d",
                         data, d_in.done, perm_ok, rc_ok,
@@ -356,6 +363,13 @@ class MMU(Elaboratable):
                 # permissions / rc ok, load TLB, otherwise report error
                 with m.If(perm_ok & rc_ok):
                     comb += v.state.eq(State.RADIX_LOAD_TLB)
+                    sync += Display("RADIX LEAF data %x att %x eaa %x "
+                                    "R %d C %d "
+                                    "shift %d pgbase %x ",
+                                    data, rpte.att, eaa,
+                                    rpte.r, rpte.c,
+                                    v.shift, v.pgbase
+                                    )
                 with m.Else():
                     comb += v.state.eq(State.RADIX_FINISH)
                     comb += v.perm_err.eq(~perm_ok)
@@ -430,7 +444,7 @@ class MMU(Elaboratable):
 
         with m.If(rin.state == State.RADIX_LOOKUP):
             sync += Display ("radix lookup shift=%d msize=%d",
-                            rin.shift, rin.mask_size)
+                            addrsh, mask)
 
         with m.If(r.state == State.RADIX_LOOKUP):
             sync += Display(f"send load addr=%x addrsh=%d mask=%x",
@@ -508,6 +522,10 @@ class MMU(Elaboratable):
         m.submodules.tlb_mask = tlb_mask = Mask(44)
         comb += tlb_mask.shift.eq(r.shift)
         comb += finalmask.eq(tlb_mask.mask)
+
+        # Shift address bits 61--12 right by 0--47 bits and
+        # supply the least significant 16 bits of the result.
+        comb += addrsh.eq(r.addr[12:62] << r.shift)
 
         with m.If(r.state != State.IDLE):
             sync += Display("MMU state %d %016x", r.state, data)
@@ -656,8 +674,8 @@ def dcache_get(dut):
     mem = {0x0: 0x000000, # to get mtspr prtbl working
 
            0x10000:    # PARTITION_TABLE_2
-                       # PATB_GR=1 PRTB=0x1000 PRTS=0xb
-           b(0x800000000100000b),
+                       # HR=1 RTS1=0x2 PRTB=0x300 RTS2=0x5 PRTS=0xb
+           b(0xc0000000000030ad),
 
            0x30000:     # RADIX_ROOT_PTE
                         # V = 1 L = 0 NLB = 0x400 NLS = 9
@@ -668,10 +686,31 @@ def dcache_get(dut):
 	                    # R = 1 C = 1 ATT = 0 EAA 0x7
            b(0xc000000000000187),
 
-          0x1000000:   # PROCESS_TABLE_3
+#
+#   slightly different from radix_walk_example.txt: address in microwatt
+#   has the top bit set to indicate hypervisor.  here, Quadrant 3's
+#   process table entry is put instead into Quadrant 0.  the entry
+#   PROCESS_TABLE_3 should, strictly speaking, be at 0x1000010
+
+#          0x1000000:   # PROCESS_TABLE_3 (pt0_valid)
+#                       # RTS1 = 0x2 RPDB = 0x300 RTS2 = 0x5 RPDS = 12
+#           b(0x40000000000300ac),
+
+          0x1000000:   # PROCESS_TABLE_3 (pt3_valid)
                        # RTS1 = 0x2 RPDB = 0x300 RTS2 = 0x5 RPDS = 13
            b(0x40000000000300ad),
           }
+
+    # microwatt mmu.bin first part of test 2.
+    # PRTBL must be set to 0x12000, PID to 1
+    mem = {
+             0x0: 0x000000, # to get mtspr prtbl working
+             0x13920: 0x86810000000000c0, # leaf, supposed to be at 0x13920
+             0x10000: 0x0930010000000080, # directory node
+             0x12010: 0x0a00010000000000, # page table
+             0x124000: 0x0000000badc0ffee,  # memory to be looked up
+            }
+
 
     while not stop:
         while True: # wait for dc_valid
@@ -695,9 +734,15 @@ def dcache_get(dut):
         yield
         yield dut.d_in.done.eq(0)
 
+
 def mmu_wait(dut):
     global stop
     while not stop: # wait for dc_valid / err
+        d_valid = yield (dut.d_out.valid)
+        if d_valid:
+            tlbld = yield (dut.d_out.tlbld)
+            addr = yield (dut.d_out.addr)
+            print ("addr %x tlbld %d" % (addr, tlbld))
         l_done = yield (dut.l_out.done)
         l_err = yield (dut.l_out.err)
         l_badtree = yield (dut.l_out.badtree)
@@ -713,13 +758,20 @@ def mmu_wait(dut):
         yield dut.l_in.mtspr.eq(0) # captured by RegStage(s)
         yield dut.l_in.load.eq(0)  # can reset everything safely
 
+
 def mmu_sim(dut):
     global stop
+
+    # microwatt PRTBL = 0x12000, other test is 0x1000000
+    #prtbl = 0x100000
+    #pidr = 0x0
+    prtbl = 0x12000
+    pidr = 0x1
 
     # MMU MTSPR set prtbl
     yield dut.l_in.mtspr.eq(1)
     yield dut.l_in.sprn[9].eq(1) # totally fake way to set SPR=prtbl
-    yield dut.l_in.rs.eq(0x1000000) # set process table
+    yield dut.l_in.rs.eq(prtbl) # set process table
     yield dut.l_in.valid.eq(1)
     yield from mmu_wait(dut)
     yield
@@ -729,26 +781,43 @@ def mmu_sim(dut):
 
     prtbl = yield (dut.rin.prtbl)
     print ("prtbl after MTSPR %x" % prtbl)
-    assert prtbl == 0x1000000
+    assert prtbl == prtbl
+
+    if True: # microwatt test set PIDR
+        # MMU MTSPR set PIDR = 1
+        yield dut.l_in.mtspr.eq(1)
+        yield dut.l_in.sprn[9].eq(0) # totally fake way to set SPR=pidr
+        yield dut.l_in.rs.eq(pidr) # set process table
+        yield dut.l_in.valid.eq(1)
+        yield from mmu_wait(dut)
+        yield
+        yield dut.l_in.sprn.eq(0)
+        yield dut.l_in.rs.eq(0)
+        yield
 
     #yield dut.rin.prtbl.eq(0x1000000) # manually set process table
     #yield
 
+    #addr = 0x10000
+    addr = 0x124108
 
     # MMU PTE request
     yield dut.l_in.load.eq(1)
     yield dut.l_in.priv.eq(1)
-    yield dut.l_in.addr.eq(0x10000)
+    yield dut.l_in.addr.eq(addr)
     yield dut.l_in.valid.eq(1)
     yield from mmu_wait(dut)
 
     addr = yield dut.d_out.addr
     pte = yield dut.d_out.pte
+    tlb_ld = yield dut.d_out.tlbld
     l_done = yield (dut.l_out.done)
     l_err = yield (dut.l_out.err)
     l_badtree = yield (dut.l_out.badtree)
-    print ("translated done %d err %d badtree %d addr %x pte %x" % \
-               (l_done, l_err, l_badtree, addr, pte))
+    print ("translated done %d err %d badtree %d "
+           "addr %x pte %x tlb_ld %d" % \
+               (l_done, l_err, l_badtree, addr, pte, tlb_ld))
+
     yield
     yield dut.l_in.priv.eq(0)
     yield dut.l_in.addr.eq(0)
