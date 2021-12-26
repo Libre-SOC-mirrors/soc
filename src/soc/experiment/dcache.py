@@ -709,30 +709,32 @@ class DCache(Elaboratable):
             sync += Display("request collision loadstore vs MMU")
 
         with m.If(m_in.valid):
-            comb += r.req.valid.eq(1)
-            comb += r.req.load.eq(~(m_in.tlbie | m_in.tlbld))# no invalidate
-            comb += r.req.dcbz.eq(0)
-            comb += r.req.nc.eq(0)
-            comb += r.req.reserve.eq(0)
-            comb += r.req.virt_mode.eq(0)
-            comb += r.req.priv_mode.eq(1)
-            comb += r.req.addr.eq(m_in.addr)
-            comb += r.req.data.eq(m_in.pte)
-            comb += r.req.byte_sel.eq(~0) # Const -1 sets all to 0b111....
-            comb += r.tlbie.eq(m_in.tlbie)
-            comb += r.doall.eq(m_in.doall)
-            comb += r.tlbld.eq(m_in.tlbld)
-            comb += r.mmu_req.eq(1)
+            sync += r.req.valid.eq(1)
+            sync += r.req.load.eq(~(m_in.tlbie | m_in.tlbld))# no invalidate
+            sync += r.req.dcbz.eq(0)
+            sync += r.req.nc.eq(0)
+            sync += r.req.reserve.eq(0)
+            sync += r.req.virt_mode.eq(0)
+            sync += r.req.priv_mode.eq(1)
+            sync += r.req.addr.eq(m_in.addr)
+            sync += r.req.data.eq(m_in.pte)
+            sync += r.req.byte_sel.eq(~0) # Const -1 sets all to 0b111....
+            sync += r.tlbie.eq(m_in.tlbie)
+            sync += r.doall.eq(m_in.doall)
+            sync += r.tlbld.eq(m_in.tlbld)
+            sync += r.mmu_req.eq(1)
             m.d.sync += Display("    DCACHE req mmu addr %x pte %x ld %d",
                                  m_in.addr, m_in.pte, r.req.load)
 
         with m.Else():
-            comb += r.req.eq(d_in)
-            comb += r.req.data.eq(0)
-            comb += r.tlbie.eq(0)
-            comb += r.doall.eq(0)
-            comb += r.tlbld.eq(0)
-            comb += r.mmu_req.eq(0)
+            sync += r.req.eq(d_in)
+            sync += r.req.data.eq(0)
+            sync += r.tlbie.eq(0)
+            sync += r.doall.eq(0)
+            sync += r.tlbld.eq(0)
+            sync += r.mmu_req.eq(0)
+        sync += r.d_valid.eq(0)
+
         with m.If((~r1.full & ~d_in.hold) | ~r0_full):
             sync += r0.eq(r)
             sync += r0_full.eq(r.req.valid)
