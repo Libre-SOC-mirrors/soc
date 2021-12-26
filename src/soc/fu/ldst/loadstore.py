@@ -50,7 +50,7 @@ class LDSTRequest(RecordObject):
 
         self.load          = Signal()
         self.dcbz          = Signal()
-        self.addr          = Signal(64)
+        self.raddr          = Signal(64)
         # self.store_data    = Signal(64) # this is already sync (on a delay)
         self.byte_sel      = Signal(8)
         self.nc            = Signal()              # non-cacheable access
@@ -97,7 +97,7 @@ class LoadStore1(PortInterfaceBase):
         self.load          = Signal()
         self.tlbie         = Signal()
         self.dcbz          = Signal()
-        self.addr          = Signal(64)
+        self.raddr          = Signal(64)
         self.maddr          = Signal(64)
         self.store_data    = Signal(64)
         self.load_data     = Signal(64)
@@ -139,7 +139,7 @@ class LoadStore1(PortInterfaceBase):
     def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz):
         m.d.comb += self.req.load.eq(0) # store operation
         m.d.comb += self.req.byte_sel.eq(mask)
-        m.d.comb += self.req.addr.eq(addr)
+        m.d.comb += self.req.raddr.eq(addr)
         m.d.comb += self.req.priv_mode.eq(~msr.pr) # not-problem  ==> priv
         m.d.comb += self.req.virt_mode.eq(msr.dr) # DR ==> virt
         m.d.comb += self.req.mode_32bit.eq(~msr.sf) # not-sixty-four ==> 32bit
@@ -158,7 +158,7 @@ class LoadStore1(PortInterfaceBase):
         m.d.comb += self.req.load.eq(1) # load operation
         m.d.comb += self.req.byte_sel.eq(mask)
         m.d.comb += self.req.align_intr.eq(misalign)
-        m.d.comb += self.req.addr.eq(addr)
+        m.d.comb += self.req.raddr.eq(addr)
         m.d.comb += self.req.priv_mode.eq(~msr.pr) # not-problem  ==> priv
         m.d.comb += self.req.virt_mode.eq(msr.dr) # DR ==> virt
         m.d.comb += self.req.mode_32bit.eq(~msr.sf) # not-sixty-four ==> 32bit
@@ -208,7 +208,7 @@ class LoadStore1(PortInterfaceBase):
 
         # copy of address, but gets over-ridden for instr_fault
         maddr = Signal(64)
-        m.d.comb += maddr.eq(self.addr)
+        m.d.comb += maddr.eq(self.raddr)
 
         # create a blip (single pulse) on valid read/write request
         # this can be over-ridden in the FSM to get dcache to re-run
@@ -265,7 +265,7 @@ class LoadStore1(PortInterfaceBase):
                 with m.If(d_in.valid):
                     m.d.comb += self.done.eq(~mmureq) # done if not doing MMU
                     with m.If(self.done):
-                        sync += Display("ACK_WAIT, done %x", self.addr)
+                        sync += Display("ACK_WAIT, done %x", self.raddr)
                     sync += self.state.eq(State.IDLE)
                     sync += ldst_r.eq(0)
                     with m.If(self.load):
@@ -278,7 +278,7 @@ class LoadStore1(PortInterfaceBase):
                 with m.If(m_in.done):
                     with m.If(~self.r_instr_fault):
                         sync += Display("MMU_LOOKUP, done %x -> %x",
-                                        self.addr, d_out.addr)
+                                        self.raddr, d_out.addr)
                         # retry the request now that the MMU has
                         # installed a TLB entry, if not exception raised
                         m.d.comb += self.d_out.valid.eq(~exception)
@@ -317,14 +317,14 @@ class LoadStore1(PortInterfaceBase):
             comb += exc.happened.eq(1)
         # check for updating DAR
         with m.If(exception):
-            sync += Display("exception %x", self.addr)
+            sync += Display("exception %x", self.raddr)
             # alignment error: store address in DAR
             with m.If(self.align_intr):
-                sync += Display("alignment error: addr in DAR %x", self.addr)
-                sync += self.dar.eq(self.addr)
+                sync += Display("alignment error: addr in DAR %x", self.raddr)
+                sync += self.dar.eq(self.raddr)
             with m.Elif(~self.r_instr_fault):
-                sync += Display("not instr fault, addr in DAR %x", self.addr)
-                sync += self.dar.eq(self.addr)
+                sync += Display("not instr fault, addr in DAR %x", self.raddr)
+                sync += self.dar.eq(self.raddr)
 
         # when done or exception, return to idle state
         with m.If(self.done | exception):
@@ -373,7 +373,7 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += self.d_out.valid.eq(~exc.happened)
             m.d.comb += d_out.load.eq(self.req.load)
             m.d.comb += d_out.byte_sel.eq(self.req.byte_sel)
-            m.d.comb += self.addr.eq(self.req.addr)
+            m.d.comb += self.raddr.eq(self.req.raddr)
             m.d.comb += d_out.nc.eq(self.req.nc)
             m.d.comb += d_out.priv_mode.eq(self.req.priv_mode)
             m.d.comb += d_out.virt_mode.eq(self.req.virt_mode)
@@ -383,7 +383,7 @@ class LoadStore1(PortInterfaceBase):
         with m.Else():
             m.d.comb += d_out.load.eq(ldst_r.load)
             m.d.comb += d_out.byte_sel.eq(ldst_r.byte_sel)
-            m.d.comb += self.addr.eq(ldst_r.addr)
+            m.d.comb += self.raddr.eq(ldst_r.raddr)
             m.d.comb += d_out.nc.eq(ldst_r.nc)
             m.d.comb += d_out.priv_mode.eq(ldst_r.priv_mode)
             m.d.comb += d_out.virt_mode.eq(ldst_r.virt_mode)
@@ -394,7 +394,7 @@ class LoadStore1(PortInterfaceBase):
         # XXX these should be possible to remove but for some reason
         # cannot be... yet. TODO, investigate
         m.d.comb += self.load_data.eq(d_in.data)
-        m.d.comb += d_out.addr.eq(self.addr)
+        m.d.comb += d_out.addr.eq(self.raddr)
 
         # Update outputs to MMU
         m.d.comb += m_out.valid.eq(mmureq)
