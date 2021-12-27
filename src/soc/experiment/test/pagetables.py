@@ -57,3 +57,9 @@ microwatt_test2 = {
              0x8108: 0x0000000badc0ffee,  # memory to be looked up
             }
 
+microwatt_test4 = {
+             0x13858: 0x86a10000000000c0, # leaf node
+             0x10000: 0x0930010000000080, # directory node
+             0x12010: 0x0a00010000000000, # page table
+}
+

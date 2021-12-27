@@ -180,7 +180,7 @@ class MMU(Elaboratable):
         pt_valid = Signal()
         pgtbl = PGTBL("pgtbl")
         rts = Signal(6)
-        mbits = Signal(6)
+        mbits = Signal(6, name="mbits_idle")
 
         with m.If(l_in.addr[63]): # quadrant 3
             comb += pgtbl.eq(r.pgtbl3)
@@ -282,7 +282,7 @@ class MMU(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
         rts = Signal(6)
-        mbits = Signal(6)
+        mbits = Signal(6, name="mbits_tbl_wait")
         prtbl = PRTBL("prtblw")
         comb += prtbl.eq(data)
 
@@ -297,7 +297,7 @@ class MMU(Elaboratable):
         comb += rts.eq(Cat(prtbl.rts2, prtbl.rts1, C(0)))
 
         # mbits == # address bits to index top level of tree
-        comb += mbits.eq(prtbl.rpds)
+        comb += mbits.eq(prtbl.rpds[0:5])
 
         # set v.shift to rts so that we can use finalmask for the segment check
         comb += v.shift.eq(rts)
@@ -308,7 +308,7 @@ class MMU(Elaboratable):
 
         with m.If(mbits):
             comb += v.state.eq(State.SEGMENT_CHECK)
-            sync += Display("PROC TBL %d data %x rts1 %x rts2 %x rts %d"
+            sync += Display("PROC TBL %d data %x rts1 %x rts2 %x rts %d "
                             "rpdb %x mbits %d pgbase %x "
                             " pt0_valid %d, pt3_valid %d",
                             v.state, data, prtbl.rts1, prtbl.rts2, rts,
@@ -328,7 +328,7 @@ class MMU(Elaboratable):
 
         perm_ok = Signal()
         rc_ok = Signal()
-        mbits = Signal(6)
+        mbits = Signal(6, name="mbits_read_wait")
         valid = rpte.valid
         eaa = rpte.eaa
         leaf = rpte.leaf
@@ -405,12 +405,12 @@ class MMU(Elaboratable):
         """
         comb = m.d.comb
 
-        mbits = Signal(6)
+        mbits = Signal(6, name="mbits_check")
         nonzero = Signal()
         comb += mbits.eq(r.mask_size)
         comb += v.shift.eq(r.shift + (31 - 12) - mbits)
         comb += nonzero.eq((r.addr[31:62] & ~finalmask[0:31]).bool())
-        with m.If((r.addr[63] ^ r.addr[62]) # pt3 == 0b11 and pt1 == 0b00
+        with m.If((r.addr[63] != r.addr[62]) # pt3 == 0b11 and pt1 == 0b00
                   | nonzero):
             comb += v.state.eq(State.RADIX_FINISH)
             comb += v.segerror.eq(1)
@@ -443,11 +443,11 @@ class MMU(Elaboratable):
                             "%d badtree=%d", l_out.invalid, l_out.badtree)
 
         with m.If(rin.state == State.RADIX_LOOKUP):
-            sync += Display ("radix lookup shift=%d msize=%d",
-                            addrsh, mask)
+            sync += Display ("radix lookup shift=%x msize=%x",
+                            rin.shift, mask)
 
         with m.If(r.state == State.RADIX_LOOKUP):
-            sync += Display(f"send load addr=%x addrsh=%d mask=%x",
+            sync += Display(f"send load addr=%x addrsh=%x mask=%x",
                             d_out.addr, addrsh, mask)
 
         # update the internal register
@@ -479,7 +479,7 @@ class MMU(Elaboratable):
 
         self.mmu_0(m, r, rin, l_in, l_out, d_out, addrsh, mask)
 
-        v = RegStage()
+        v = RegStage("v")
         dcreq = Signal()
         tlb_load = Signal()
         itlb_load = Signal()
@@ -494,7 +494,6 @@ class MMU(Elaboratable):
 
         comb += v.eq(r)
         comb += v.valid.eq(0)
-        comb += dcreq.eq(0)
         comb += v.done.eq(0)
         comb += v.err.eq(0)
         comb += v.invalid.eq(0)
@@ -502,11 +501,7 @@ class MMU(Elaboratable):
         comb += v.segerror.eq(0)
         comb += v.perm_err.eq(0)
         comb += v.rc_error.eq(0)
-        comb += tlb_load.eq(0)
-        comb += itlb_load.eq(0)
-        comb += tlbie_req.eq(0)
         comb += v.inval_all.eq(0)
-        comb += prtbl_rd.eq(0)
 
         # Radix tree data structures in memory are
         # big-endian, so we need to byte-swap them
@@ -514,12 +509,14 @@ class MMU(Elaboratable):
 
         # generate mask for extracting address fields for PTE addr generation
         m.submodules.pte_mask = pte_mask = Mask(16-5)
+        pte_mask.mask.name = "pte_mask"
         comb += pte_mask.shift.eq(r.mask_size - 5)
         comb += mask.eq(Cat(C(0x1f, 5), pte_mask.mask))
 
         # generate mask for extracting address bits to go in
         # TLB entry in order to support pages > 4kB
         m.submodules.tlb_mask = tlb_mask = Mask(44)
+        tlb_mask.mask.name = "tlb_mask"
         comb += tlb_mask.shift.eq(r.shift)
         comb += finalmask.eq(tlb_mask.mask)
 
@@ -529,6 +526,8 @@ class MMU(Elaboratable):
 
         with m.If(r.state != State.IDLE):
             sync += Display("MMU state %d %016x", r.state, data)
+            sync += Display("addrsh %x r.shift %d r.addr[12:62] %x",
+                        addrsh, r.shift, r.addr[12:62])
 
         ##########
         # Main FSM
@@ -634,6 +633,9 @@ class MMU(Elaboratable):
             comb += addr.eq(prtb_adr)
         with m.Else():
             comb += addr.eq(pgtb_adr)
+            sync += Display(f"pagetable pg16=%x addrsh %x mask %x pgbase=%x "
+                            "pgbase[19:56]=%x",
+                            pg16, addrsh, mask, r.pgbase, r.pgbase[19:56])
 
         # connect to other interfaces: LDST, D-Cache, I-Cache
         comb += l_out.done.eq(r.done)
@@ -711,16 +713,33 @@ def dcache_get(dut):
              0x124000: 0x0000000badc0ffee,  # memory to be looked up
             }
 
+    # microwatt mmu.bin first part of test 4.
+    # PRTBL must be set to 0x12000, PID to 1
+    mem = {
+             0x0: 0x000000, # to get mtspr prtbl working
+             0x13858: 0x86a10000000000c0, # leaf node
+             0x10000: 0x0930010000000080, # directory node
+             0x12010: 0x0a00010000000000, # page table
+    }
 
     while not stop:
         while True: # wait for dc_valid
             if stop:
                 return
             dc_valid = yield (dut.d_out.valid)
+            tlbld = yield (dut.d_out.tlbld)
             if dc_valid:
                 break
             yield
         addr = yield dut.d_out.addr
+        if tlbld:
+            pte = yield dut.d_out.pte
+            print ("    DCACHE PTE %x -> %x" % (pte, addr))
+            yield dut.d_in.done.eq(1)
+            yield
+            yield dut.d_in.done.eq(0)
+            continue
+
         if addr not in mem:
             print ("    DCACHE LOOKUP FAIL %x" % (addr))
             stop = True
@@ -798,8 +817,9 @@ def mmu_sim(dut):
     #yield dut.rin.prtbl.eq(0x1000000) # manually set process table
     #yield
 
-    #addr = 0x10000
-    addr = 0x124108
+    #addr = 0x10000  # original test
+    #addr = 0x124108  # microwatt mmu.bin test 2
+    addr = 0x10b0d8  # microwatt mmu.bin test 4
 
     # MMU PTE request
     yield dut.l_in.load.eq(1)
