@@ -160,7 +160,7 @@ class FetchFSM(ControlBase):
                         # not SVP64 - 32-bit only
                         sync += nia.eq(cur_state.pc + 4)
                         sync += dec_opcode_o.eq(insn)
-                            m.next = "INSN_READY"
+                        m.next = "INSN_READY"
 
             with m.State("INSN_READY"):
                 # hand over the instruction, to be decoded
