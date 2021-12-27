@@ -522,7 +522,7 @@ class MMU(Elaboratable):
 
         # Shift address bits 61--12 right by 0--47 bits and
         # supply the least significant 16 bits of the result.
-        comb += addrsh.eq(r.addr[12:62] << r.shift)
+        comb += addrsh.eq(r.addr[12:62] >> r.shift)
 
         with m.If(r.state != State.IDLE):
             sync += Display("MMU state %d %016x", r.state, data)
