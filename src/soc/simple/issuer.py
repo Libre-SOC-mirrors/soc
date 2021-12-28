@@ -1517,9 +1517,6 @@ class TestIssuerInternal(TestIssuerBase):
 class TestIssuer(Elaboratable):
     def __init__(self, pspec):
         self.ti = TestIssuerInternal(pspec)
-        # XXX TODO: make this a command-line selectable option from pspec
-        #from soc.simple.inorder import TestIssuerInternalInOrder
-        #self.ti = TestIssuerInternalInOrder(pspec)
         self.pll = DummyPLL(instance=True)
 
         self.dbg_rst_i = Signal(reset_less=True)

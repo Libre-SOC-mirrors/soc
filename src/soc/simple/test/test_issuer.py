@@ -46,6 +46,12 @@ if __name__ == "__main__":
         allow_overlap = True
         del sys.argv[1]
 
+    # use in-order issuer, instead of the original FSM based one
+    inorder = False
+    if len(sys.argv) >= 2 and sys.argv[1] == '--inorder':
+        inorder = True
+        del sys.argv[1]
+
     # allow list of testing to be selected by command-line
     testing = []
     for i in reversed(range(1, len(sys.argv))):
@@ -58,7 +64,7 @@ if __name__ == "__main__":
                    'branch', 'div', 'mul', 'hazard']
 
     print("SVP64 test mode enabled", svp64, "overlap",
-          allow_overlap, "testing", testing)
+          allow_overlap, "in-order", inorder, "testing", testing)
 
     unittest.main(exit=False)
     suite = unittest.TestSuite()
@@ -83,7 +89,7 @@ if __name__ == "__main__":
     # walk through all tests, those requested get added
     for tname, data in tests.items():
         if tname in testing:
-            suite.addTest(TestRunner(data, svp64=svp64,
+            suite.addTest(TestRunner(data, svp64=svp64, inorder=inorder,
                                      allow_overlap=allow_overlap))
 
     runner = unittest.TextTestRunner()

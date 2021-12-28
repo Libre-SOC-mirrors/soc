@@ -19,6 +19,7 @@ from openpower.decoder.isa.all import ISA
 from openpower.endian import bigendian
 
 from soc.simple.issuer import TestIssuerInternal
+from soc.simple.inorder import TestIssuerInternalInOrder
 
 from soc.simple.test.test_core import (setup_regs, check_regs, check_mem,
                                        wait_for_busy_clear,
@@ -178,7 +179,10 @@ class HDLRunner(StateRunner):
         self.svstate_i = Signal(64)
 
         #hard_reset = Signal(reset_less=True)
-        self.issuer = TestIssuerInternal(pspec)
+        if pspec.inorder:
+            self.issuer = TestIssuerInternalInOrder(pspec)
+        else:
+            self.issuer = TestIssuerInternal(pspec)
         # use DMI RESET command instead, this does actually work though
         # issuer = ResetInserter({'coresync': hard_reset,
         #                        'sync': hard_reset})(issuer)
@@ -384,11 +388,11 @@ class HDLRunner(StateRunner):
 
 class TestRunner(TestRunnerBase):
     def __init__(self, tst_data, microwatt_mmu=False, rom=None,
-                 svp64=True, run_hdl=True, run_sim=True,
+                 svp64=True, inorder=False, run_hdl=True, run_sim=True,
                  allow_overlap=False):
         if run_hdl:
             run_hdl = HDLRunner
         super().__init__(tst_data, microwatt_mmu=microwatt_mmu,
-                         rom=rom,
+                         rom=rom, inorder=inorder,
                          svp64=svp64, run_hdl=run_hdl, run_sim=run_sim,
                          allow_overlap=allow_overlap)
