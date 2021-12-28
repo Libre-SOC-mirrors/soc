@@ -143,21 +143,26 @@ class LoadStore1(PortInterfaceBase):
         m.d.comb += self.req.priv_mode.eq(~msr.pr) # not-problem  ==> priv
         m.d.comb += self.req.virt_mode.eq(msr.dr) # DR ==> virt
         m.d.comb += self.req.mode_32bit.eq(~msr.sf) # not-sixty-four ==> 32bit
-        m.d.comb += self.req.align_intr.eq(misalign)
         m.d.comb += self.req.dcbz.eq(is_dcbz)
+        # XXX TODO sort out misalignment, mmu test5 fails
+        m.d.comb += self.req.align_intr.eq(misalign)
 
         # m.d.comb += Display("set_wr_addr %i dcbz %i",addr,is_dcbz)
 
         # option to disable the cache entirely for write
         if self.disable_cache:
             m.d.comb += self.req.nc.eq(1)
+
+        # dcbz cannot do no-cache
+        with m.If(is_dcbz & self.req.nc):
+            m.d.comb += self.req.align_intr.eq(1)
+
         return None
 
     def set_rd_addr(self, m, addr, mask, misalign, msr):
         m.d.comb += self.d_valid.eq(1)
         m.d.comb += self.req.load.eq(1) # load operation
         m.d.comb += self.req.byte_sel.eq(mask)
-        m.d.comb += self.req.align_intr.eq(misalign)
         m.d.comb += self.req.raddr.eq(addr)
         m.d.comb += self.req.priv_mode.eq(~msr.pr) # not-problem  ==> priv
         m.d.comb += self.req.virt_mode.eq(msr.dr) # DR ==> virt
@@ -169,6 +174,8 @@ class LoadStore1(PortInterfaceBase):
         # option to disable the cache entirely for read
         if self.disable_cache:
             m.d.comb += self.req.nc.eq(1)
+        # XXX TODO sort out misalignment, mmu test5 fails
+        m.d.comb += self.req.align_intr.eq(misalign)
         return None #FIXME return value
 
     def set_wr_data(self, m, data, wen):

@@ -722,6 +722,16 @@ def dcache_get(dut):
              0x12010: 0x0a00010000000000, # page table
     }
 
+    # microwatt mmu.bin test 5.
+    # PRTBL must be set to 0x12000, PID to 1
+    mem = {
+             0x0: 0x000000, # to get mtspr prtbl working
+             0x13cf8: 0x86b10000000000c0, # leaf node
+             0x13d00: 0x0000000000000000, # invalid leaf node
+             0x10008: 0x0930010000000080, # directory node
+             0x12010: 0x0a00010000000000, # page table
+    }
+
     while not stop:
         while True: # wait for dc_valid
             if stop:
@@ -819,7 +829,13 @@ def mmu_sim(dut):
 
     #addr = 0x10000  # original test
     #addr = 0x124108  # microwatt mmu.bin test 2
-    addr = 0x10b0d8  # microwatt mmu.bin test 4
+    #addr = 0x10b0d8  # microwatt mmu.bin test 4
+    # these are a misalignment test. one load results in two actual
+    # lookups, one of which has a valid page table entry, the other
+    # does not.  we currently do not support misaligned in Loadstore1
+    # therefore these tests fail with an align_intr (0x600) at 0x39fffd
+    addr = 0x39fffd # microwatt mmu.bin test 5
+    addr = 0x3a0000 # microwatt mmu.bin test 5
 
     # MMU PTE request
     yield dut.l_in.load.eq(1)
