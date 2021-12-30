@@ -91,7 +91,7 @@ class FSMMMUStage(ControlBase):
 
         i_data, o_data = self.p.i_data, self.n.o_data
         op = i_data.ctx.op
-        nia_i = op.nia
+        cia_i = op.cia
         msr_i = op.msr
         a_i, b_i, spr1_i = i_data.ra, i_data.rb, i_data.spr1
         o, exc_o, spr1_o = o_data.o, o_data.exception, o_data.spr1
@@ -216,7 +216,7 @@ class FSMMMUStage(ControlBase):
                 ##########
 
                 with m.Case(MicrOp.OP_FETCH_FAILED):
-                    comb += Display("MMUTEST: OP_FETCH_FAILED: @%x", nia_i)
+                    comb += Display("MMUTEST: OP_FETCH_FAILED: @%x", cia_i)
                     # trigger an instruction fetch failed MMU event.
                     # PowerDecoder2 drops svstate.pc into NIA for us
                     # really, this should be direct communication with the
@@ -226,7 +226,7 @@ class FSMMMUStage(ControlBase):
                     comb += valid.eq(1)   # start "pulse"
                     comb += ldst.instr_fault.eq(blip)
                     comb += ldst.priv_mode.eq(~msr_i[MSR.PR])
-                    comb += ldst.maddr.eq(nia_i)
+                    comb += ldst.maddr.eq(cia_i)
                     # XXX should not access this!
                     comb += done.eq(ldst.done)
                     comb += self.debug0.eq(3)

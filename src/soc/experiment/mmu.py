@@ -732,6 +732,15 @@ def dcache_get(dut):
              0x12010: 0x0a00010000000000, # page table
     }
 
+    # microwatt mmu.bin test 12, instruction-side
+    # PRTBL must be set to 0x12000, PID to 1, iside to 1
+    mem = {
+             0x0: 0x000000, # to get mtspr prtbl working
+             0x13920: 0x01110000000000c0, # leaf node
+             0x10008: 0x0930010000000080, # directory node
+             0x12010: 0x0a00010000000000, # page table
+    }
+
     while not stop:
         while True: # wait for dc_valid
             if stop:
@@ -837,8 +846,13 @@ def mmu_sim(dut):
     addr = 0x39fffd # microwatt mmu.bin test 5
     addr = 0x3a0000 # microwatt mmu.bin test 5
 
+    # microwatt mmu.bin test 12 is instruction-side
+    addr = 0x324000 # microwatt mmu.bin test 12
+    iside = 1
+
     # MMU PTE request
-    yield dut.l_in.load.eq(1)
+    yield dut.l_in.iside.eq(iside)
+    yield dut.l_in.load.eq(0)
     yield dut.l_in.priv.eq(1)
     yield dut.l_in.addr.eq(addr)
     yield dut.l_in.valid.eq(1)

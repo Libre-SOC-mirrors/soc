@@ -59,9 +59,10 @@ class MMUTestCase(TestAccumulatorBase):
         initial_mem = {}
 
         # set virtual and non-privileged
-        initial_msr = 1 << MSR.PR # must set "problem" state
-        initial_msr |= 1 << MSR.DR # set "virtual" state for data
+        initial_msr = 0 << MSR.PR # must set "problem" state
+        #initial_msr |= 1 << MSR.DR # set "virtual" state for data
         initial_msr |= 1 << MSR.IR # set "virtual" state for instructions
+        initial_msr |= 1 << MSR.LE # set little-endian
 
         # set PRTBL to 0x1000000
         initial_sprs = {720: 0x1000000} # PRTBL
