@@ -653,6 +653,7 @@ class TestIssuerBase(Elaboratable):
     def external_ports(self):
         if self.microwatt_compat:
             ports = [self.core.o.core_terminate_o,
+                     self.ext_irq,
                      self.alt_reset, # not connected yet
                      ClockSignal(),
                      ResetSignal(),
