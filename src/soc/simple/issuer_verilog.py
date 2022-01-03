@@ -140,9 +140,11 @@ if __name__ == '__main__':
 
     if args.mwcompat:
         dut = TestIssuerInternal(pspec)
+        name = "external_core_top"
     else:
         dut = TestIssuer(pspec)
+        name = "test_issuer"
 
-    vl = verilog.convert(dut, ports=dut.external_ports(), name="test_issuer")
+    vl = verilog.convert(dut, ports=dut.external_ports(), name=name)
     with open(args.output_filename, "w") as f:
         f.write(vl)
