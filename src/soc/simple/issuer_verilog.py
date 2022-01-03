@@ -6,7 +6,7 @@ from nmigen.cli import verilog
 
 from openpower.consts import MSR
 from soc.config.test.test_loadstore import TestMemPspec
-from soc.simple.issuer import TestIssuer
+from soc.simple.issuer import TestIssuer, TestIssuerInternal
 
 
 if __name__ == '__main__':
@@ -59,8 +59,24 @@ if __name__ == '__main__':
     parser.add_argument("--disable-svp64", dest='svp64', action="store_false",
                         help="disable SVP64",
                         default=False)
+    # create a module that's directly compatible as a drop-in replacement
+    # in microwatt.v
+    parser.add_argument("--microwatt-compat", dest='mwcompat',
+                        action="store_true",
+                        help="generate microwatt-compatible interface",
+                        default=False)
 
     args = parser.parse_args()
+
+    # convenience: set some defaults
+    if args.mwcompat:
+        args.pll = False
+        args.debug = 'dmi'
+        args.core = True
+        args.xics = False
+        args.gpio = False
+        args.sram4x4kblock = False
+        args.svp64 = False
 
     print(args)
 
@@ -104,9 +120,12 @@ if __name__ == '__main__':
                          sram4x4kblock=args.enable_sram4x4kblock, # add SRAMs
                          debug=args.debug,      # set to jtag or dmi
                          svp64=args.svp64,      # enable SVP64
-                         microwatt_mmu=args.mmu,          # enable MMU
+                         microwatt_mmu=args.mmu,         # enable MMU
+                         microwatt_compat=args.mwcompat, # microwatt compatible
                          units=units,
                          msr_reset=msr_reset)
+    if args.mwcompat:
+        pspec.core_domain = 'sync'
 
     print("mmu", pspec.__dict__["microwatt_mmu"])
     print("nocore", pspec.__dict__["nocore"])
@@ -117,8 +136,12 @@ if __name__ == '__main__':
     print("use_pll", pspec.__dict__["use_pll"])
     print("debug", pspec.__dict__["debug"])
     print("SVP64", pspec.__dict__["svp64"])
+    print("Microwatt compatibility", pspec.__dict__["microwatt_compat"])
 
-    dut = TestIssuer(pspec)
+    if args.mwcompat:
+        dut = TestIssuerInternal(pspec)
+    else:
+        dut = TestIssuer(pspec)
 
     vl = verilog.convert(dut, ports=dut.external_ports(), name="test_issuer")
     with open(args.output_filename, "w") as f:

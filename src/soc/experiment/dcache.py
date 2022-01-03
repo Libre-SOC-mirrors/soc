@@ -676,7 +676,7 @@ class DCache(Elaboratable):
       at the end of line (this requires dealing with requests coming in
       while not idle...)
     """
-    def __init__(self):
+    def __init__(self, pspec=None):
         self.d_in      = LoadStore1ToDCacheType("d_in")
         self.d_out     = DCacheToLoadStore1Type("d_out")
 
@@ -694,6 +694,10 @@ class DCache(Elaboratable):
                             name="dcache")
 
         self.log_out   = Signal(20)
+
+        # test if microwatt compatibility is to be enabled
+        self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
+                                 (pspec.microwatt_compat == True))
 
     def stage_0(self, m, r0, r1, r0_full):
         """Latch the request in r0.req as long as we're not stalling
@@ -1744,7 +1748,8 @@ class DCache(Elaboratable):
         # deal with litex not doing wishbone pipeline mode
         # XXX in wrong way.  FIFOs are needed in the SRAM test
         # so that stb/ack match up. same thing done in icache.py
-        comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
+        if not self.microwatt_compat:
+            comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
 
         # Wire up wishbone request latch out of stage 1
         comb += self.bus.we.eq(r1.wb.we)

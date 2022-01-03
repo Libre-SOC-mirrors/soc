@@ -18,6 +18,9 @@ def make_wb_layout(spec, cti=True):
     addr_wid, mask_wid, data_wid = spec.addr_wid, spec.mask_wid, spec.reg_wid
     adr_lsbs = log2_int(mask_wid) # LSBs of addr covered by mask
     badwid = spec.addr_wid-adr_lsbs    # MSBs (not covered by mask)
+    # test if microwatt compatibility is to be enabled
+    microwatt_compat = (hasattr(spec, "microwatt_compat") and
+                               (spec.microwatt_compat == True))
 
     res = [
     ("adr",   badwid  , DIR_FANOUT),
@@ -30,6 +33,9 @@ def make_wb_layout(spec, cti=True):
     ("we",            1, DIR_FANOUT),
     ("err",           1, DIR_FANIN)
     ]
+    # microwatt needs a stall signal (operates in pipeline mode)
+    if microwatt_compat:
+        res.append(("stall", 1, DIR_FANIN))
     if not cti:
         return res
     return res + [

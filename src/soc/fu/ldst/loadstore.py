@@ -70,7 +70,7 @@ class LoadStore1(PortInterfaceBase):
         addrwid = pspec.addr_wid
 
         super().__init__(regwid, addrwid)
-        self.dcache = DCache()
+        self.dcache = DCache(pspec)
         self.icache = ICache(pspec)
         # these names are from the perspective of here (LoadStore1)
         self.d_out  = self.dcache.d_in     # in to dcache is out for LoadStore

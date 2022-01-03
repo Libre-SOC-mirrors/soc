@@ -165,6 +165,11 @@ class TestIssuerBase(Elaboratable):
 
     def __init__(self, pspec):
 
+        # test if microwatt compatibility is to be enabled
+        self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
+                                 (pspec.microwatt_compat == True))
+        self.alt_reset = Signal(reset_less=True) # not connected yet (microwatt)
+
         # test is SVP64 is to be enabled
         self.svp64_en = hasattr(pspec, "svp64") and (pspec.svp64 == True)
 
@@ -322,12 +327,18 @@ class TestIssuerBase(Elaboratable):
         csd = DomainRenamer(self.core_domain)
         dbd = DomainRenamer(self.dbg_domain)
 
-        m.submodules.core = core = csd(self.core)
+        if self.microwatt_compat:
+            m.submodules.core = core = self.core
+        else:
+            m.submodules.core = core = csd(self.core)
         # this _so_ needs sorting out.  ICache is added down inside
         # LoadStore1 and is already a submodule of LoadStore1
         if not isinstance(self.imem, ICache):
             m.submodules.imem = imem = csd(self.imem)
-        m.submodules.dbg = dbg = dbd(self.dbg)
+        if self.microwatt_compat:
+            m.submodules.dbg = dbg = self.dbg
+        else:
+            m.submodules.dbg = dbg = dbd(self.dbg)
         if self.jtag_en:
             m.submodules.jtag = jtag = dbd(self.jtag)
             # TODO: UART2GDB mux, here, from external pin
@@ -591,6 +602,39 @@ class TestIssuerBase(Elaboratable):
                 comb += self.state_w_sv.i_data.eq(self.new_svstate)
                 sync += self.sv_changed.eq(1)
 
+        # start renaming some of the ports to match microwatt
+        if self.microwatt_compat:
+            self.core.o.core_terminate_o.name = "terminated_out"
+            # names of DMI interface
+            self.dbg.dmi.addr_i.name = 'dmi_addr'
+            self.dbg.dmi.din.name    = 'dmi_din'
+            self.dbg.dmi.dout.name   = 'dmi_dout'
+            self.dbg.dmi.req_i.name  = 'dmi_req'
+            self.dbg.dmi.we_i.name   = 'dmi_wr'
+            self.dbg.dmi.ack_o.name  = 'dmi_ack'
+            # wishbone instruction bus
+            ibus = self.imem.ibus
+            ibus.adr.name = 'wishbone_insn_out.adr'
+            ibus.dat_w.name = 'wishbone_insn_out.dat'
+            ibus.sel.name = 'wishbone_insn_out.sel'
+            ibus.cyc.name = 'wishbone_insn_out.cyc'
+            ibus.stb.name = 'wishbone_insn_out.stb'
+            ibus.we.name = 'wishbone_insn_out.we'
+            ibus.dat_r.name = 'wishbone_insn_in.dat'
+            ibus.ack.name = 'wishbone_insn_in.ack'
+            ibus.stall.name = 'wishbone_insn_in.stall'
+            # wishbone data bus
+            dbus = self.core.l0.cmpi.wb_bus()
+            dbus.adr.name = 'wishbone_data_out.adr'
+            dbus.dat_w.name = 'wishbone_data_out.dat'
+            dbus.sel.name = 'wishbone_data_out.sel'
+            dbus.cyc.name = 'wishbone_data_out.cyc'
+            dbus.stb.name = 'wishbone_data_out.stb'
+            dbus.we.name = 'wishbone_data_out.we'
+            dbus.dat_r.name = 'wishbone_data_in.dat'
+            dbus.ack.name = 'wishbone_data_in.ack'
+            dbus.stall.name = 'wishbone_data_in.stall'
+
         return m
 
     def __iter__(self):
@@ -607,6 +651,22 @@ class TestIssuerBase(Elaboratable):
         return list(self)
 
     def external_ports(self):
+        if self.microwatt_compat:
+            ports = [self.core.o.core_terminate_o,
+                     self.alt_reset, # not connected yet
+                     ClockSignal(),
+                     ResetSignal(),
+                    ]
+            ports += list(self.dbg.dmi.ports())
+            # for dbus/ibus microwatt, exclude err btw and cti
+            for name, sig in self.imem.ibus.fields.items():
+                if name not in ['err', 'bte', 'cti']:
+                    ports.append(sig)
+            for name, sig in self.core.l0.cmpi.wb_bus().fields.items():
+                if name not in ['err', 'bte', 'cti']:
+                    ports.append(sig)
+            return ports
+
         ports = self.pc_i.ports()
         ports = self.msr_i.ports()
         ports += [self.pc_o, self.memerr_o, self.core_bigendian_i, self.busy_o,
