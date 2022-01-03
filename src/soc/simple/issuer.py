@@ -226,6 +226,8 @@ class TestIssuerBase(Elaboratable):
             self.xics_icp = XICS_ICP()
             self.xics_ics = XICS_ICS()
             self.int_level_i = self.xics_ics.int_level_i
+        else:
+            self.ext_irq = Signal()
 
         # add GPIO peripheral?
         self.gpio = hasattr(pspec, "gpio") and pspec.gpio == True
@@ -346,6 +348,8 @@ class TestIssuerBase(Elaboratable):
             m.submodules.xics_ics = ics = csd(self.xics_ics)
             comb += icp.ics_i.eq(ics.icp_o)           # connect ICS to ICP
             sync += cur_state.eint.eq(icp.core_irq_o)  # connect ICP to core
+        else:
+            sync += cur_state.eint.eq(self.ext_irq)  # connect externally
 
         # GPIO test peripheral
         if self.gpio:
@@ -625,6 +629,8 @@ class TestIssuerBase(Elaboratable):
             ports += list(self.xics_icp.bus.fields.values())
             ports += list(self.xics_ics.bus.fields.values())
             ports.append(self.int_level_i)
+        else:
+            ports.append(self.ext_irq)
 
         if self.gpio:
             ports += list(self.simple_gpio.bus.fields.values())
