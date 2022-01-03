@@ -331,10 +331,15 @@ class TestIssuerInternalInOrder(TestIssuerBase):
                                     self.sv_changed):
                             m.next = "ISSUE_START"
 
-                        # returning to Execute? then, first update SRCSTEP
                         with m.Else():
-                            # return to mask skip loop
-                            m.next = "DECODE_SV"
+                            # before going back to fetch, update the PC state
+                            # register with the NIA.
+                            # ok here we are not reading the branch unit.
+                            # TODO: this just blithely overwrites whatever
+                            #       pipeline updated the PC
+                            comb += self.state_w_pc.wen.eq(1 << StateRegs.PC)
+                            comb += self.state_w_pc.i_data.eq(nia)
+                            m.next = "ISSUE_START"
 
                 with m.Else():
                     comb += dbg.core_stopped_i.eq(1)
