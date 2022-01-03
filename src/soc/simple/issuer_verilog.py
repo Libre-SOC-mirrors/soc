@@ -124,8 +124,8 @@ if __name__ == '__main__':
                          microwatt_compat=args.mwcompat, # microwatt compatible
                          units=units,
                          msr_reset=msr_reset)
-    if args.mwcompat:
-        pspec.core_domain = 'sync'
+    #if args.mwcompat:
+    #    pspec.core_domain = 'sync'
 
     print("mmu", pspec.__dict__["microwatt_mmu"])
     print("nocore", pspec.__dict__["nocore"])

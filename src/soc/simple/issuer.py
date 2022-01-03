@@ -335,15 +335,23 @@ class TestIssuerBase(Elaboratable):
         # LoadStore1 and is already a submodule of LoadStore1
         if not isinstance(self.imem, ICache):
             m.submodules.imem = imem = csd(self.imem)
-        if self.microwatt_compat:
-            m.submodules.dbg = dbg = self.dbg
-        else:
-            m.submodules.dbg = dbg = dbd(self.dbg)
+        m.submodules.dbg = dbg = dbd(self.dbg)
         if self.jtag_en:
             m.submodules.jtag = jtag = dbd(self.jtag)
             # TODO: UART2GDB mux, here, from external pin
             # see https://bugs.libre-soc.org/show_bug.cgi?id=499
             sync += dbg.dmi.connect_to(jtag.dmi)
+
+        # fixup the clocks in microwatt-compat mode (but leave resets alone
+        # so that microwatt soc.vhdl can pull a reset on the core or DMI
+        # can do it, just like in TestIssuer)
+        if self.microwatt_compat:
+            intclk = ClockSignal(self.core_domain)
+            dbgclk = ClockSignal(self.dbg_domain)
+            if self.core_domain != 'sync':
+                comb += intclk.eq(ClockSignal())
+            if self.dbg_domain != 'sync':
+                comb += dbgclk.eq(ClockSignal())
 
         cur_state = self.cur_state
 
