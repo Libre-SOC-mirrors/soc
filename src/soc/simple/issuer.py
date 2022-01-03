@@ -317,6 +317,11 @@ class TestIssuerBase(Elaboratable):
             self.srcmask = Signal(64)
             self.dstmask = Signal(64)
 
+        # sigh, the wishbone addresses are not wishbone-compliant in microwatt
+        if self.microwatt_compat:
+            self.ibus_adr = Signal(32, name='wishbone_insn_out.adr')
+            self.dbus_adr = Signal(32, name='wishbone_data_out.adr')
+
     def setup_peripherals(self, m):
         comb, sync = m.d.comb, m.d.sync
 
@@ -352,6 +357,14 @@ class TestIssuerBase(Elaboratable):
                 comb += intclk.eq(ClockSignal())
             if self.dbg_domain != 'sync':
                 comb += dbgclk.eq(ClockSignal())
+
+        # drop the first 3 bits of the incoming wishbone addresses
+        # this can go if using later versions of microwatt (not now)
+        if self.microwatt_compat:
+            ibus = self.imem.ibus
+            dbus = self.core.l0.cmpi.wb_bus()
+            comb += ibus.adr.eq(self.ibus_adr[3:])
+            comb += dbus.adr.eq(self.dbus_adr[3:])
 
         cur_state = self.cur_state
 
@@ -669,11 +682,14 @@ class TestIssuerBase(Elaboratable):
             ports += list(self.dbg.dmi.ports())
             # for dbus/ibus microwatt, exclude err btw and cti
             for name, sig in self.imem.ibus.fields.items():
-                if name not in ['err', 'bte', 'cti']:
+                if name not in ['err', 'bte', 'cti', 'adr']:
                     ports.append(sig)
             for name, sig in self.core.l0.cmpi.wb_bus().fields.items():
-                if name not in ['err', 'bte', 'cti']:
+                if name not in ['err', 'bte', 'cti', 'adr']:
                     ports.append(sig)
+            # microwatt non-compliant with wishbone
+            ports.append(self.ibus_adr)
+            ports.append(self.dbus_adr)
             return ports
 
         ports = self.pc_i.ports()
