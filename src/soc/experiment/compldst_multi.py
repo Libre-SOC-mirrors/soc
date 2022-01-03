@@ -542,7 +542,8 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += pi.priv_mode.eq(~oper_r.msr[MSR.PR])
         comb += pi.virt_mode.eq(oper_r.msr[MSR.DR])
         comb += pi.mode_32bit.eq(~oper_r.msr[MSR.SF])
-        sync += Display("LDSTCompUnit: oper_r.msr %x pr=%x dr=%x sf=%x",
+        with m.If(self.issue_i): # display this only once
+            sync += Display("LDSTCompUnit: oper_r.msr %x pr=%x dr=%x sf=%x",
                                       oper_r.msr,
                                       oper_r.msr[MSR.PR],
                                       oper_r.msr[MSR.DR],
