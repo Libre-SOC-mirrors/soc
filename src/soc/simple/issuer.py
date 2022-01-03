@@ -363,8 +363,8 @@ class TestIssuerBase(Elaboratable):
         if self.microwatt_compat:
             ibus = self.imem.ibus
             dbus = self.core.l0.cmpi.wb_bus()
-            comb += ibus.adr.eq(self.ibus_adr[3:])
-            comb += dbus.adr.eq(self.dbus_adr[3:])
+            comb += self.ibus_adr.eq(Cat(Const(0, 3), ibus.adr))
+            comb += self.dbus_adr.eq(Cat(Const(0, 3), dbus.adr))
 
         cur_state = self.cur_state
 
