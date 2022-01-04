@@ -727,71 +727,28 @@ class TestIssuerBase(Elaboratable):
         return list(self)
 
 
+class TestIssuerInternal(TestIssuerBase):
+    """TestIssuer - reads instructions from TestMemory and issues them
 
-# Fetch Finite State Machine.
-# WARNING: there are currently DriverConflicts but it's actually working.
-# TODO, here: everything that is global in nature, information from the
-# main TestIssuerInternal, needs to move to either ispec() or ospec().
-# not only that: TestIssuerInternal.imem can entirely move into here
-# because imem is only ever accessed inside the FetchFSM.
-class FetchFSM(ControlBase):
-    def __init__(self, allow_overlap, svp64_en, imem, core_rst,
-                 pdecode2, cur_state,
-                 dbg, core, svstate, nia, is_svp64_mode):
-        self.allow_overlap = allow_overlap
-        self.svp64_en = svp64_en
-        self.imem = imem
-        self.core_rst = core_rst
-        self.pdecode2 = pdecode2
-        self.cur_state = cur_state
-        self.dbg = dbg
-        self.core = core
-        self.svstate = svstate
-        self.nia = nia
-        self.is_svp64_mode = is_svp64_mode
+    efficiency and speed is not the main goal here: functional correctness
+    and code clarity is.  optimisations (which almost 100% interfere with
+    easy understanding) come later.
+    """
 
-        # set up pipeline ControlBase and allocate i/o specs
-        # (unusual: normally done by the Pipeline API)
-        super().__init__(stage=self)
-        self.p.i_data, self.n.o_data = self.new_specs(None)
-        self.i, self.o = self.p.i_data, self.n.o_data
-
-    # next 3 functions are Stage API Compliance
-    def setup(self, m, i):
-        pass
-
-    def ispec(self):
-        return FetchInput()
-
-    def ospec(self):
-        return FetchOutput()
-
-    def elaborate(self, platform):
+    def fetch_fsm(self, m, dbg, core, pc, msr, svstate, nia, is_svp64_mode,
+                        fetch_pc_o_ready, fetch_pc_i_valid,
+                        fetch_insn_o_valid, fetch_insn_i_ready):
         """fetch FSM
 
         this FSM performs fetch of raw instruction data, partial-decodes
         it 32-bit at a time to detect SVP64 prefixes, and will optionally
         read a 2nd 32-bit quantity if that occurs.
         """
-        m = super().elaborate(platform)
-
-        dbg = self.dbg
-        core = self.core
-        pc = self.i.pc
-        msr = self.i.msr
-        svstate = self.svstate
-        nia = self.nia
-        is_svp64_mode = self.is_svp64_mode
-        fetch_pc_o_ready = self.p.o_ready
-        fetch_pc_i_valid = self.p.i_valid
-        fetch_insn_o_valid = self.n.o_valid
-        fetch_insn_i_ready = self.n.i_ready
-
         comb = m.d.comb
         sync = m.d.sync
         pdecode2 = self.pdecode2
         cur_state = self.cur_state
-        dec_opcode_o = pdecode2.dec.raw_opcode_in  # raw opcode
+        dec_opcode_i = pdecode2.dec.raw_opcode_in # raw opcode
 
         # also note instruction fetch failed
         if hasattr(core, "icache"):
@@ -874,7 +831,7 @@ class FetchFSM(ControlBase):
                             with m.If(~svp64.is_svp64_mode):
                                 # with no prefix, store the instruction
                                 # and hand it directly to the next FSM
-                                sync += dec_opcode_o.eq(insn)
+                                sync += dec_opcode_i.eq(insn)
                                 m.next = "INSN_READY"
                             with m.Else():
                                 # fetch the rest of the instruction from memory
@@ -885,7 +842,7 @@ class FetchFSM(ControlBase):
                         else:
                             # not SVP64 - 32-bit only
                             sync += nia.eq(cur_state.pc + 4)
-                            sync += dec_opcode_o.eq(insn)
+                            sync += dec_opcode_i.eq(insn)
                             m.next = "INSN_READY"
 
             with m.State("INSN_READ2"):
@@ -900,7 +857,7 @@ class FetchFSM(ControlBase):
                         insn = self.imem.f_instr_o
                     else:
                         insn = get_insn(self.imem.f_instr_o, cur_state.pc+4)
-                    sync += dec_opcode_o.eq(insn)
+                    sync += dec_opcode_i.eq(insn)
                     m.next = "INSN_READY"
                     # TODO: probably can start looking at pdecode2.rm_dec
                     # here or maybe even in INSN_READ state, if svp64_mode
@@ -924,20 +881,6 @@ class FetchFSM(ControlBase):
                 with m.If(fetch_insn_i_ready):
                     m.next = "IDLE"
 
-        # whatever was done above, over-ride it if core reset is held
-        with m.If(self.core_rst):
-            sync += nia.eq(0)
-
-        return m
-
-
-class TestIssuerInternal(TestIssuerBase):
-    """TestIssuer - reads instructions from TestMemory and issues them
-
-    efficiency and speed is not the main goal here: functional correctness
-    and code clarity is.  optimisations (which almost 100% interfere with
-    easy understanding) come later.
-    """
 
     def fetch_predicate_fsm(self, m,
                             pred_insn_i_valid, pred_insn_o_ready,
@@ -1568,21 +1511,10 @@ class TestIssuerInternal(TestIssuerBase):
         # Issue is where the VL for-loop # lives.  the ready/valid
         # signalling is used to communicate between the four.
 
-        # set up Fetch FSM
-        fetch = FetchFSM(self.allow_overlap, self.svp64_en,
-                         self.imem, core_rst, pdecode2, cur_state,
-                         dbg, core,
-                         dbg.state.svstate, # combinatorially same
-                         nia, is_svp64_mode)
-        m.submodules.fetch = fetch
-        # connect up in/out data to existing Signals
-        comb += fetch.p.i_data.pc.eq(dbg.state.pc)   # combinatorially same
-        comb += fetch.p.i_data.msr.eq(dbg.state.msr) # combinatorially same
-        # and the ready/valid signalling
-        comb += fetch_pc_o_ready.eq(fetch.p.o_ready)
-        comb += fetch.p.i_valid.eq(fetch_pc_i_valid)
-        comb += fetch_insn_o_valid.eq(fetch.n.o_valid)
-        comb += fetch.n.i_ready.eq(fetch_insn_i_ready)
+        self.fetch_fsm(m, dbg, core, dbg.state.pc, dbg.state.msr,
+                       dbg.state.svstate, nia, is_svp64_mode,
+                       fetch_pc_o_ready, fetch_pc_i_valid,
+                       fetch_insn_o_valid, fetch_insn_i_ready)
 
         self.issue_fsm(m, core, nia,
                        dbg, core_rst, is_svp64_mode,
@@ -1601,6 +1533,10 @@ class TestIssuerInternal(TestIssuerBase):
         self.execute_fsm(m, core,
                          exec_insn_i_valid, exec_insn_o_ready,
                          exec_pc_o_valid, exec_pc_i_ready)
+
+        # whatever was done above, over-ride it if core reset is held
+        with m.If(core_rst):
+            sync += nia.eq(0)
 
         return m
 
