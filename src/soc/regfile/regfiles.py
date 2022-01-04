@@ -76,12 +76,23 @@ class StateRegs(RegFileArray, StateRegsEnum):
         create_ports(self, wr_spec, rd_spec)
 
     def get_port_specs(self):
-        w_port_spec = {'nia': "nia",
+        w_port_spec = { # these 3 allow writing state by Function Units
+                        # strictly speaking this should not be allowed,
+                        # the information should be passed back to Issuer
+                        # to work out what to do
+                        'nia': "nia",
                         'msr': "msr",
                         'svstate': "svstate",
-                        'sv': "sv", # writing SVSTATE (issuer)
-                        'd_wr1': "d_wr1"} # writing PC (issuer)
-        r_port_spec = {'cia': "cia", # reading PC (issuer)
+                        # these 3 allow writing state by Issuer
+                        'sv': "sv", # writing SVSTATE
+                        'd_wr1': "d_wr1", # writing PC
+                        'd_wr2': "d_wr2"} # writing MSR
+        r_port_spec = { # these are for reading state by Issuer but
+                        # the FUs do not read them: they are passed in
+                        # because of multi-issue / pipelining / etc.
+                        # the state could be totally different and is
+                        # only known *at* issue time, *by* the issuer
+                        'cia': "cia", # reading PC (issuer)
                         'msr': "msr", # reading MSR (issuer)
                         'sv': "sv", # reading SV (issuer)
                         }

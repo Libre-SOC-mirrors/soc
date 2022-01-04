@@ -285,7 +285,7 @@ class TestIssuerBase(Elaboratable):
         self.state_r_pc = staterf.r_ports['cia']  # PC rd
         self.state_r_sv = staterf.r_ports['sv']  # SVSTATE rd
 
-        self.state_w_msr = staterf.w_ports['msr']  # MSR wr
+        self.state_w_msr = staterf.w_ports['d_wr2']  # MSR wr
         self.state_w_pc = staterf.w_ports['d_wr1']  # PC wr
         self.state_w_sv = staterf.w_ports['sv']  # SVSTATE wr
 
