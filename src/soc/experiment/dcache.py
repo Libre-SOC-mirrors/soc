@@ -51,8 +51,8 @@ from soc.experiment.wb_types import (WB_ADDR_BITS, WB_DATA_BITS, WB_SEL_BITS,
                                 WBIOMasterOut, WBIOSlaveOut)
 
 from soc.experiment.cache_ram import CacheRam
-#from soc.experiment.plru import PLRU
-from nmutil.plru import PLRU, PLRUs
+from soc.experiment.plru import PLRU, PLRUs
+#from nmutil.plru import PLRU, PLRUs
 
 # for test
 from soc.bus.sram import SRAM
