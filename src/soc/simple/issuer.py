@@ -322,6 +322,13 @@ class TestIssuerBase(Elaboratable):
             self.ibus_adr = Signal(32, name='wishbone_insn_out.adr')
             self.dbus_adr = Signal(32, name='wishbone_data_out.adr')
 
+        # add an output of the PC and instruction, and whether it was requested
+        # this is for verilator debug purposes
+        if self.microwatt_compat:
+            self.nia = Signal(64)
+            self.nia_req = Signal(1)
+            self.insn = Signal(32)
+
     def setup_peripherals(self, m):
         comb, sync = m.d.comb, m.d.sync
 
@@ -676,6 +683,7 @@ class TestIssuerBase(Elaboratable):
             ports = [self.core.o.core_terminate_o,
                      self.ext_irq,
                      self.alt_reset, # not connected yet
+                     self.nia, self.insn, self.nia_req,
                      ClockSignal(),
                      ResetSignal(),
                     ]
@@ -843,6 +851,11 @@ class TestIssuerInternal(TestIssuerBase):
                             # not SVP64 - 32-bit only
                             sync += nia.eq(cur_state.pc + 4)
                             sync += dec_opcode_i.eq(insn)
+                            if self.microwatt_compat:
+                                # for verilator debug purposes
+                                comb += self.insn.eq(insn)
+                                comb += self.nia.eq(cur_state.pc)
+                                comb += self.nia_req.eq(1)
                             m.next = "INSN_READY"
 
             with m.State("INSN_READ2"):
