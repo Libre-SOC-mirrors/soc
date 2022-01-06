@@ -40,6 +40,7 @@ class State(Enum):
     IDLE = 0       # ready for instruction
     ACK_WAIT = 1   # waiting for ack from dcache
     MMU_LOOKUP = 2 # waiting for MMU to look up translation
+    SECOND_REQ = 3 # second request for unaligned transfer
 
 
 # captures the LDSTRequest from the PortInterface, which "blips" most
