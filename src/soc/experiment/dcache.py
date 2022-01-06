@@ -68,7 +68,7 @@ from nmutil.util import wrap
 
 # TODO: make these parameters of DCache at some point
 LINE_SIZE = 64    # Line size in bytes
-NUM_LINES = 16    # Number of lines in a set
+NUM_LINES = 32    # Number of lines in a set
 NUM_WAYS = 4      # Number of ways
 TLB_SET_SIZE = 64 # L1 DTLB entries per set
 TLB_NUM_WAYS = 2  # L1 DTLB number of sets

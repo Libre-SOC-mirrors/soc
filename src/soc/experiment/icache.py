@@ -72,7 +72,7 @@ LINE_SIZE      = 64
 # ROW_SIZE is the width in bytes of the BRAM (based on WB, so 64-bits)
 ROW_SIZE       = WB_DATA_BITS // 8
 # Number of lines in a set
-NUM_LINES      = 16
+NUM_LINES      = 32
 # Number of ways
 NUM_WAYS       = 4
 # L1 ITLB number of entries (direct mapped)
