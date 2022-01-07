@@ -516,6 +516,29 @@ def _test_loadstore1_microwatt_mmu_bin_test2(dut, mem):
 
     wbget.stop = True
 
+def _test_loadstore1_misalign(dut, mem):
+    mmu = dut.submodules.mmu
+    pi = dut.submodules.ldst.pi
+    ldst = dut.submodules.ldst # to get at DAR (NOT part of PortInterface)
+    wbget.stop = False
+
+    yield mmu.rin.prtbl.eq(0x12000) # set process table
+    yield mmu.rin.pid.eq(0x1)       # set PID=1
+    #yield
+
+    addr = 0 #TODO
+    msr = MSRSpec(pr=1, dr=1, sf=1)
+
+    #print("=== alignment error (ld:0) ===")
+
+    ld_data, exctype, exc = yield from pi_ld(pi, addr, 8, msr=msr)
+    #print("ld_data after mmu.bin test2")
+    #print(ld_data)
+    #assert ld_data == 0x0000000badc0ffee
+    #assert exctype is None
+
+    wbget.stop = True
+
 
 def _test_loadstore1(dut, mem):
     mmu = dut.submodules.mmu
@@ -864,6 +887,21 @@ def test_loadstore1_microwatt_mmu_bin_test2():
     with sim.write_vcd('test_loadstore1.vcd'):
         sim.run()
 
+def test_loadstore1_misalign():
+
+    m, cmpi = setup_mmu()
+
+    mem = pagetables.microwatt_test2
+
+    # nmigen Simulation
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    sim.add_sync_process(wrap(_test_loadstore1_misalign(m, mem)))
+    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    with sim.write_vcd('test_loadstore1_misalign.vcd'):
+        sim.run()
+
 
 def test_loadstore1_invalid():
 
@@ -932,9 +970,10 @@ def test_loadstore1_ifetch_multi():
 
 if __name__ == '__main__':
     #test_loadstore1()
-    test_loadstore1_microwatt_mmu_bin_test2()
+    #test_loadstore1_microwatt_mmu_bin_test2()
     #test_loadstore1_invalid()
     #test_loadstore1_ifetch() #FIXME
     #test_loadstore1_ifetch_invalid()
     #test_loadstore1_ifetch_unit_iface() # guess: should be working
     #test_loadstore1_ifetch_multi()
+    test_loadstore1_misalign()
