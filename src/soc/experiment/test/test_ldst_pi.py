@@ -27,6 +27,8 @@ from soc.fu.ldst.loadstore import LoadStore1
 from soc.experiment.mmu import MMU
 
 from nmigen.compat.sim import run_simulation
+from openpower.decoder.power_enums import MSRSpec
+
 
 msr_default = MSRSpec(pr=1, dr=0, sf=1) # 64 bit by default
 
