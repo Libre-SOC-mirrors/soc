@@ -219,6 +219,7 @@ def mmu_lookup(dut,addr):
     yield
     yield
 
+
 def _test_loadstore1_ifetch_multi(dut, mem):
     mmu = dut.submodules.mmu
     ldst = dut.submodules.ldst
@@ -879,6 +880,7 @@ def test_loadstore1_invalid():
     with sim.write_vcd('test_loadstore1_invalid.vcd'):
         sim.run()
 
+
 def test_loadstore1_ifetch_invalid():
     m, cmpi = setup_mmu()
 
@@ -899,6 +901,7 @@ def test_loadstore1_ifetch_invalid():
     with sim.write_vcd('test_loadstore1_ifetch_invalid.vcd',
                       traces=[m.debug_status]): # include extra debug
         sim.run()
+
 
 def test_loadstore1_ifetch_multi():
     m, cmpi = setup_mmu()
