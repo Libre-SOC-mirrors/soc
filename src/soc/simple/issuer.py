@@ -326,6 +326,7 @@ class TestIssuerBase(Elaboratable):
         # this is for verilator debug purposes
         if self.microwatt_compat:
             self.nia = Signal(64)
+            self.msr_o = Signal(64)
             self.nia_req = Signal(1)
             self.insn = Signal(32)
 
@@ -683,7 +684,7 @@ class TestIssuerBase(Elaboratable):
             ports = [self.core.o.core_terminate_o,
                      self.ext_irq,
                      self.alt_reset, # not connected yet
-                     self.nia, self.insn, self.nia_req,
+                     self.nia, self.insn, self.nia_req, self.msr_o,
                      ClockSignal(),
                      ResetSignal(),
                     ]
@@ -855,6 +856,7 @@ class TestIssuerInternal(TestIssuerBase):
                                 # for verilator debug purposes
                                 comb += self.insn.eq(insn)
                                 comb += self.nia.eq(cur_state.pc)
+                                comb += self.msr_o.eq(cur_state.msr)
                                 comb += self.nia_req.eq(1)
                             m.next = "INSN_READY"
 
