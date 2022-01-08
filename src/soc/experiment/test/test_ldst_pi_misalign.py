@@ -92,11 +92,21 @@ def ldst_sim_misalign(dut):
 
     # load 8 bytes at *mis*-aligned address which is still within
     # the page
+    misalign_addr = 0x1004
+    data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
+                                          misalign_addr, 8, msr=msr_default)
+
+    print ("ldst_sim_misalign", hex(data), exctype, exc)
+    assert data == 0xf001a5a5deadbeef
+
+    # load 8 bytes at *mis*-aligned address which is still within
+    # the page
     misalign_addr = 0x1006
     data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
                                           misalign_addr, 8, msr=msr_default)
 
     print ("ldst_sim_misalign", hex(data), exctype, exc)
+    assert data == 0xf00ff001a5a5dead
     wbget.stop = True
     return
 

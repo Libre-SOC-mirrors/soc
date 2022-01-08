@@ -40,7 +40,7 @@ class State(Enum):
     IDLE = 0       # ready for instruction
     ACK_WAIT = 1   # waiting for ack from dcache
     MMU_LOOKUP = 2 # waiting for MMU to look up translation
-    SECOND_REQ = 3 # second request for unaligned transfer
+    #SECOND_REQ = 3 # second request for unaligned transfer
 
 @unique
 class Misalign(Enum):
@@ -209,7 +209,7 @@ class LoadStore1(PortInterfaceBase):
 
         # microwatt takes one more cycle before next operation can be issued
         sync += self.done_delay.eq(self.done)
-        sync += self.load_data_delay.eq(self.load_data)
+        #sync += self.load_data_delay[0:64].eq(self.load_data[0:64])
 
         # create dcache and icache module
         m.submodules.dcache = dcache = self.dcache
@@ -232,7 +232,7 @@ class LoadStore1(PortInterfaceBase):
         # a request when MMU_LOOKUP completes.
         m.d.comb += self.d_validblip.eq(rising_edge(m, self.d_valid))
         ldst_r = LDSTRequest("ldst_r")
-        comb += Display("MMUTEST: LoadStore1 d_in.error=%i",d_in.error)
+        sync += Display("MMUTEST: LoadStore1 d_in.error=%i",d_in.error)
 
         # fsm skeleton
         with m.Switch(self.state):
@@ -242,8 +242,8 @@ class LoadStore1(PortInterfaceBase):
                     comb += self.busy.eq(1)
                     sync += self.state.eq(State.ACK_WAIT)
                     sync += ldst_r.eq(self.req) # copy of LDSTRequest on "blip"
-#                   sync += Display("validblip self.req.virt_mode=%i",
-#                   self.req.virt_mode)
+                    # sync += Display("validblip self.req.virt_mode=%i",
+                    #                 self.req.virt_mode)
                     with m.If(self.instr_fault):
                         comb += mmureq.eq(1)
                         sync += self.r_instr_fault.eq(1)
@@ -258,14 +258,9 @@ class LoadStore1(PortInterfaceBase):
                 with m.Else():
                     sync += ldst_r.eq(0)
 
-            # in second request, shuffle the data, indicate this is
-            # the last dword request, initiate a 2nd request and wait for it
-            with m.Case(State.SECOND_REQ):
-                sync += self.load_data_delay[64:128].eq(self.load_data[0:64])
-
             # waiting for completion
             with m.Case(State.ACK_WAIT):
-                comb += Display("MMUTEST: ACK_WAIT")
+                sync += Display("MMUTEST: ACK_WAIT")
                 comb += self.busy.eq(~exc.happened)
 
                 with m.If(d_in.error):
@@ -289,23 +284,39 @@ class LoadStore1(PortInterfaceBase):
                         comb += mmureq.eq(1)
                         sync += self.state.eq(State.MMU_LOOKUP)
                 with m.If(d_in.valid):
-                    m.d.comb += self.done.eq(~mmureq) # done if not doing MMU
                     with m.If(self.done):
                         sync += Display("ACK_WAIT, done %x", self.raddr)
-                    with m.If(self.req.alignstate == Misalign.ONEWORD):
+                    with m.If(ldst_r.alignstate == Misalign.ONEWORD):
                         # done if there is only one dcache operation
                         sync += self.state.eq(State.IDLE)
                         sync += ldst_r.eq(0)
-                        with m.If(self.load):
+                        with m.If(ldst_r.load):
                             m.d.comb += self.load_data.eq(d_in.data)
-                    with m.Elif(self.req.alignstate == Misalign.WAITFIRST):
-                        # first LD done: load data, initiate 2nd request
-                        with m.If(self.load):
+                            sync += self.load_data_delay[0:64].eq(d_in.data)
+                        m.d.comb += self.done.eq(~mmureq) # done if not MMU
+                    with m.Elif(ldst_r.alignstate == Misalign.WAITFIRST):
+                        # first LD done: load data, initiate 2nd request.
+                        # leave in ACK_WAIT state
+                        with m.If(ldst_r.load):
                             m.d.comb += self.load_data[0:63].eq(d_in.data)
+                            sync += self.load_data_delay[0:64].eq(d_in.data)
+                        # mmm kinda cheating, make a 2nd blip
                         m.d.comb += self.d_validblip.eq(1)
                         comb += self.req.eq(ldst_r) # from copy of request
                         comb += self.req.raddr.eq(ldst_r.raddr + 8)
+                        comb += self.req.byte_sel.eq(ldst_r.byte_sel[8:])
                         comb += self.req.alignstate.eq(Misalign.WAITSECOND)
+                        sync += ldst_r.alignstate.eq(Misalign.WAITSECOND)
+                        sync += Display("    second req %x", self.req.raddr)
+                    with m.Elif(ldst_r.alignstate == Misalign.WAITSECOND):
+                        sync += Display("    done second %x", d_in.data)
+                        # done second load
+                        sync += self.state.eq(State.IDLE)
+                        sync += ldst_r.eq(0)
+                        with m.If(ldst_r.load):
+                            m.d.comb += self.load_data[64:128].eq(d_in.data)
+                            sync += self.load_data_delay[64:128].eq(d_in.data)
+                        m.d.comb += self.done.eq(~mmureq) # done if not MMU
 
             # waiting here for the MMU TLB lookup to complete.
             # either re-try the dcache lookup or throw MMU exception
@@ -432,7 +443,7 @@ class LoadStore1(PortInterfaceBase):
 
         # XXX these should be possible to remove but for some reason
         # cannot be... yet. TODO, investigate
-        m.d.comb += self.load_data.eq(d_in.data)
+        #m.d.comb += self.load_data.eq(d_in.data)
         m.d.comb += d_out.addr.eq(self.raddr)
 
         # Update outputs to MMU
