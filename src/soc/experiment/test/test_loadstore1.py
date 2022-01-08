@@ -516,6 +516,16 @@ def _test_loadstore1_microwatt_mmu_bin_test2(dut, mem):
 
     wbget.stop = True
 
+def test_pi_ld_misalign(pi,addr,data_len,msr):
+    for i in range(0,data_len):
+        ld_data, exctype, exc = yield from pi_ld(pi, addr+i, data_len, msr=msr)
+        yield
+        if i == 0:
+            assert exc==None
+            print("MISALIGN: test_pi_ld_misalign returned",hex(ld_data))
+        else:
+            assert exc.alignment == 1
+
 def _test_loadstore1_misalign(dut, mem):
     mmu = dut.submodules.mmu
     pi = dut.submodules.ldst.pi
@@ -526,16 +536,10 @@ def _test_loadstore1_misalign(dut, mem):
     yield mmu.rin.pid.eq(0x1)       # set PID=1
     #yield
 
-    addr = 0 #TODO
-    msr = MSRSpec(pr=1, dr=1, sf=1)
+    addr = 1
+    msr = MSRSpec(pr=0, dr=0, sf=1)
 
-    #print("=== alignment error (ld:0) ===")
-
-    ld_data, exctype, exc = yield from pi_ld(pi, addr, 8, msr=msr)
-    #print("ld_data after mmu.bin test2")
-    #print(ld_data)
-    #assert ld_data == 0x0000000badc0ffee
-    #assert exctype is None
+    yield from test_pi_ld_misalign(pi,0,8,msr)
 
     wbget.stop = True
 
@@ -896,6 +900,9 @@ def test_loadstore1_misalign():
     # nmigen Simulation
     sim = Simulator(m)
     sim.add_clock(1e-6)
+
+    ###########1122334455667788
+    mem[0] = 0x0102030405060708
 
     sim.add_sync_process(wrap(_test_loadstore1_misalign(m, mem)))
     sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
