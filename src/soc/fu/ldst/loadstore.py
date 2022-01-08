@@ -306,6 +306,8 @@ class LoadStore1(PortInterfaceBase):
                         comb += self.req.raddr.eq(ldst_r.raddr + 8)
                         comb += self.req.byte_sel.eq(ldst_r.byte_sel[8:])
                         comb += self.req.alignstate.eq(Misalign.WAITSECOND)
+                        sync += ldst_r.raddr.eq(ldst_r.raddr + 8)
+                        sync += ldst_r.byte_sel.eq(ldst_r.byte_sel[8:])
                         sync += ldst_r.alignstate.eq(Misalign.WAITSECOND)
                         sync += Display("    second req %x", self.req.raddr)
                     with m.Elif(ldst_r.alignstate == Misalign.WAITSECOND):

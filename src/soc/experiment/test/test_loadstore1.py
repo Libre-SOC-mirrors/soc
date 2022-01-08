@@ -921,7 +921,7 @@ def test_loadstore1_microwatt_mmu_bin_test5():
 
     m, cmpi = setup_mmu()
 
-    mem = pagetables.microwatt_test2
+    mem = pagetables.microwatt_test5
 
     # nmigen Simulation
     sim = Simulator(m)
