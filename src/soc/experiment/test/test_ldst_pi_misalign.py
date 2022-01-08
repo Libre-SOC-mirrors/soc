@@ -90,8 +90,19 @@ def ldst_sim_misalign(dut):
     print ("ldst_sim_misalign (aligned)", hex(data), exctype, exc)
     assert data == 0xdeadbeef
 
-    # load 8 bytes at *mis*-aligned address
-    misalign_addr = 0x1004
+    # load 8 bytes at *mis*-aligned address which is still within
+    # the page
+    misalign_addr = 0x1006
+    data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
+                                          misalign_addr, 8, msr=msr_default)
+
+    print ("ldst_sim_misalign", hex(data), exctype, exc)
+    wbget.stop = True
+    return
+
+    # load 8 bytes at *mis*-aligned address which is NOT within
+    # the page - TODO - work this out
+    misalign_addr = 0x10000004
     data, exctype, exc = yield from pi_ld(dut.submodules.ldst.pi,
                                           misalign_addr, 8, msr=msr_default)
     print ("ldst_sim_misalign", data, exctype, exc)
