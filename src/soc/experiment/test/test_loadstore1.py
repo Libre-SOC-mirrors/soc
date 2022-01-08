@@ -517,6 +517,29 @@ def _test_loadstore1_microwatt_mmu_bin_test2(dut, mem):
     wbget.stop = True
 
 
+def _test_loadstore1_microwatt_mmu_bin_test5(dut, mem):
+    mmu = dut.submodules.mmu
+    pi = dut.submodules.ldst.pi
+    ldst = dut.submodules.ldst # to get at DAR (NOT part of PortInterface)
+    wbget.stop = False
+
+    yield mmu.rin.prtbl.eq(0x12000) # set process table
+    yield mmu.rin.pid.eq(0x1)       # set PID=1
+    yield
+
+    addr = 0x39fffd
+    msr = MSRSpec(pr=1, dr=1, sf=1)
+
+    print("=== page-fault alignment error (ld) ===")
+
+    ld_data, exctype, exc = yield from pi_ld(pi, addr, 8, msr=msr)
+    print("ld_data after mmu.bin test5")
+    print(ld_data)
+    print (exctype, exc)
+
+    wbget.stop = True
+
+
 def test_pi_ld_misalign(pi,addr,data_len,msr):
     for i in range(0,data_len):
         ld_data, exctype, exc = yield from pi_ld(pi, addr+i, data_len, msr=msr)
@@ -893,6 +916,23 @@ def test_loadstore1_microwatt_mmu_bin_test2():
     with sim.write_vcd('test_microwatt_mmu_test2.vcd'):
         sim.run()
 
+
+def test_loadstore1_microwatt_mmu_bin_test5():
+
+    m, cmpi = setup_mmu()
+
+    mem = pagetables.microwatt_test2
+
+    # nmigen Simulation
+    sim = Simulator(m)
+    sim.add_clock(1e-6)
+
+    sim.add_sync_process(wrap(_test_loadstore1_microwatt_mmu_bin_test5(m, mem)))
+    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    with sim.write_vcd('test_microwatt_mmu_test5.vcd'):
+        sim.run()
+
+
 def test_loadstore1_misalign():
 
     m, cmpi = setup_mmu()
@@ -979,7 +1019,8 @@ def test_loadstore1_ifetch_multi():
 
 if __name__ == '__main__':
     #test_loadstore1()
-    test_loadstore1_microwatt_mmu_bin_test2()
+    #test_loadstore1_microwatt_mmu_bin_test2()
+    test_loadstore1_microwatt_mmu_bin_test5()
     #test_loadstore1_invalid()
     #test_loadstore1_ifetch() #FIXME
     #test_loadstore1_ifetch_invalid()

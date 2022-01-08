@@ -63,3 +63,14 @@ microwatt_test4 = {
              0x12010: 0x0a00010000000000, # page table
 }
 
+# microwatt mmu.bin test 5: a misaligned read which crosses over to a TLB that
+# is not valid.  must attempt a 64-bit read at address 0x39fffd to trigger
+
+microwatt_test5 = {
+             0x13cf8: 0x86b10000000000c0, # leaf, covers up to 0x39ffff
+             0x10008: 0x0930010000000080, # directory node
+             0x12010: 0x0a00010000000000, # page table
+             0x39fff8: 0x0123456badc0ffee,  # to be looked up (should fail)
+             0x400000: 0x0123456badc0ffee,  # not page-mapped
+}
+
