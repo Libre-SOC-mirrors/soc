@@ -330,7 +330,6 @@ class LoadStore1(PortInterfaceBase):
                         # installed a TLB entry, if not exception raised
                         m.d.comb += self.d_out.valid.eq(~exception)
                         sync += self.state.eq(State.ACK_WAIT)
-                        sync += ldst_r.eq(0)
                     with m.Else():
                         sync += self.state.eq(State.IDLE)
                         sync += self.r_instr_fault.eq(0)
@@ -440,10 +439,6 @@ class LoadStore1(PortInterfaceBase):
             #m.d.comb += Display("no_validblip dcbz=%i addr=%x",
             #ldst_r.dcbz,ldst_r.addr)
             m.d.comb += d_out.dcbz.eq(ldst_r.dcbz)
-
-        # XXX these should be possible to remove but for some reason
-        # cannot be... yet. TODO, investigate
-        #m.d.comb += self.load_data.eq(d_in.data)
         m.d.comb += d_out.addr.eq(self.raddr)
 
         # Update outputs to MMU
