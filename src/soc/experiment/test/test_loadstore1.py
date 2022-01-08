@@ -516,15 +516,17 @@ def _test_loadstore1_microwatt_mmu_bin_test2(dut, mem):
 
     wbget.stop = True
 
+
 def test_pi_ld_misalign(pi,addr,data_len,msr):
     for i in range(0,data_len):
         ld_data, exctype, exc = yield from pi_ld(pi, addr+i, data_len, msr=msr)
         yield
         if i == 0:
-            assert exc==None
+            assert exc is None # use "is None" not "== None"
             print("MISALIGN: test_pi_ld_misalign returned",hex(ld_data))
         else:
             assert exc.alignment == 1
+
 
 def _test_loadstore1_misalign(dut, mem):
     mmu = dut.submodules.mmu
