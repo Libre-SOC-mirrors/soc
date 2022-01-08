@@ -890,7 +890,7 @@ def test_loadstore1_microwatt_mmu_bin_test2():
 
     sim.add_sync_process(wrap(_test_loadstore1_microwatt_mmu_bin_test2(m, mem)))
     sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
-    with sim.write_vcd('test_loadstore1.vcd'):
+    with sim.write_vcd('test_microwatt_mmu_test2.vcd'):
         sim.run()
 
 def test_loadstore1_misalign():
@@ -979,10 +979,10 @@ def test_loadstore1_ifetch_multi():
 
 if __name__ == '__main__':
     #test_loadstore1()
-    #test_loadstore1_microwatt_mmu_bin_test2()
+    test_loadstore1_microwatt_mmu_bin_test2()
     #test_loadstore1_invalid()
     #test_loadstore1_ifetch() #FIXME
     #test_loadstore1_ifetch_invalid()
     #test_loadstore1_ifetch_unit_iface() # guess: should be working
     #test_loadstore1_ifetch_multi()
-    test_loadstore1_misalign()
+    #test_loadstore1_misalign()
