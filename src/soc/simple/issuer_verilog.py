@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
     pspec = TestMemPspec(ldst_ifacetype=ldst_ifacetype,
                          imem_ifacetype=imem_ifacetype,
-                         addr_wid=48,
+                         addr_wid=64,
                          mask_wid=8,
                          # must leave at 64
                          reg_wid=64,

@@ -1148,7 +1148,7 @@ class NonProductionCore(ControlBase):
 if __name__ == '__main__':
     pspec = TestMemPspec(ldst_ifacetype='testpi',
                          imem_ifacetype='',
-                         addr_wid=48,
+                         addr_wid=64,
                          allow_overlap=True,
                          mask_wid=8,
                          reg_wid=64)

@@ -43,7 +43,7 @@ import unittest
 
 class L0CacheBuffer2(Elaboratable):
     """L0CacheBuffer2"""
-    def __init__(self, n_units=8, regwid=64, addrwid=48):
+    def __init__(self, n_units=8, regwid=64, addrwid=64):
         self.n_units = n_units
         self.regwid = regwid
         self.addrwid = addrwid
@@ -59,7 +59,7 @@ class L0CacheBuffer2(Elaboratable):
         # connect the ports as modules
 
         for i in range(self.n_units):
-            d = LDSTSplitter(64, 48, 4, self.dports[i])
+            d = LDSTSplitter(64, 64, 4, self.dports[i])
             setattr(m.submodules, "ldst_splitter%d" % i, d)
 
         # state-machine latches TODO
@@ -228,7 +228,7 @@ class L0CacheBuffer(Elaboratable):
     by this class.  That task is taken care of by LDSTCompUnit.
     """
 
-    def __init__(self, n_units, pimem, regwid=64, addrwid=48):
+    def __init__(self, n_units, pimem, regwid=64, addrwid=64):
         self.n_units = n_units
         self.pimem = pimem
         self.regwid = regwid
@@ -414,7 +414,7 @@ class TestL0Cache(unittest.TestCase):
     def test_l0_cache_test_bare_wb(self):
 
         pspec = TestMemPspec(ldst_ifacetype='test_bare_wb',
-                             addr_wid=48,
+                             addr_wid=64,
                              mask_wid=8,
                              reg_wid=64)
         dut = TstL0CacheBuffer(pspec)
@@ -428,7 +428,7 @@ class TestL0Cache(unittest.TestCase):
     def test_l0_cache_testpi(self):
 
         pspec = TestMemPspec(ldst_ifacetype='testpi',
-                             addr_wid=48,
+                             addr_wid=64,
                              mask_wid=8,
                              reg_wid=64)
         dut = TstL0CacheBuffer(pspec)

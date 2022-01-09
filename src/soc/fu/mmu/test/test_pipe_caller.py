@@ -211,7 +211,7 @@ class TestRunner(unittest.TestCase):
         comb = m.d.comb
         instruction = Signal(32)
 
-        pspec = TestMemPspec(addr_wid=48,
+        pspec = TestMemPspec(addr_wid=64,
                              mask_wid=8,
                              reg_wid=64,
                              )

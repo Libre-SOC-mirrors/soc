@@ -10,7 +10,7 @@
 
     busy_o/1        most likely to be x_busy_o
     go_die_i/1      rst?
-    addr.data/48    x_addr_i (x_addr_i[:4] goes into LenExpand)
+    addr.data/64    x_addr_i (x_addr_i[:4] goes into LenExpand)
     addr.ok/1       probably x_i_valid & ~x_stall_i
 
     addr_ok_o/1     no equivalent.  *might* work using x_stall_i
@@ -37,7 +37,7 @@ from nmutil.util import rising_edge
 class Pi2LSUI(PortInterfaceBase):
 
     def __init__(self, name, lsui=None,
-                 data_wid=64, mask_wid=8, addr_wid=48):
+                 data_wid=64, mask_wid=8, addr_wid=64):
         print("pi2lsui reg mask addr", data_wid, mask_wid, addr_wid)
         super().__init__(data_wid, addr_wid)
         if lsui is None:
@@ -115,7 +115,7 @@ class Pi2LSUI(PortInterfaceBase):
 class Pi2LSUI1(Elaboratable):
 
     def __init__(self, name, pi=None, lsui=None,
-                 data_wid=64, mask_wid=8, addr_wid=48):
+                 data_wid=64, mask_wid=8, addr_wid=64):
         print("pi2lsui reg mask addr", data_wid, mask_wid, addr_wid)
         self.addrbits = mask_wid
         if pi is None:

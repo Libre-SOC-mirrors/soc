@@ -211,7 +211,7 @@ def tst_config_pi(testcls, ifacetype):
     dut = Module()
     pspec = TestMemPspec(ldst_ifacetype=ifacetype,
                          imem_ifacetype='',
-                         addr_wid=48,
+                         addr_wid=64,
                          mask_wid=8,
                          reg_wid=64)
     cmpi = ConfigMemoryPortInterface(pspec)

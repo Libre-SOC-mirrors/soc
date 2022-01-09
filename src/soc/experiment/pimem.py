@@ -90,7 +90,7 @@ class PortInterface(RecordObject):
       busy_o is deasserted on the cycle AFTER st.ok is asserted.
     """
 
-    def __init__(self, name=None, regwid=64, addrwid=48):
+    def __init__(self, name=None, regwid=64, addrwid=64):
 
         self._regwid = regwid
         self._addrwid = addrwid

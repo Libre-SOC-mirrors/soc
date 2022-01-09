@@ -411,7 +411,7 @@ def tst_single_fus_il():
 def tst_all_fus():
     pspec = TestMemPspec(ldst_ifacetype='testpi',
                          imem_ifacetype='',
-                         addr_wid=48,
+                         addr_wid=64,
                          mask_wid=8,
                          reg_wid=64)
     dut = AllFunctionUnits(pspec)

@@ -189,7 +189,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
     TODO: use one module for the byte-reverse as it's quite expensive in gates
     """
 
-    def __init__(self, pi=None, rwid=64, awid=48, opsubset=CompLDSTOpSubset,
+    def __init__(self, pi=None, rwid=64, awid=64, opsubset=CompLDSTOpSubset,
                  debugtest=False, name=None):
         super().__init__(rwid)
         self.awid = awid
@@ -804,7 +804,7 @@ def test_scoreboard():
     units = {}
     pspec = TestMemPspec(ldst_ifacetype='bare_wb',
                          imem_ifacetype='bare_wb',
-                         addr_wid=48,
+                         addr_wid=64,
                          mask_wid=8,
                          reg_wid=64,
                          units=units)
@@ -840,7 +840,7 @@ def test_scoreboard_regspec():
     units = {}
     pspec = TestMemPspec(ldst_ifacetype='bare_wb',
                          imem_ifacetype='bare_wb',
-                         addr_wid=48,
+                         addr_wid=64,
                          mask_wid=8,
                          reg_wid=64,
                          units=units)

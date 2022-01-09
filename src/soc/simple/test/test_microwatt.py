@@ -62,7 +62,7 @@ class TestRunner(FHDLTestCase):
 
         pspec = TestMemPspec(ldst_ifacetype='test_bare_wb',
                              imem_ifacetype='test_bare_wb',
-                             addr_wid=48,
+                             addr_wid=64,
                              mask_wid=8,
                              reg_wid=64,
                              imem_test_depth=32768,
