@@ -329,6 +329,8 @@ class TestIssuerBase(Elaboratable):
             self.msr_o = Signal(64)
             self.nia_req = Signal(1)
             self.insn = Signal(32)
+            self.ldst_req = Signal(1)
+            self.ldst_addr = Signal(1)
 
     def setup_peripherals(self, m):
         comb, sync = m.d.comb, m.d.sync
@@ -373,6 +375,10 @@ class TestIssuerBase(Elaboratable):
             dbus = self.core.l0.cmpi.wb_bus()
             comb += self.ibus_adr.eq(Cat(Const(0, 3), ibus.adr))
             comb += self.dbus_adr.eq(Cat(Const(0, 3), dbus.adr))
+            # microwatt verilator debug purposes
+            pi = self.core.l0.cmpi.pi.pi
+            comb += self.ldst_req.eq(pi.addr_ok_o)
+            comb += self.ldst_addr.eq(pi.addr)
 
         cur_state = self.cur_state
 
@@ -685,6 +691,7 @@ class TestIssuerBase(Elaboratable):
                      self.ext_irq,
                      self.alt_reset, # not connected yet
                      self.nia, self.insn, self.nia_req, self.msr_o,
+                     self.ldst_req, self.ldst_addr,
                      ClockSignal(),
                      ResetSignal(),
                     ]
