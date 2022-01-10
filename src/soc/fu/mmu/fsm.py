@@ -225,7 +225,6 @@ class FSMMMUStage(ControlBase):
                     # from accepting any other LD/ST requests.
                     comb += valid.eq(1)   # start "pulse"
                     comb += ldst.instr_fault.eq(blip)
-                    comb += ldst.priv_mode.eq(~msr_i[MSR.PR])
                     comb += ldst.maddr.eq(cia_i)
                     # XXX should not access this!
                     comb += done.eq(ldst.done)
