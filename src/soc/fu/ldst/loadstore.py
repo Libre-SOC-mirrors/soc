@@ -123,6 +123,7 @@ class LoadStore1(PortInterfaceBase):
         self.state         = Signal(State)
         self.instr_fault   = Signal()  # indicator to request i-cache MMU lookup
         self.r_instr_fault  = Signal() # accessed in external_busy
+        self.priv_mode     = Signal() # only for instruction fetch (not LDST)
         self.align_intr    = Signal()
         self.busy          = Signal()
         self.wait_dcache   = Signal()
@@ -445,8 +446,10 @@ class LoadStore1(PortInterfaceBase):
         m.d.comb += m_out.valid.eq(mmureq)
         m.d.comb += m_out.iside.eq(self.instr_fault)
         m.d.comb += m_out.load.eq(ldst_r.load)
-        m.d.comb += m_out.priv.eq(ldst_r.priv_mode)
-        # m_out.priv <= r.priv_mode; TODO
+        with m.If(self.instr_fault):
+            m.d.comb += m_out.priv.eq(self.priv_mode)
+        with m.Else():
+            m.d.comb += m_out.priv.eq(ldst_r.priv_mode)
         m.d.comb += m_out.tlbie.eq(self.tlbie)
         # m_out.mtspr <= mmu_mtspr; # TODO
         # m_out.sprn <= sprn; # TODO
