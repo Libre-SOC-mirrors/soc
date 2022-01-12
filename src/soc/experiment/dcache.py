@@ -741,13 +741,14 @@ class DCache(Elaboratable):
         with m.If((~r1.full & ~d_in.hold) | ~r0_full):
             sync += r0.eq(r)
             sync += r0_full.eq(r.req.valid)
-            # Sample data the cycle after a request comes in from loadstore1.
-            # If another request has come in already then the data will get
-            # put directly into req.data below.
-            with m.If(r0.req.valid & ~r.req.valid & ~r0.d_valid &
-                     ~r0.mmu_req):
-                sync += r0.req.data.eq(d_in.data)
-                sync += r0.d_valid.eq(1)
+        # Sample data the cycle after a request comes in from loadstore1.
+        # If another request has come in already then the data will get
+        # put directly into req.data below.
+        sync += r0.d_valid.eq(0)
+        with m.If(r0.req.valid & ~r.req.valid & ~r0.d_valid &
+                 ~r0.mmu_req):
+            sync += r0.req.data.eq(d_in.data)
+            sync += r0.d_valid.eq(1)
         with m.If(d_in.valid):
             m.d.sync += Display("    DCACHE req cache "
                                 "virt %d addr %x data %x ld %d",
