@@ -1550,7 +1550,6 @@ class DCache(Elaboratable):
                               ((r1.dcbz & r1.req.dcbz) |
                                (~r1.dcbz & (r1.req.op == Op.OP_LOAD_MISS))) &
                                 (r1.store_row == get_row(req.real_addr))):
-                        sync += r1.full.eq(0)
                         sync += r1.slow_valid.eq(1)
                         with m.If(r1.mmu_req):
                             sync += r1.mmu_done.eq(1)
@@ -1571,6 +1570,8 @@ class DCache(Elaboratable):
                         comb += cv.bit_select(r1.store_way, 1).eq(1)
                         sync += cache_tags[r1.store_index].valid.eq(cv)
 
+                        # return to idle and indicate r1 stage no longer busy
+                        sync += r1.full.eq(0)
                         sync += r1.state.eq(State.IDLE)
                         sync += Display("cache valid set %x "
                                         "idx %d way %d",
@@ -1613,7 +1614,6 @@ class DCache(Elaboratable):
 
                         with m.If(req.op == Op.OP_STORE_HIT):
                             sync += r1.write_bram.eq(1)
-                        sync += r1.full.eq(0)
                         sync += r1.slow_valid.eq(1)
 
                         # Store requests never come from the MMU
@@ -1629,9 +1629,12 @@ class DCache(Elaboratable):
                                 bus.ack, bus.ack, st_stbs_done, adjust_acks)
                 with m.If(bus.ack):
                     with m.If(st_stbs_done & (adjust_acks == 1)):
+                        # all done, r1 no longer busy, return to idle
+                        sync += r1.full.eq(0)
                         sync += r1.state.eq(State.IDLE)
                         sync += r1.wb.cyc.eq(0)
                         sync += r1.wb.stb.eq(0)
+                    # decrement the number of acks expected
                     sync += r1.dec_acks.eq(1)
 
             with m.Case(State.NC_LOAD_WAIT_ACK):
