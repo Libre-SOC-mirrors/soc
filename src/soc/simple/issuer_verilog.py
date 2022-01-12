@@ -65,6 +65,11 @@ if __name__ == '__main__':
                         action="store_true",
                         help="generate microwatt-compatible interface",
                         default=False)
+    # allow overlaps in TestIssuer
+    parser.add_argument("--allow-overlap", dest='allow_overlap',
+                        action="store_true",
+                        help="allow overlap in TestIssuer",
+                        default=False)
 
     args = parser.parse_args()
 
@@ -122,6 +127,7 @@ if __name__ == '__main__':
                          svp64=args.svp64,      # enable SVP64
                          microwatt_mmu=args.mmu,         # enable MMU
                          microwatt_compat=args.mwcompat, # microwatt compatible
+                         allow_overlap=args.allow_overlap, # allow overlap
                          units=units,
                          msr_reset=msr_reset)
     #if args.mwcompat:
