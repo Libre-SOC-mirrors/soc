@@ -41,7 +41,7 @@ from soc.experiment.test import pagetables
 
 class MMUTestCase(TestAccumulatorBase):
 
-    def case_first_vm_enabled(self):
+    def cse_first_vm_enabled(self):
         lst = [
                "std 6,0(2)",
               ]
@@ -63,8 +63,40 @@ class MMUTestCase(TestAccumulatorBase):
 
         # set PRTBL to 0xe000000
         initial_sprs = {720: 0xe000000, # PRTBL
-                        48: 0       # PIDR
+                        48: 1       # PIDR
                         } 
+
+        print("MMUTEST: initial_msr=",initial_msr)
+        self.add_case(Program(lst, bigendian), initial_regs,
+                             initial_mem=initial_mem,
+                             initial_sprs=initial_sprs,
+                             initial_msr=initial_msr)
+
+
+    def case_first_vm_enabled_2(self):
+        lst = [
+               "std 6,0(2)",
+              ]
+
+        # set up regs
+        initial_regs = [0] * 32
+        initial_regs[2] = 0xc000000000598000
+        initial_regs[6] = 0x0101
+
+        # memory same as microwatt test
+        initial_mem = pagetables.microwatt_linux_5_7_boot
+
+        # set virtual and non-privileged
+        # msr: 8000000000000011
+        initial_msr = 0 << MSR.PR # must set "problem" state
+        initial_msr |= 1 << MSR.LE # little-endian
+        initial_msr |= 1 << MSR.SF # 64-bit
+        initial_msr |= 1 << MSR.DR # set "virtual" state for data
+
+        # set PRTBL to 0xe000000
+        initial_sprs = {720: 0xe00000c, # PRTBL
+                        48: 1       # PIDR
+                        }
 
         print("MMUTEST: initial_msr=",initial_msr)
         self.add_case(Program(lst, bigendian), initial_regs,
