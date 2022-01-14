@@ -1606,10 +1606,12 @@ class DCache(Elaboratable):
                         sync += r1.wb.sel.eq(req.byte_sel)
 
                     with m.If((adjust_acks < 7) & req.same_tag &
-                                ((req.op == Op.OP_STORE_MISS)
-                                 | (req.op == Op.OP_STORE_HIT))):
+                                ((req.op == Op.OP_STORE_MISS) |
+                                 (req.op == Op.OP_STORE_HIT))):
                         sync += r1.wb.stb.eq(1)
                         comb += st_stbs_done.eq(0)
+                        sync += r1.store_way.eq(req.hit_way)
+                        sync += r1.store_row.eq(get_row(req.real_addr))
 
                         with m.If(req.op == Op.OP_STORE_HIT):
                             sync += r1.write_bram.eq(1)
