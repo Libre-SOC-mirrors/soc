@@ -727,6 +727,7 @@ class DCache(Elaboratable):
             comb += r.doall.eq(m_in.doall)
             comb += r.tlbld.eq(m_in.tlbld)
             comb += r.mmu_req.eq(1)
+            comb += r.d_valid.eq(1)
             m.d.sync += Display("    DCACHE req mmu addr %x pte %x ld %d",
                                  m_in.addr, m_in.pte, r.req.load)
 
@@ -737,16 +738,15 @@ class DCache(Elaboratable):
             comb += r.doall.eq(0)
             comb += r.tlbld.eq(0)
             comb += r.mmu_req.eq(0)
+            comb += r.d_valid.eq(0)
 
         with m.If((~r1.full & ~d_in.hold) | ~r0_full):
             sync += r0.eq(r)
             sync += r0_full.eq(r.req.valid)
-        # Sample data the cycle after a request comes in from loadstore1.
-        # If another request has come in already then the data will get
-        # put directly into req.data below.
-        sync += r0.d_valid.eq(0)
-        with m.If(r0.req.valid & ~r.req.valid & ~r0.d_valid &
-                 ~r0.mmu_req):
+        with m.Elif(~r0.d_valid):
+            # Sample data the cycle after a request comes in from loadstore1.
+            # If another request has come in already then the data will get
+            # put directly into req.data below.
             sync += r0.req.data.eq(d_in.data)
             sync += r0.d_valid.eq(1)
         with m.If(d_in.valid):
@@ -1443,6 +1443,9 @@ class DCache(Elaboratable):
 
                 with m.If(req.op == Op.OP_STORE_HIT):
                     sync += r1.store_way.eq(req.hit_way)
+
+                #with m.If(r1.dec_acks):
+                #    sync += r1.acks_pending.eq(r1.acks_pending - 1)
 
                 # Reset per-row valid bits,
                 # ready for handling OP_LOAD_MISS
