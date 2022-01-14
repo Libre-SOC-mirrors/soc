@@ -164,15 +164,22 @@ print ("    TAG_WIDTH", TAG_WIDTH)
 print ("     NUM_WAYS", NUM_WAYS)
 print ("    NUM_LINES", NUM_LINES)
 
-def CacheTagArray():
+
+def CacheTag(name=None):
     tag_layout = [('valid', NUM_WAYS),
                   ('tag', TAG_RAM_WIDTH),
                  ]
-    return Array(Record(tag_layout, name="tag%d" % x) for x in range(NUM_LINES))
+    return Record(tag_layout, name=name)
+
+
+def CacheTagArray():
+    return Array(CacheTag(name="tag%d" % x) for x in range(NUM_LINES))
+
 
 def RowPerLineValidArray():
     return Array(Signal(name="rows_valid%d" % x) \
                         for x in range(ROW_PER_LINE))
+
 
 # L1 TLB
 TLB_SET_BITS     = log2_int(TLB_SET_SIZE)
