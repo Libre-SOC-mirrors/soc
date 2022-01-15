@@ -440,8 +440,8 @@ class RegStage1(RecordObject):
 
 # Reservation information
 class Reservation(RecordObject):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=None):
+        super().__init__(name=name)
         self.valid = Signal()
         self.addr  = Signal(64-LINE_OFF_BITS)
 
