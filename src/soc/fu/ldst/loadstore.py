@@ -67,6 +67,10 @@ class LDSTRequest(RecordObject):
         self.mode_32bit    = Signal() # XXX UNUSED AT PRESENT
         self.alignstate    = Signal(Misalign) # progress of alignment request
         self.align_intr    = Signal()
+        # atomic (LR/SC reservation)
+        self.reserve       = Signal()
+        self.atomic        = Signal()
+        self.atomic_last   = Signal()
 
 
 # glue logic for microwatt mmu and dcache
@@ -114,9 +118,6 @@ class LoadStore1(PortInterfaceBase):
         self.byte_sel      = Signal(16)    # also for misaligned, 16-bit
         self.alignstate    = Signal(Misalign) # progress of alignment request
         #self.xerc         : xer_common_t;
-        #self.reserve       = Signal()
-        #self.atomic        = Signal()
-        #self.atomic_last   = Signal()
         #self.rc            = Signal()
         self.nc            = Signal()              # non-cacheable access
         self.mode_32bit    = Signal() # XXX UNUSED AT PRESENT
@@ -166,6 +167,10 @@ class LoadStore1(PortInterfaceBase):
         with m.If(is_dcbz & self.req.nc):
             m.d.comb += self.req.align_intr.eq(1)
 
+        # hmm, rather than add yet another argument to set_wr_addr
+        # read direct from PortInterface
+        m.d.comb += self.req.reserve.eq(self.pi.reserve) # atomic request
+
         return None
 
     def set_rd_addr(self, m, addr, mask, misalign, msr):
@@ -185,6 +190,11 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += self.req.nc.eq(1)
         with m.If(misalign):
             m.d.comb += self.req.alignstate.eq(Misalign.NEED2WORDS)
+
+        # hmm, rather than add yet another argument to set_rd_addr
+        # read direct from PortInterface
+        m.d.comb += self.req.reserve.eq(self.pi.reserve) # atomic request
+
         return None #FIXME return value
 
     def set_wr_data(self, m, data, wen):
@@ -427,6 +437,9 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += d_out.nc.eq(self.req.nc)
             m.d.comb += d_out.priv_mode.eq(self.req.priv_mode)
             m.d.comb += d_out.virt_mode.eq(self.req.virt_mode)
+            m.d.comb += d_out.reserve.eq(self.req.reserve)
+            m.d.comb += d_out.atomic.eq(self.req.atomic)
+            m.d.comb += d_out.atomic_last.eq(self.req.atomic_last)
             #m.d.comb += Display("validblip dcbz=%i addr=%x",
             #self.req.dcbz,self.req.addr)
             m.d.comb += d_out.dcbz.eq(self.req.dcbz)
@@ -437,6 +450,9 @@ class LoadStore1(PortInterfaceBase):
             m.d.comb += d_out.nc.eq(ldst_r.nc)
             m.d.comb += d_out.priv_mode.eq(ldst_r.priv_mode)
             m.d.comb += d_out.virt_mode.eq(ldst_r.virt_mode)
+            m.d.comb += d_out.reserve.eq(ldst_r.reserve)
+            m.d.comb += d_out.atomic.eq(ldst_r.atomic)
+            m.d.comb += d_out.atomic_last.eq(ldst_r.atomic_last)
             #m.d.comb += Display("no_validblip dcbz=%i addr=%x",
             #ldst_r.dcbz,ldst_r.addr)
             m.d.comb += d_out.dcbz.eq(ldst_r.dcbz)
