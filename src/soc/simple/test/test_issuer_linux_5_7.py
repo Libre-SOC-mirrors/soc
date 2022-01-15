@@ -41,7 +41,7 @@ from soc.experiment.test import pagetables
 
 class MMUTestCase(TestAccumulatorBase):
 
-    def cse_first_vm_enabled(self):
+    def case_first_vm_enabled(self):
         lst = [
                "std 6,0(2)",
               ]
