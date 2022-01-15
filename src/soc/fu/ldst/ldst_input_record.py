@@ -25,6 +25,7 @@ class CompLDSTOpSubset(CompOpSubsetBase):
                   ('is_signed', 1),
                   ('data_len', 4),
                   ('byte_reverse', 1),
+                  ('reserve', 1),     # atomic update
                   ('sign_extend', 1),
                   ('ldst_mode', LDSTMode),
                   ('insn', 32),

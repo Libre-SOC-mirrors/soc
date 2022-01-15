@@ -105,6 +105,9 @@ class PortInterface(RecordObject):
         # LD/ST data length (TODO: other things may be needed)
         self.data_len = Signal(4, reset_less=True)
 
+        # atomic reservation (LR/SC - ldarx / stdcx etc.)
+        self.reserve = Signal(reset_less=True)
+
         # common signals
         self.busy_o = Signal(reset_less=True)     # do not use if busy
         self.go_die_i = Signal(reset_less=True)   # back to reset
@@ -141,6 +144,7 @@ class PortInterface(RecordObject):
                 self.is_nc.eq(inport.is_nc),
                 self.is_dcbz_i.eq(inport.is_dcbz_i),
                 self.data_len.eq(inport.data_len),
+                self.reserve.eq(inport.reserve),
                 self.go_die_i.eq(inport.go_die_i),
                 self.addr.data.eq(inport.addr.data),
                 self.addr.ok.eq(inport.addr.ok),
