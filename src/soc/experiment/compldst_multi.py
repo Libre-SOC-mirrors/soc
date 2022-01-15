@@ -529,6 +529,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += pi.is_ld_i.eq(op_is_ld & busy_o)  # decoded-LD
         comb += pi.is_st_i.eq(op_is_st_or_dcbz & busy_o)  # decoded-ST
         comb += pi.is_dcbz_i.eq(op_is_dcbz & busy_o)  # decoded-DCBZ
+        comb += pi.reserve.eq(oper_r.reserve & busy_o)  # atomic LR/SC
         comb += pi.data_len.eq(oper_r.data_len)  # data_len
         # address: use sync to avoid long latency
         sync += pi.addr.data.eq(addr_r)           # EA from adder
