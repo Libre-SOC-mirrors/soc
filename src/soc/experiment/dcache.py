@@ -1561,10 +1561,10 @@ class DCache(Elaboratable):
                     # Compare the whole address in case the
                     # request in r1.req is not the one that
                     # started this refill.
-                    with m.If(req.valid & r1.req.same_tag &
-                              ((r1.dcbz & r1.req.dcbz) |
-                               (~r1.dcbz & (r1.req.op == Op.OP_LOAD_MISS))) &
-                                (r1.store_row == get_row(req.real_addr))):
+                    with m.If(r1.full & r1.req.same_tag &
+                              ((r1.dcbz & req.dcbz) |
+                               (r1.req.op == Op.OP_LOAD_MISS)) &
+                                (r1.store_row == get_row(r1.req.real_addr))):
                         sync += r1.full.eq(r1_next_cycle)
                         sync += r1.slow_valid.eq(1)
                         with m.If(r1.mmu_req):
