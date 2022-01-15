@@ -97,9 +97,10 @@ class PortInterface(RecordObject):
 
         RecordObject.__init__(self, name=name)
 
-        # distinguish op type (ld/st)
+        # distinguish op type (ld/st/dcbz)
         self.is_ld_i    = Signal(reset_less=True)
         self.is_st_i    = Signal(reset_less=True)
+        self.is_dcbz_i     = Signal(reset_less=True) # cache-line zeroing
 
         # LD/ST data length (TODO: other things may be needed)
         self.data_len = Signal(4, reset_less=True)
@@ -124,8 +125,6 @@ class PortInterface(RecordObject):
         self.virt_mode  = Signal() # ctrl.msr(MSR_DR);
         self.priv_mode  = Signal() # not ctrl.msr(MSR_PR);
         self.mode_32bit = Signal() # not ctrl.msr(MSR_SF);
-
-        self.is_dcbz_i     = Signal(reset_less=True)
 
         # mmu
         self.mmu_done          = Signal() # keep for now
