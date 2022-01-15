@@ -1332,6 +1332,7 @@ class DCache(Elaboratable):
 
         req         = MemAccessRequest("mreq_ds")
 
+        r1_next_cycle = Signal()
         req_row = Signal(ROW_BITS)
         req_idx = Signal(INDEX_BITS)
         req_tag = Signal(TAG_BITS)
@@ -1430,6 +1431,9 @@ class DCache(Elaboratable):
                       | (req_op == Op.OP_STORE_HIT)):
                 sync += r1.req.eq(req)
                 sync += r1.full.eq(1)
+                # do not let r1.state RELOAD_WAIT_ACK or STORE_WAIT_ACK
+                # destroy r1.req by overwriting r1.full back to zero
+                comb += r1_next_cycle.eq(1)
 
         # Main state machine
         with m.Switch(r1.state):
@@ -1492,6 +1496,7 @@ class DCache(Elaboratable):
                             sync += r1.state.eq(State.STORE_WAIT_ACK)
                             sync += r1.acks_pending.eq(1)
                             sync += r1.full.eq(0)
+                            comb += r1_next_cycle.eq(0)
                             sync += r1.slow_valid.eq(1)
 
                             with m.If(req.mmu_req):
@@ -1560,7 +1565,7 @@ class DCache(Elaboratable):
                               ((r1.dcbz & r1.req.dcbz) |
                                (~r1.dcbz & (r1.req.op == Op.OP_LOAD_MISS))) &
                                 (r1.store_row == get_row(req.real_addr))):
-                        sync += r1.full.eq(0)
+                        sync += r1.full.eq(r1_next_cycle)
                         sync += r1.slow_valid.eq(1)
                         with m.If(r1.mmu_req):
                             sync += r1.mmu_done.eq(1)
@@ -1625,7 +1630,7 @@ class DCache(Elaboratable):
 
                         with m.If(req.op == Op.OP_STORE_HIT):
                             sync += r1.write_bram.eq(1)
-                        sync += r1.full.eq(0)
+                        sync += r1.full.eq(r1_next_cycle)
                         sync += r1.slow_valid.eq(1)
 
                         # Store requests never come from the MMU
@@ -1654,7 +1659,7 @@ class DCache(Elaboratable):
                 # Got ack ? complete.
                 with m.If(bus.ack):
                     sync += r1.state.eq(State.IDLE)
-                    sync += r1.full.eq(0)
+                    sync += r1.full.eq(r1_next_cycle)
                     sync += r1.slow_valid.eq(1)
 
                     with m.If(r1.mmu_req):
