@@ -129,6 +129,7 @@ class LoadStore1(PortInterfaceBase):
         self.busy          = Signal()
         self.wait_dcache   = Signal()
         self.wait_mmu      = Signal()
+        self.lrsc_misalign = Signal()
         #self.intr_vec     : integer range 0 to 16#fff#;
         #self.nia           = Signal(64)
         #self.srr1          = Signal(16)
@@ -170,6 +171,8 @@ class LoadStore1(PortInterfaceBase):
         # hmm, rather than add yet another argument to set_wr_addr
         # read direct from PortInterface
         m.d.comb += self.req.reserve.eq(self.pi.reserve) # atomic request
+        m.d.comb += self.req.atomic.eq(~self.lrsc_misalign)
+        m.d.comb += self.req.atomic_last.eq(~self.lrsc_misalign)
 
         return None
 
@@ -194,6 +197,8 @@ class LoadStore1(PortInterfaceBase):
         # hmm, rather than add yet another argument to set_rd_addr
         # read direct from PortInterface
         m.d.comb += self.req.reserve.eq(self.pi.reserve) # atomic request
+        m.d.comb += self.req.atomic.eq(~self.lrsc_misalign)
+        m.d.comb += self.req.atomic_last.eq(~self.lrsc_misalign)
 
         return None #FIXME return value
 
@@ -235,6 +240,10 @@ class LoadStore1(PortInterfaceBase):
         # copy of address, but gets over-ridden for instr_fault
         maddr = Signal(64)
         m.d.comb += maddr.eq(self.raddr)
+
+        # check for LR/SC misalignment, used in set_rd/wr_addr above
+        comb += self.lrsc_misalign.eq(((self.pi.data_len[0:3]-1) &
+                                        self.req.raddr[0:3]).bool())
 
         # create a blip (single pulse) on valid read/write request
         # this can be over-ridden in the FSM to get dcache to re-run

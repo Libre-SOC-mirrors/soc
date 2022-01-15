@@ -1708,7 +1708,7 @@ class DCache(Elaboratable):
 
         r1 = RegStage1("r1")
 
-        reservation = Reservation()
+        reservation = Reservation("rsrv")
 
         # Async signals on incoming request
         req_index    = Signal(INDEX_BITS)
