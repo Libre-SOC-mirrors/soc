@@ -245,6 +245,8 @@ class LoadStore1(PortInterfaceBase):
         # check for LR/SC misalignment, used in set_rd/wr_addr above
         comb += self.lrsc_misalign.eq(((self.pi.data_len[0:3]-1) &
                                         self.req.raddr[0:3]).bool())
+        with m.If(self.lrsc_misalign & self.req.reserve):
+            m.d.comb += self.req.align_intr.eq(1)
 
         # create a blip (single pulse) on valid read/write request
         # this can be over-ridden in the FSM to get dcache to re-run
