@@ -97,10 +97,11 @@ class PortInterface(RecordObject):
 
         RecordObject.__init__(self, name=name)
 
-        # distinguish op type (ld/st/dcbz)
+        # distinguish op type (ld/st/dcbz/nc)
         self.is_ld_i    = Signal(reset_less=True)
         self.is_st_i    = Signal(reset_less=True)
         self.is_dcbz_i     = Signal(reset_less=True) # cache-line zeroing
+        self.is_nc         = Signal()  # no cacheing
 
         # LD/ST data length (TODO: other things may be needed)
         self.data_len = Signal(4, reset_less=True)
@@ -115,22 +116,17 @@ class PortInterface(RecordObject):
         # addr is valid (TLB, L1 etc.)
         self.addr_ok_o = Signal(reset_less=True)
         self.exc_o = LDSTException("exc")
+        self.store_done          = Signal() # store has been actioned
 
         # LD/ST
         self.ld = Data(regwid, "ld_data_o")  # ok to be set by L0 Cache/Buf
         self.st = Data(regwid, "st_data_i")  # ok to be set by CompUnit
-
-        # additional "modes"
-        self.is_nc         = Signal()  # no cacheing
 
         #only priv_mode = not msr_pr is used currently
         # TODO: connect signals
         self.virt_mode  = Signal() # ctrl.msr(MSR_DR);
         self.priv_mode  = Signal() # not ctrl.msr(MSR_PR);
         self.mode_32bit = Signal() # not ctrl.msr(MSR_SF);
-
-        # mmu
-        self.mmu_done          = Signal() # keep for now
 
         # dcache
         self.ldst_error        = Signal()
@@ -156,7 +152,7 @@ class PortInterface(RecordObject):
                 inport.busy_o.eq(self.busy_o),
                 inport.addr_ok_o.eq(self.addr_ok_o),
                 inport.exc_o.eq(self.exc_o),
-                inport.mmu_done.eq(self.mmu_done),
+                inport.store_done.eq(self.store_done),
                 inport.ldst_error.eq(self.ldst_error),
                 inport.cache_paradox.eq(self.cache_paradox)
                 ]
