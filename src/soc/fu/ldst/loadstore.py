@@ -208,7 +208,7 @@ class LoadStore1(PortInterfaceBase):
         # put data into comb which is picked up in main elaborate()
         m.d.comb += self.d_w_valid.eq(1)
         m.d.comb += self.store_data.eq(data)
-        #m.d.sync += self.d_out.byte_sel.eq(wen) # this might not be needed
+        m.d.comb += self.pi.store_done.eq(self.d_in.store_done)
         st_ok = self.done # TODO indicates write data is valid
         return st_ok
 

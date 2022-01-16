@@ -87,7 +87,7 @@ Terminology:
 
 from nmigen.compat.sim import run_simulation
 from nmigen.cli import verilog, rtlil
-from nmigen import Module, Signal, Mux, Cat, Elaboratable, Array, Repl
+from nmigen import Module, Signal, Mux, Cat, Elaboratable, Array, Repl, C
 from nmigen.hdl.rec import Record, Layout
 
 from nmutil.latch import SRLatch, latchregister
@@ -199,7 +199,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         # POWER-compliant LD/ST has index and update: *fixed* number of ports
         self.n_src = n_src = 3   # RA, RB, RT/RS
-        self.n_dst = n_dst = 2  # RA, RT/RS
+        self.n_dst = n_dst = 3  # RA, RT/RS, CR0
 
         # set up array of src and dest signals
         for i in range(n_src):
@@ -245,6 +245,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         self.o_data = Data(self.data_wid, name="o")  # Dest1 out: RT
         self.addr_o = Data(self.data_wid, name="ea")  # Addr out: Update => RA
+        self.cr_o = Data(self.data_wid, name="cr0")  # CR0 (for stdcx etc)
         self.exc_o = cu.exc_o
         self.done_o = cu.done_o
         self.busy_o = cu.busy_o
@@ -273,6 +274,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         m.submodules.sto_l = sto_l = SRLatch(sync=False, name="sto")
         m.submodules.wri_l = wri_l = SRLatch(sync=False, name="wri")
         m.submodules.upd_l = upd_l = SRLatch(sync=False, name="upd")
+        m.submodules.cr0_l = cr0_l = SRLatch(sync=False, name="cr0")
         m.submodules.rst_l = rst_l = SRLatch(sync=False, name="rst")
         m.submodules.lsd_l = lsd_l = SRLatch(sync=False, name="lsd") # done
 
@@ -284,6 +286,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         op_is_st = Signal(reset_less=True)
         op_is_dcbz = Signal(reset_less=True)
         op_is_st_or_dcbz = Signal(reset_less=True)
+        op_is_atomic = Signal(reset_less=True)
 
         # ALU/LD data output control
         alu_valid = Signal(reset_less=True)  # ALU operands are valid
@@ -295,6 +298,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         rd_done = Signal(reset_less=True)   # all *necessary* operands read
         wr_reset = Signal(reset_less=True)  # final reset condition
         canceln = Signal(reset_less=True)   # cancel (active low)
+        store_done = Signal(reset_less=True) # store has been actioned
 
         # LD and ALU out
         alu_o = Signal(self.data_wid, reset_less=True)
@@ -307,6 +311,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         reset_o = Signal(reset_less=True)             # reset opcode
         reset_w = Signal(reset_less=True)             # reset write
         reset_u = Signal(reset_less=True)             # reset update
+        reset_c = Signal(reset_less=True)             # reset cr0
         reset_a = Signal(reset_less=True)             # reset adr latch
         reset_i = Signal(reset_less=True)             # issue|die (use a lot)
         reset_r = Signal(self.n_src, reset_less=True)  # reset src
@@ -322,6 +327,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += reset_o.eq(self.done_o | terminate)      # opcode reset
         comb += reset_w.eq(self.wr.go_i[0] | terminate)  # write reg 1
         comb += reset_u.eq(self.wr.go_i[1] | terminate)  # update (reg 2)
+        comb += reset_c.eq(self.wr.go_i[2] | terminate)  # cr0 (reg 3)
         comb += reset_s.eq(self.go_st_i | terminate)  # store reset
         comb += reset_r.eq(self.rd.go_i | Repl(terminate, self.n_src))
         comb += reset_a.eq(self.go_ad_i | terminate)
@@ -334,6 +340,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += op_is_st.eq(oper_r.insn_type == MicrOp.OP_STORE)   # ST
         comb += op_is_ld.eq(oper_r.insn_type == MicrOp.OP_LOAD)    # LD
         comb += op_is_dcbz.eq(oper_r.insn_type == MicrOp.OP_DCBZ)  # DCBZ
+        comb += op_is_atomic.eq(oper_r.reserve) # atomic LR/SC
         comb += op_is_st_or_dcbz.eq(op_is_st | op_is_dcbz)
         # dcbz is special case of store
         #uncomment if needed
@@ -354,6 +361,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         #       - alu_l : looks after add of src1/2/imm (EA)
         #       - adr_l : waits for add (EA)
         #       - upd_l : waits for adr and Regfile (port 2)
+        #       - cr0_l : waits for Rc=1 and CR0 Regfile (port 3)
         #    - src_l[2] : ST
         # - lod_l       : waits for adr (EA) and for LD Data
         # - wri_l       : waits for LD Data and Regfile (port 1)
@@ -391,6 +399,11 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
                                           #(self.pi.busy_o & op_is_update),
                             #self.done_o | (self.pi.busy_o & op_is_update),
                                           self.n_dst))
+
+        # CR0 operand latch (CR0 written to reg 3 if Rc=1)
+        op_is_rc1 = oper_r.rc.rc & oper_r.rc.ok
+        sync += cr0_l.s.eq(reset_i & op_is_rc1)
+        sync += cr0_l.r.eq(reset_c)
 
         # update-mode operand latch (EA written to reg 2)
         sync += upd_l.s.eq(reset_i)
@@ -494,12 +507,15 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += self.wr.rel_o[1].eq(upd_l.q & busy_o & op_is_update &
                                   alu_valid & canceln)
 
+        # request write of CR0 result only in reserve and Rc=1
+        comb += self.wr.rel_o[2].eq(cr0_l.q & busy_o & op_is_atomic &
+                                  alu_valid & canceln)
+
         # provide "done" signal: select req_rel for non-LD/ST, adr_rel for LD/ST
         comb += wr_any.eq(self.st.go_i | p_st_go |
-                          self.wr.go_i[0] | self.wr.go_i[1])
+                          self.wr.go_i.bool())
         comb += wr_reset.eq(rst_l.q & busy_o & canceln &
-                            ~(self.st.rel_o | self.wr.rel_o[0] |
-                              self.wr.rel_o[1]) &
+                            ~(self.st.rel_o | self.wr.rel_o.bool()) &
                             (lod_l.qn | op_is_st_or_dcbz)
                             )
         comb += self.done_o.eq(wr_reset & (~self.pi.busy_o | op_is_ld))
@@ -516,6 +532,12 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         comb += self.addr_o.data.eq(self.dest[1])
         with m.If(op_is_update & self.wr.go_i[1]):
             comb += self.dest[1].eq(addr_r)
+
+        # fun-fun-fun, calculate CR0 when Rc=1 requested.
+        cr0 = self.dest[2]
+        comb += self.cr_o.data.eq(cr0)
+        with m.If(cr0_l.q):
+            comb += cr0.eq(Cat(C(0, 1), store_done, C(0, 2)))
 
         # need to look like MultiCompUnit: put wrmask out.
         # XXX may need to make this enable only when write active
@@ -582,8 +604,12 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
             comb += pi.st.data.eq(stdata_r)
         with m.Else():
             comb += pi.st.data.eq(op3)
+
         # store - data goes in based on go_st
         comb += pi.st.ok.eq(self.st.go_i)  # go store signals st data valid
+
+        # store actioned, communicate through CR0 (for atomic LR/SC)
+        comb += store_done.eq(pi.store_done)
 
         return m
 
@@ -595,6 +621,8 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
             return self.o_data # LDSTOutputData.regspec o
         if i == 1:
             return self.addr_o # LDSTOutputData.regspec o1
+        if i == 2:
+            return self.cr_o # LDSTOutputData.regspec cr_a
         # return self.dest[i]
 
     def get_fu_out(self, i):
@@ -617,6 +645,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         yield self.wr.rel_o
         yield from self.o_data.ports()
         yield from self.addr_o.ports()
+        yield from self.cr_o.ports()
         yield self.load_mem_o
         yield self.stwd_mem_o
 

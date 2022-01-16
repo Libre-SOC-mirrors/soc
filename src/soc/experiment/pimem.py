@@ -240,7 +240,6 @@ class PortInterfaceBase(Elaboratable):
         misalign = Signal()
         comb += misalign.eq(lenexp.lexp_o[8:].bool())
 
-
         # activate mode: only on "edge"
         comb += ld_active.s.eq(rising_edge(m, lds))  # activate LD mode
         comb += st_active.s.eq(rising_edge(m, sts))  # activate ST mode
