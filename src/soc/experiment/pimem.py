@@ -116,11 +116,11 @@ class PortInterface(RecordObject):
         # addr is valid (TLB, L1 etc.)
         self.addr_ok_o = Signal(reset_less=True)
         self.exc_o = LDSTException("exc")
-        self.store_done          = Signal() # store has been actioned
 
         # LD/ST
         self.ld = Data(regwid, "ld_data_o")  # ok to be set by L0 Cache/Buf
         self.st = Data(regwid, "st_data_i")  # ok to be set by CompUnit
+        self.store_done = Data(1, "store_done_o") # store has been actioned
 
         #only priv_mode = not msr_pr is used currently
         # TODO: connect signals

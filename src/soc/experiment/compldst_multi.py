@@ -245,7 +245,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         self.o_data = Data(self.data_wid, name="o")  # Dest1 out: RT
         self.addr_o = Data(self.data_wid, name="ea")  # Addr out: Update => RA
-        self.cr_o = Data(self.data_wid, name="cr0")  # CR0 (for stdcx etc)
+        self.cr_o = Data(4, name="cr0")  # CR0 (for stdcx etc)
         self.exc_o = cu.exc_o
         self.done_o = cu.done_o
         self.busy_o = cu.busy_o
@@ -401,8 +401,8 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
                                           self.n_dst))
 
         # CR0 operand latch (CR0 written to reg 3 if Rc=1)
-        op_is_rc1 = oper_r.rc.rc & oper_r.rc.ok
-        sync += cr0_l.s.eq(reset_i & op_is_rc1)
+        op_is_rc1 = self.oper_i.rc.rc & self.oper_i.rc.ok
+        comb += cr0_l.s.eq(issue_i & op_is_rc1)
         sync += cr0_l.r.eq(reset_c)
 
         # update-mode operand latch (EA written to reg 2)
@@ -427,9 +427,14 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         with m.If(self.done_o | terminate):
             sync += oper_r.eq(0)
 
-        # and for LD
+        # and for LD and store-done
         ldd_r = Signal(self.data_wid, reset_less=True)  # Dest register
         latchregister(m, ldd_o, ldd_r, ld_ok, name="ldo_r")
+
+        # store actioned, communicate through CR0 (for atomic LR/SC)
+        latchregister(m, self.pi.store_done.data, store_done,
+                         self.pi.store_done.ok,
+                         name="std_r")
 
         # and for each input from the incoming src operands
         srl = []
@@ -525,23 +530,26 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         # put the LD-output register directly onto the output bus on a go_write
         comb += self.o_data.data.eq(self.dest[0])
+        comb += self.o_data.ok.eq(self.wr.rel_o[0])
         with m.If(self.wr.go_i[0]):
             comb += self.dest[0].eq(ldd_r)
 
         # "update" mode, put address out on 2nd go-write
         comb += self.addr_o.data.eq(self.dest[1])
+        comb += self.addr_o.ok.eq(self.wr.rel_o[1])
         with m.If(op_is_update & self.wr.go_i[1]):
             comb += self.dest[1].eq(addr_r)
 
         # fun-fun-fun, calculate CR0 when Rc=1 requested.
         cr0 = self.dest[2]
         comb += self.cr_o.data.eq(cr0)
+        comb += self.cr_o.ok.eq(self.wr.rel_o[2])
         with m.If(cr0_l.q):
             comb += cr0.eq(Cat(C(0, 1), store_done, C(0, 2)))
 
         # need to look like MultiCompUnit: put wrmask out.
         # XXX may need to make this enable only when write active
-        comb += self.wrmask.eq(bro & Cat(op_is_ld, op_is_update))
+        comb += self.wrmask.eq(bro & Cat(op_is_ld, op_is_update, cr0_l.q))
 
         ###########################
         # PortInterface connections
@@ -607,9 +615,6 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         # store - data goes in based on go_st
         comb += pi.st.ok.eq(self.st.go_i)  # go store signals st data valid
-
-        # store actioned, communicate through CR0 (for atomic LR/SC)
-        comb += store_done.eq(pi.store_done)
 
         return m
 
