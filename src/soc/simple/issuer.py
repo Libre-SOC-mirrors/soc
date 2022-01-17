@@ -396,6 +396,10 @@ class TestIssuerBase(Elaboratable):
                 m.submodules["sram4k_%d" % i] = csd(sram)
                 comb += sram.enable.eq(self.wb_sram_en)
 
+        # terrible hack to stop a potential race condition.  if core
+        # is doing any operation (at all) pause the DEC/TB FSM
+        comb += self.pause_dec_tb.eq(core.pause_dec_tb)
+
         # XICS interrupt handler
         if self.xics:
             m.submodules.xics_icp = icp = csd(self.xics_icp)
