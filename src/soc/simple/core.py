@@ -218,6 +218,10 @@ class NonProductionCore(ControlBase):
         if "mmu0" in self.decoders:
             self.decoders["mmu0"].mmu0_spr_dec = self.decoders["spr0"]
 
+        # allow pausing of the DEC/TB FSM back in Issuer, by spotting
+        # if there is an MTSPR instruction
+        self.pause_dec_tb = Signal()
+
     # next 3 functions are Stage API Compliance
     def setup(self, m, i):
         pass
@@ -511,6 +515,13 @@ class NonProductionCore(ControlBase):
                     funame.lower().startswith('trap')):
                     with m.If(fu.busy_o):
                         comb += busy_o.eq(1)
+                # for SPR pipeline pause dec/tb FSM to avoid race condition
+                # TODO: really this should be much more sophisticated,
+                # spot MTSPR, spot that DEC/TB is what is to be updated.
+                # a job for PowerDecoder2, there
+                if funame.lower().startswith('spr'):
+                    with m.If(fu.busy_o):
+                        comb += self.pause_dec_tb.eq(1)
 
         # return both the function unit "enable" dict as well as the "busy".
         # the "busy-or-issued" can be passed in to the Read/Write port
