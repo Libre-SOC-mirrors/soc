@@ -332,6 +332,11 @@ class TestIssuerBase(Elaboratable):
             self.ldst_req = Signal(1)
             self.ldst_addr = Signal(1)
 
+        # for pausing dec/tb during an SPR pipeline event, this
+        # ensures that an SPR write (mtspr) to TB or DEC does not
+        # get overwritten by the DEC/TB FSM
+        self.pause_dec_tb = Signal()
+
     def setup_peripherals(self, m):
         comb, sync = m.d.comb, m.d.sync
 
@@ -529,33 +534,46 @@ class TestIssuerBase(Elaboratable):
             with m.State("DEC_READ"):
                 comb += fast_r_dectb.addr.eq(FastRegs.DEC)
                 comb += fast_r_dectb.ren.eq(1)
-                m.next = "DEC_WRITE"
+                with m.If(~self.pause_dec_tb):
+                    m.next = "DEC_WRITE"
 
             # waits for DEC read to arrive (1 cycle), updates with new value
+            # respects if dec/tb writing has been paused
             with m.State("DEC_WRITE"):
-                new_dec = Signal(64)
-                # TODO: MSR.LPCR 32-bit decrement mode
-                comb += new_dec.eq(fast_r_dectb.o_data - 1)
-                comb += fast_w_dectb.addr.eq(FastRegs.DEC)
-                comb += fast_w_dectb.wen.eq(1)
-                comb += fast_w_dectb.i_data.eq(new_dec)
-                sync += spr_dec.eq(new_dec)  # copy into cur_state for decoder
-                m.next = "TB_READ"
+                with m.If(self.pause_dec_tb):
+                    # if paused, return to reading
+                    m.next = "DEC_READ"
+                with m.Else():
+                    new_dec = Signal(64)
+                    # TODO: MSR.LPCR 32-bit decrement mode
+                    comb += new_dec.eq(fast_r_dectb.o_data - 1)
+                    comb += fast_w_dectb.addr.eq(FastRegs.DEC)
+                    comb += fast_w_dectb.wen.eq(1)
+                    comb += fast_w_dectb.i_data.eq(new_dec)
+                    # copy to cur_state for decoder, for an interrupt
+                    sync += spr_dec.eq(new_dec)
+                    m.next = "TB_READ"
 
             # initiates read of current TB
             with m.State("TB_READ"):
                 comb += fast_r_dectb.addr.eq(FastRegs.TB)
                 comb += fast_r_dectb.ren.eq(1)
-                m.next = "TB_WRITE"
+                with m.If(~self.pause_dec_tb):
+                    m.next = "TB_WRITE"
 
             # waits for read TB to arrive, initiates write of current TB
+            # respects if dec/tb writing has been paused
             with m.State("TB_WRITE"):
-                new_tb = Signal(64)
-                comb += new_tb.eq(fast_r_dectb.o_data + 1)
-                comb += fast_w_dectb.addr.eq(FastRegs.TB)
-                comb += fast_w_dectb.wen.eq(1)
-                comb += fast_w_dectb.i_data.eq(new_tb)
-                m.next = "DEC_READ"
+                with m.If(self.pause_dec_tb):
+                    # if paused, return to reading
+                    m.next = "TB_READ"
+                with m.Else():
+                    new_tb = Signal(64)
+                    comb += new_tb.eq(fast_r_dectb.o_data + 1)
+                    comb += fast_w_dectb.addr.eq(FastRegs.TB)
+                    comb += fast_w_dectb.wen.eq(1)
+                    comb += fast_w_dectb.i_data.eq(new_tb)
+                    m.next = "DEC_READ"
 
         return m
 
