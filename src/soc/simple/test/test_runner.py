@@ -373,6 +373,10 @@ class HDLRunner(StateRunner):
         xer = yield from get_dmi(self.dmi, DBGCore.XER)
         print("after test %s XER value %x" % (self.test.name, xer))
 
+        # get MSR
+        msr = yield from get_dmi(self.dmi, DBGCore.MSR)
+        print("after test %s MSR value %x" % (self.test.name, msr))
+
         # test of dmi reg get
         for int_reg in range(32):
             yield from set_dmi(self.dmi, DBGCore.GSPR_IDX, int_reg)

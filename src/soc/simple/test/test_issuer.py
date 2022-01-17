@@ -30,6 +30,7 @@ from openpower.test.cr.cr_cases import CRTestCase
 from openpower.test.branch.branch_cases import BranchTestCase
 from soc.fu.spr.test.test_pipe_caller import SPRTestCase
 from openpower.test.ldst.ldst_cases import LDSTTestCase
+from openpower.test.trap.trap_cases import TrapTestCase
 from openpower.simulator.test_sim import (GeneralTestCases, AttnTestCase)
 from openpower.simulator.test_helloworld_sim import HelloTestCases
 
@@ -83,6 +84,7 @@ if __name__ == "__main__":
              'hazard': HazardTestCase().test_data,
              'alu': ALUTestCase().test_data,
              'branch': BranchTestCase().test_data,
+             'trap': TrapTestCase().test_data,
              'spr': SPRTestCase().test_data
              }
 
