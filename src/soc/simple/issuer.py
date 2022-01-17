@@ -357,6 +357,7 @@ class TestIssuerBase(Elaboratable):
         if not isinstance(self.imem, ICache):
             m.submodules.imem = imem = csd(self.imem)
 
+        # set up JTAG Debug Module (in correct domain)
         m.submodules.dbg = dbg = dbd(self.dbg)
         if self.jtag_en:
             m.submodules.jtag = jtag = dbd(self.jtag)
