@@ -351,10 +351,12 @@ class TestIssuerBase(Elaboratable):
             m.submodules.core = core = self.core
         else:
             m.submodules.core = core = csd(self.core)
+
         # this _so_ needs sorting out.  ICache is added down inside
         # LoadStore1 and is already a submodule of LoadStore1
         if not isinstance(self.imem, ICache):
             m.submodules.imem = imem = csd(self.imem)
+
         m.submodules.dbg = dbg = dbd(self.dbg)
         if self.jtag_en:
             m.submodules.jtag = jtag = dbd(self.jtag)
