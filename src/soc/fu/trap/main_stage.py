@@ -24,7 +24,8 @@ from openpower.consts import MSR, PI, TT, field, field_slice
 
 
 def msr_copy(msr_o, msr_i, zero_me=True):
-    """msr_copy
+    """msr_copy (also used to copy relevant bits into SRR1)
+
     ISA says this:
     Defined MSR bits are classified as either full func tion or partial
     function. Full function MSR bits are saved in SRR1 or HSRR1 when
@@ -84,8 +85,10 @@ class TrapMainStage(PipeModBase):
         # i would suggest reading v3.0C p1063 Book III section 7.2.1 for
         # advice but it's so obscure and indirect, that it's just easier
         # to copy microwatt behaviour.  see writeback.vhdl
-        comb += srr1_o.data.eq(srr1_i)       # preserve 0-5 and 11-14
-        comb += msr_copy(srr1_o.data, msr_i) # old MSR
+        # IMPORTANT: PowerDecoder2 needed to actually read SRR1 for
+        # it to have the contents *of* SRR1 to copy over!
+        comb += srr1_o.data.eq(srr1_i)              # preserve 0-5 and 11-14
+        comb += msr_copy(srr1_o.data, msr_i, False) # old MSR
         comb += srr1_o.ok.eq(1)
 
         # take a copy of the current SVSTATE into SVSRR0
