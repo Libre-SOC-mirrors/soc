@@ -65,6 +65,8 @@ class TrapMainStage(PipeModBase):
         op = self.i.ctx.op
         msr_i = op.msr
         svstate_i = op.svstate
+
+        srr1_i = self.i.srr1
         nia_o = self.o.nia
         svsrr0_o, srr0_o, srr1_o = self.o.svsrr0, self.o.srr0, self.o.srr1
 
@@ -76,7 +78,13 @@ class TrapMainStage(PipeModBase):
         comb += srr0_o.data.eq(return_addr)
         comb += srr0_o.ok.eq(1)
 
-        # take a copy of the current MSR into SRR1
+        # take a copy of the current MSR into SRR1, but first copy old SRR1
+        # this preserves the bits of SRR1 that are not supposed to change:
+        # MSR.IR,DR,PMM,RI,LE (0-5) and MR,FP,ME,FE0 (11-14)
+        # i would suggest reading v3.0C p1063 Book III section 7.2.1 for
+        # advice but it's so obscure and indirect, that it's just easier
+        # to copy microwatt behaviour.  see writeback.vhdl
+        comb += srr1_o.data.eq(srr1_i)       # preserve 0-5 and 11-14
         comb += msr_copy(srr1_o.data, msr_i) # old MSR
         comb += srr1_o.ok.eq(1)
 
