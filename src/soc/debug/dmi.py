@@ -11,6 +11,7 @@ from nmutil.iocontrol import RecordObject
 from nmigen.utils import log2_int
 from nmigen.cli import rtlil
 from soc.config.state import CoreState
+from openpower.consts import FastRegsEnum
 
 
 # DMI register addresses
@@ -106,14 +107,10 @@ class CoreDebug(Elaboratable):
         self.core_stopped_i = Signal()
         self.state = CoreState("core_dbg")
 
-        # GSPR register read port
-        self.d_gpr = DbgReg("d_gpr")
-
-        # CR register read port
-        self.d_cr = DbgReg("d_cr")
-
-        # XER register read port
-        self.d_xer = DbgReg("d_xer")
+        self.d_gpr = DbgReg("d_gpr") # GSPR register read port
+        self.d_fast = DbgReg("d_fast") # GSPR register read port
+        self.d_cr = DbgReg("d_cr")   # CR register read port
+        self.d_xer = DbgReg("d_xer") # XER register read port
 
         # Core logging data
         self.log_data_i        = Signal(256)
@@ -133,6 +130,7 @@ class CoreDebug(Elaboratable):
         m = Module()
         comb, sync = m.d.comb, m.d.sync
         dmi, d_gpr, d_cr, d_xer, = self.dmi, self.d_gpr, self.d_cr, self.d_xer
+        d_fast = self.d_fast
 
         # DMI needs fixing... make a one clock pulse
         dmi_req_i_1 = Signal()
@@ -147,7 +145,11 @@ class CoreDebug(Elaboratable):
         do_icreset   = Signal()
         terminated   = Signal()
         do_gspr_rd   = Signal()
+        # select either GPRs or FAST regs to read, based on GSPR_IDX
         gspr_index   = Signal.like(d_gpr.addr)
+        fast_index   = Signal.like(d_gpr.addr)
+        gspr_en      = Signal()
+        fast_en      = Signal()
 
         log_dmi_addr = Signal(32)
         log_dmi_data = Signal(64)
@@ -160,8 +162,12 @@ class CoreDebug(Elaboratable):
         # Single cycle register accesses on DMI except for registers
         with m.Switch(dmi.addr_i):
             with m.Case(DBGCore.GSPR_DATA):
-                comb += dmi.ack_o.eq(d_gpr.ack)
-                comb += d_gpr.req.eq(dmi.req_i)
+                with m.If(gspr_en): # GPR requested, acknowledge GPR
+                    comb += dmi.ack_o.eq(d_gpr.ack)
+                    comb += d_gpr.req.eq(dmi.req_i)
+                with m.If(fast_en): # FAST requested
+                    comb += dmi.ack_o.eq(d_fast.ack)
+                    comb += d_fast.req.eq(dmi.req_i)
             with m.Case(DBGCore.CR):
                 comb += dmi.ack_o.eq(d_cr.ack)
                 comb += d_cr.req.eq(dmi.req_i)
@@ -187,8 +193,11 @@ class CoreDebug(Elaboratable):
                 comb += dmi.dout.eq(self.state.msr)
             with m.Case( DBGCore.SVSTATE):            # SVSTATE
                 comb += dmi.dout.eq(self.state.svstate)
-            with m.Case( DBGCore.GSPR_DATA):          # GPR
-                comb += dmi.dout.eq(d_gpr.data)
+            with m.Case( DBGCore.GSPR_DATA):          # GPR/FAST regs
+                with m.If(gspr_en):
+                    comb += dmi.dout.eq(d_gpr.data)   # GPR data selected
+                with m.If(fast_en):
+                    comb += dmi.dout.eq(d_fast.data)  # FAST reg read selected
             with m.Case( DBGCore.LOG_ADDR):           # Logging
                 comb += dmi.dout.eq(Cat(log_dmi_addr, self.log_write_addr_o))
             with m.Case( DBGCore.LOG_DATA):
@@ -233,7 +242,49 @@ class CoreDebug(Elaboratable):
 
                 # GSPR address
                 with m.Elif(dmi.addr_i == DBGCore.GSPR_IDX):
-                    sync += gspr_index.eq(dmi.din)
+                    sync += gspr_index.eq(0)
+                    sync += fast_index.eq(0)
+                    sync += gspr_en.eq(0)
+                    sync += fast_en.eq(0)
+                    with m.If(dmi.din <= 31):
+                        sync += gspr_index.eq(dmi.din)
+                        sync += gspr_en.eq(1)
+                    with m.If(dmi.din == 32): # LR
+                        sync += fast_index.eq(FastRegsEnum.LR)
+                        sync += fast_en.eq(1)
+                    with m.If(dmi.din == 33): # CTR
+                        sync += fast_index.eq(FastRegsEnum.CTR)
+                        sync += fast_en.eq(1)
+                    with m.If(dmi.din == 34): # SRR0
+                        sync += fast_index.eq(FastRegsEnum.SRR0)
+                        sync += fast_en.eq(1)
+                    with m.If(dmi.din == 35): # SRR1
+                        sync += fast_index.eq(FastRegsEnum.SRR1)
+                        sync += fast_en.eq(1)
+                    with m.If(dmi.din == 44): # XER
+                        sync += fast_index.eq(FastRegsEnum.XER)
+                        sync += fast_en.eq(1)
+                    with m.If(dmi.din == 45): # TAR
+                        sync += fast_index.eq(FastRegsEnum.XER)
+                        sync += fast_en.eq(1)
+
+                    # numbering from microwatt:
+                    """
+                If(regnum == 32, Display("     LR: %016x", dbg_dout),), # LR
+                If(regnum == 33, Display("    CTR: %016x", dbg_dout),), # CTR
+                If(regnum == 34, Display("   SRR0: %016x", dbg_dout),), # SRR0
+                If(regnum == 35, Display("   SRR1: %016x", dbg_dout),), # SRR1
+                If(regnum == 36, Display("  HSRR0: %016x", dbg_dout),), # HSRR0
+                If(regnum == 37, Display("  HSRR1: %016x", dbg_dout),), # HSRR1
+                If(regnum == 38, Display("  SPRG0: %016x", dbg_dout),), # SPRG0
+                If(regnum == 39, Display("  SPRG1: %016x", dbg_dout),), # SPRG1
+                If(regnum == 40, Display("  SPRG2: %016x", dbg_dout),), # SPRG2
+                If(regnum == 41, Display("  SPRG3: %016x", dbg_dout),), # SPRG3
+                If(regnum == 42, Display(" HSPRG0: %016x", dbg_dout),), # HSPRG0
+                If(regnum == 43, Display(" HSPRG1: %016x", dbg_dout),), # HSPRG1
+                If(regnum == 44, Display("    XER: %016x", dbg_dout),), # XER
+                If(regnum == 45, Display("    TAR: %016x", dbg_dout),), # TAR
+                """
 
                 # Log address
                 with m.Elif(dmi.addr_i == DBGCore.LOG_ADDR):
@@ -266,6 +317,7 @@ class CoreDebug(Elaboratable):
             sync += terminated.eq(1)
 
         comb += d_gpr.addr.eq(gspr_index)
+        comb += d_fast.addr.eq(fast_index)
 
         # Core control signals generated by the debug module
         comb += self.core_stop_o.eq((stopping & ~do_step) | self.terminate_i)
@@ -370,6 +422,7 @@ class CoreDebug(Elaboratable):
         yield from self.d_gpr
         yield from self.d_cr
         yield from self.d_xer
+        yield from self.d_fast
         yield self.log_data_i
         yield self.log_read_addr_i
         yield self.log_read_data_o

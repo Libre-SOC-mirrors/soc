@@ -291,11 +291,13 @@ class TestIssuerBase(Elaboratable):
 
         # DMI interface access
         intrf = self.core.regs.rf['int']
+        fastrf = self.core.regs.rf['fast']
         crrf = self.core.regs.rf['cr']
         xerrf = self.core.regs.rf['xer']
-        self.int_r = intrf.r_ports['dmi']  # INT read
-        self.cr_r = crrf.r_ports['full_cr_dbg']  # CR read
-        self.xer_r = xerrf.r_ports['full_xer']  # XER read
+        self.int_r = intrf.r_ports['dmi']  # INT DMI read
+        self.cr_r = crrf.r_ports['full_cr_dbg']  # CR DMI read
+        self.xer_r = xerrf.r_ports['full_xer']  # XER DMI read
+        self.fast_r = fastrf.r_ports['dmi']  # FAST DMI read
 
         if self.svp64_en:
             # for predication
@@ -425,10 +427,6 @@ class TestIssuerBase(Elaboratable):
         if self.svp64_en:
             m.submodules.svp64 = svp64 = csd(self.svp64)
 
-        # convenience
-        dmi, d_reg, d_cr, d_xer, = dbg.dmi, dbg.d_gpr, dbg.d_cr, dbg.d_xer
-        intrf = self.core.regs.rf['int']
-
         # clock delay power-on reset
         cd_por = ClockDomain(reset_less=True)
         cd_sync = ClockDomain()
@@ -482,7 +480,9 @@ class TestIssuerBase(Elaboratable):
         comb = m.d.comb
         sync = m.d.sync
         dmi, d_reg, d_cr, d_xer, = dbg.dmi, dbg.d_gpr, dbg.d_cr, dbg.d_xer
+        d_fast = dbg.d_fast
         intrf = self.core.regs.rf['int']
+        fastrf = self.core.regs.rf['fast']
 
         with m.If(d_reg.req):  # request for regfile access being made
             # TODO: error-check this
@@ -498,6 +498,20 @@ class TestIssuerBase(Elaboratable):
             # data arrives one clock later
             comb += d_reg.data.eq(self.int_r.o_data)
             comb += d_reg.ack.eq(1)
+
+        # fast regfile
+        with m.If(d_fast.req):  # request for regfile access being made
+            if fastrf.unary:
+                comb += self.fast_r.ren.eq(1 << d_fast.addr)
+            else:
+                comb += self.fast_r.addr.eq(d_fast.addr)
+                comb += self.fast_r.ren.eq(1)
+        d_fast_delay = Signal()
+        sync += d_fast_delay.eq(d_fast.req)
+        with m.If(d_fast_delay):
+            # data arrives one clock later
+            comb += d_fast.data.eq(self.fast_r.o_data)
+            comb += d_fast.ack.eq(1)
 
         # sigh same thing for CR debug
         with m.If(d_cr.req):  # request for regfile access being made

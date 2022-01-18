@@ -158,6 +158,7 @@ class FastRegs(RegFileMem, FastRegsEnum): #RegFileArray):
                        }
         r_port_spec = {'fast1': "src1",
                        'issue': "issue", # reading DEC/TB
+                        'dmi': "dmi" # needed for Debug (DMI)
                         }
         if not self.regreduce_en:
             r_port_spec['fast2'] = "src2"
