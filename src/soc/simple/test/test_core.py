@@ -45,7 +45,7 @@ from soc.fu.branch.test.test_pipe_caller import BranchTestCase
 from soc.fu.ldst.test.test_pipe_caller import LDSTTestCase
 from openpower.test.general.overlap_hazards import (HazardTestCase,
                                                     RandomHazardTestCase)
-from openpower.util import spr_to_fast_reg
+from openpower.util import spr_to_fast_reg, spr_to_state_reg
 
 from openpower.consts import StateRegsEnum
 
@@ -143,6 +143,7 @@ def setup_regs(pdecode2, core, test):
     # setting both fast and slow SPRs from test data
 
     fregs = core.regs.fast
+    stateregs = core.regs.state
     sregs = core.regs.spr
     for sprname, val in test.sprs.items():
         if isinstance(val, SelectableInt):
@@ -154,8 +155,9 @@ def setup_regs(pdecode2, core, test):
         print ('set spr %s val %x' % (sprname, val))
 
         fast = spr_to_fast_reg(sprname)
+        state = spr_to_state_reg(sprname)
 
-        if fast is None:
+        if fast is None and state is None:
             # match behaviour of SPRMap in power_decoder2.py
             for i, x in enumerate(SPR):
                 if sprname == x.name:
@@ -167,6 +169,14 @@ def setup_regs(pdecode2, core, test):
                         yield from set_ldst_spr(sprname, x.value, val, core)
                     else:
                         yield sregs.memory._array[i].eq(val)
+        elif state is not None:
+            print("setting state reg %d (%s) to %x" %
+                  (state, sprname, val))
+            if stateregs.unary:
+                rval = stateregs.int.regs[state].reg
+            else:
+                rval = stateregs.memory._array[state]
+            yield rval.eq(val)
         else:
             print("setting fast reg %d (%s) to %x" %
                   (fast, sprname, val))

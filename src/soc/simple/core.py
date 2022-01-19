@@ -164,7 +164,9 @@ class NonProductionCore(ControlBase):
             self.msr_at_reset = pspec.msr_reset
         state_resets = [0x0,               # PC at reset
                         self.msr_at_reset, # MSR at reset
-                        0x0]               # SVSTATE at reset
+                        0x0,               # SVSTATE at reset
+                        0x0,               # DEC at reset
+                        0x0]               # TB at reset
 
         # register files (yes plural)
         self.regs = RegFiles(pspec, make_hazard_vecs=self.make_hazard_vecs,

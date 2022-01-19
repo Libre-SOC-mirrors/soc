@@ -83,6 +83,8 @@ class StateRegs(RegFileArray, StateRegsEnum):
                         'nia': "nia",
                         'msr': "msr",
                         'svstate': "svstate",
+                        'issue': "issue", # writing DEC/TB
+                        'state1': "state1", # SPR pipeline
                         # these 3 allow writing state by Issuer
                         'sv': "sv", # writing SVSTATE
                         'd_wr1': "d_wr1", # writing PC
@@ -95,6 +97,9 @@ class StateRegs(RegFileArray, StateRegsEnum):
                         'cia': "cia", # reading PC (issuer)
                         'msr': "msr", # reading MSR (issuer)
                         'sv': "sv", # reading SV (issuer)
+                        # SPR and DEC/TB FSM
+                        'issue': "issue", # reading DEC/TB
+                        'state1': "state1", # SPR pipeline
                         }
         return w_port_spec, r_port_spec
 
@@ -136,7 +141,7 @@ class IntRegs(RegFileMem): #class IntRegs(RegFileArray):
 class FastRegs(RegFileMem, FastRegsEnum): #RegFileArray):
     """FastRegs
 
-    FAST regfile  - CTR, LR, TAR, SRR1, SRR2, XER, TB, DEC, SVSRR0
+    FAST regfile  - CTR, LR, TAR, SRR1, SRR2, XER, SVSRR0
 
     * QTY 6of 64-bit registers
     * 3R2W
@@ -154,10 +159,8 @@ class FastRegs(RegFileMem, FastRegsEnum): #RegFileArray):
 
     def get_port_specs(self):
         w_port_spec = {'fast1': "dest1",
-                       'issue': "issue", # writing DEC/TB
                        }
         r_port_spec = {'fast1': "src1",
-                       'issue': "issue", # reading DEC/TB
                         'dmi': "dmi" # needed for Debug (DMI)
                         }
         if not self.regreduce_en:
@@ -319,7 +322,7 @@ class RegFiles:
 if __name__ == '__main__':
     m = Module()
     from soc.config.test.test_loadstore import TestMemPspec
-    pspec = TestMemPspec()
+    pspec = TestMemPspec(regreduce_en=True)
     rf = RegFiles(pspec, make_hazard_vecs=True)
     rf.elaborate_into(m, None)
     vl = rtlil.convert(m)

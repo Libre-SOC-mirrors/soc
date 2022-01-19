@@ -44,6 +44,7 @@ class SPRMainStage(PipeModBase):
         so_i, ov_i, ca_i = self.i.xer_so, self.i.xer_ov, self.i.xer_ca
         so_o, ov_o, ca_o = self.o.xer_so, self.o.xer_ov, self.o.xer_ca
         o, spr1_o, fast1_o = self.o.o, self.o.spr1, self.o.fast1
+        state1_i, state1_o = self.i.state1, self.o.state1
 
         # take copy of D-Form TO field
         x_fields = self.fields.FormXFX
@@ -56,6 +57,11 @@ class SPRMainStage(PipeModBase):
             with m.Case(MicrOp.OP_MTSPR):
                 with m.Switch(spr):
                     # fast SPRs first
+                    with m.Case(SPR.DEC, SPR.TB):
+                        comb += state1_o.data.eq(a_i)
+                        comb += state1_o.ok.eq(1)
+
+                    # state SPRs second
                     with m.Case(SPR.CTR, SPR.LR, SPR.TAR, SPR.SRR0,
                                 SPR.SRR1, SPR.XER, SPR.DEC, SPR.TB):
                         comb += fast1_o.data.eq(a_i)
@@ -83,9 +89,13 @@ class SPRMainStage(PipeModBase):
             with m.Case(MicrOp.OP_MFSPR):
                 comb += o.ok.eq(1)
                 with m.Switch(spr):
-                    # fast SPRs first
+                    # state SPRs first
+                    with m.Case(SPR.DEC, SPR.TB):
+                        comb += o.data.eq(fast1_i)
+
+                    # fast SPRs second
                     with m.Case(SPR.CTR, SPR.LR, SPR.TAR, SPR.SRR0, SPR.SRR1,
-                                SPR.XER, SPR.DEC, SPR.TB):
+                                SPR.XER):
                         comb += o.data.eq(fast1_i)
                         with m.If(spr == SPR.XER):
                             # bits 0:31 and 35:43 are treated as reserved

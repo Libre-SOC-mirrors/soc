@@ -541,20 +541,19 @@ class TestIssuerBase(Elaboratable):
         value to DEC, however the regfile has "passthrough" on it so this
         *should* be ok.
 
-        see v3.0B p1097-1099 for Timeer Resource and p1065 and p1076
+        see v3.0B p1097-1099 for Timer Resource and p1065 and p1076
         """
 
         comb, sync = m.d.comb, m.d.sync
-        fast_rf = self.core.regs.rf['fast']
-        fast_r_dectb = fast_rf.r_ports['issue']  # DEC/TB
-        fast_w_dectb = fast_rf.w_ports['issue']  # DEC/TB
+        state_rf = self.core.regs.rf['state']
+        state_r_dectb = state_rf.r_ports['issue']  # DEC/TB
+        state_w_dectb = state_rf.w_ports['issue']  # DEC/TB
 
         with m.FSM() as fsm:
 
             # initiates read of current DEC
             with m.State("DEC_READ"):
-                comb += fast_r_dectb.addr.eq(FastRegs.DEC)
-                comb += fast_r_dectb.ren.eq(1)
+                comb += state_r_dectb.ren.eq(1<<StateRegs.DEC)
                 with m.If(~self.pause_dec_tb):
                     m.next = "DEC_WRITE"
 
@@ -567,18 +566,16 @@ class TestIssuerBase(Elaboratable):
                 with m.Else():
                     new_dec = Signal(64)
                     # TODO: MSR.LPCR 32-bit decrement mode
-                    comb += new_dec.eq(fast_r_dectb.o_data - 1)
-                    comb += fast_w_dectb.addr.eq(FastRegs.DEC)
-                    comb += fast_w_dectb.wen.eq(1)
-                    comb += fast_w_dectb.i_data.eq(new_dec)
+                    comb += new_dec.eq(state_r_dectb.o_data - 1)
+                    comb += state_w_dectb.wen.eq(1<<StateRegs.DEC)
+                    comb += state_w_dectb.i_data.eq(new_dec)
                     # copy to cur_state for decoder, for an interrupt
                     sync += spr_dec.eq(new_dec)
                     m.next = "TB_READ"
 
             # initiates read of current TB
             with m.State("TB_READ"):
-                comb += fast_r_dectb.addr.eq(FastRegs.TB)
-                comb += fast_r_dectb.ren.eq(1)
+                comb += state_r_dectb.ren.eq(1<<StateRegs.TB)
                 with m.If(~self.pause_dec_tb):
                     m.next = "TB_WRITE"
 
@@ -590,10 +587,9 @@ class TestIssuerBase(Elaboratable):
                     m.next = "TB_READ"
                 with m.Else():
                     new_tb = Signal(64)
-                    comb += new_tb.eq(fast_r_dectb.o_data + 1)
-                    comb += fast_w_dectb.addr.eq(FastRegs.TB)
-                    comb += fast_w_dectb.wen.eq(1)
-                    comb += fast_w_dectb.i_data.eq(new_tb)
+                    comb += new_tb.eq(state_r_dectb.o_data + 1)
+                    comb += state_w_dectb.wen.eq(1<<StateRegs.TB)
+                    comb += state_w_dectb.i_data.eq(new_tb)
                     m.next = "DEC_READ"
 
         return m
