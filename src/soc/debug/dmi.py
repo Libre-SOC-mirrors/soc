@@ -256,6 +256,7 @@ class CoreDebug(Elaboratable):
                             continue
                         with m.If(dmi.din == 32+i):
                             sync += fast_index.eq(i)
+                            sync += fast_en.eq(1)
 
                 # Log address
                 with m.Elif(dmi.addr_i == DBGCore.LOG_ADDR):
