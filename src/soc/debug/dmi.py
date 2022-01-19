@@ -249,42 +249,13 @@ class CoreDebug(Elaboratable):
                     with m.If(dmi.din <= 31):
                         sync += gspr_index.eq(dmi.din)
                         sync += gspr_en.eq(1)
-                    with m.If(dmi.din == 32): # LR
-                        sync += fast_index.eq(FastRegsEnum.LR)
-                        sync += fast_en.eq(1)
-                    with m.If(dmi.din == 33): # CTR
-                        sync += fast_index.eq(FastRegsEnum.CTR)
-                        sync += fast_en.eq(1)
-                    with m.If(dmi.din == 34): # SRR0
-                        sync += fast_index.eq(FastRegsEnum.SRR0)
-                        sync += fast_en.eq(1)
-                    with m.If(dmi.din == 35): # SRR1
-                        sync += fast_index.eq(FastRegsEnum.SRR1)
-                        sync += fast_en.eq(1)
-                    with m.If(dmi.din == 44): # XER
-                        sync += fast_index.eq(FastRegsEnum.XER)
-                        sync += fast_en.eq(1)
-                    with m.If(dmi.din == 45): # TAR
-                        sync += fast_index.eq(FastRegsEnum.XER)
-                        sync += fast_en.eq(1)
-
-                    # numbering from microwatt:
-                    """
-                If(regnum == 32, Display("     LR: %016x", dbg_dout),), # LR
-                If(regnum == 33, Display("    CTR: %016x", dbg_dout),), # CTR
-                If(regnum == 34, Display("   SRR0: %016x", dbg_dout),), # SRR0
-                If(regnum == 35, Display("   SRR1: %016x", dbg_dout),), # SRR1
-                If(regnum == 36, Display("  HSRR0: %016x", dbg_dout),), # HSRR0
-                If(regnum == 37, Display("  HSRR1: %016x", dbg_dout),), # HSRR1
-                If(regnum == 38, Display("  SPRG0: %016x", dbg_dout),), # SPRG0
-                If(regnum == 39, Display("  SPRG1: %016x", dbg_dout),), # SPRG1
-                If(regnum == 40, Display("  SPRG2: %016x", dbg_dout),), # SPRG2
-                If(regnum == 41, Display("  SPRG3: %016x", dbg_dout),), # SPRG3
-                If(regnum == 42, Display(" HSPRG0: %016x", dbg_dout),), # HSPRG0
-                If(regnum == 43, Display(" HSPRG1: %016x", dbg_dout),), # HSPRG1
-                If(regnum == 44, Display("    XER: %016x", dbg_dout),), # XER
-                If(regnum == 45, Display("    TAR: %016x", dbg_dout),), # TAR
-                """
+                    # cover the FastRegs LR, CTR, SRR0, SRR1 etc.
+                    # numbering is from microwatt
+                    for x, i in FastRegsEnum.__dict__.items():
+                        if not isinstance(i, int) or x == 'N_REGS':
+                            continue
+                        with m.If(dmi.din == 32+i):
+                            sync += fast_index.eq(i)
 
                 # Log address
                 with m.Elif(dmi.addr_i == DBGCore.LOG_ADDR):

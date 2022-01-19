@@ -61,9 +61,12 @@ class SPRMainStage(PipeModBase):
                         comb += state1_o.data.eq(a_i)
                         comb += state1_o.ok.eq(1)
 
-                    # state SPRs second
+                    # state SPRs second: anything in FAST regs
                     with m.Case(SPR.CTR, SPR.LR, SPR.TAR, SPR.SRR0,
-                                SPR.SRR1, SPR.XER, SPR.DEC, SPR.TB):
+                                SPR.SRR1, SPR.XER, SPR.HSRR0, SPR.HSRR1,
+                                SPR.SPRG0_priv, SPR.SPRG1_priv,
+                                SPR.SPRG2_priv, SPR.SPRG3,
+                                SPR.HSPRG0, SPR.HSPRG1, SPR.SVSRR0):
                         comb += fast1_o.data.eq(a_i)
                         comb += fast1_o.ok.eq(1)
                         # XER is constructed
@@ -94,8 +97,11 @@ class SPRMainStage(PipeModBase):
                         comb += o.data.eq(fast1_i)
 
                     # fast SPRs second
-                    with m.Case(SPR.CTR, SPR.LR, SPR.TAR, SPR.SRR0, SPR.SRR1,
-                                SPR.XER):
+                    with m.Case(SPR.CTR, SPR.LR, SPR.TAR, SPR.SRR0,
+                                SPR.SRR1, SPR.XER, SPR.HSRR0, SPR.HSRR1,
+                                SPR.SPRG0_priv, SPR.SPRG1_priv,
+                                SPR.SPRG2_priv, SPR.SPRG3,
+                                SPR.HSPRG0, SPR.HSPRG1, SPR.SVSRR0):
                         comb += o.data.eq(fast1_i)
                         with m.If(spr == SPR.XER):
                             # bits 0:31 and 35:43 are treated as reserved

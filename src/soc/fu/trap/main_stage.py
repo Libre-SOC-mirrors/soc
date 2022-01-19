@@ -215,7 +215,9 @@ class TrapMainStage(PipeModBase):
                         comb += srr1_o.data[PI.FP].eq(1)
                     with m.If(traptype & TT.ADDR):
                         comb += srr1_o.data[PI.ADR].eq(1)
-                    with m.If(traptype & TT.MEMEXC):
+                    with m.If(traptype & TT.MEMEXC & (trapaddr == 0x400)):
+                        # Instruction Storage Interrupt (ISI - 0x400)
+                        #           v3.0C Book III Chap 7.5.5 p1085
                         # decode exception bits, store in SRR1
                         exc = LDSTException("trapexc")
                         comb += exc.eq(op.ldst_exc)
