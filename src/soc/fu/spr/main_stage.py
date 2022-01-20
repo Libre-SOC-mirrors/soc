@@ -56,12 +56,12 @@ class SPRMainStage(PipeModBase):
             #### MTSPR ####
             with m.Case(MicrOp.OP_MTSPR):
                 with m.Switch(spr):
-                    # fast SPRs first
+                    # State SPRs first
                     with m.Case(SPR.DEC, SPR.TB):
                         comb += state1_o.data.eq(a_i)
                         comb += state1_o.ok.eq(1)
 
-                    # state SPRs second: anything in FAST regs
+                    # Fast SPRs second: anything in FAST regs
                     with m.Case(SPR.CTR, SPR.LR, SPR.TAR, SPR.SRR0,
                                 SPR.SRR1, SPR.XER, SPR.HSRR0, SPR.HSRR1,
                                 SPR.SPRG0_priv, SPR.SPRG1_priv,
@@ -94,7 +94,10 @@ class SPRMainStage(PipeModBase):
                 with m.Switch(spr):
                     # state SPRs first
                     with m.Case(SPR.DEC, SPR.TB):
-                        comb += o.data.eq(fast1_i)
+                        comb += o.data.eq(state1_i)
+                    # TBU is upper 32-bits of State Reg
+                    with m.Case(SPR.TBU):
+                        comb += o.data[0:32].eq(state1_i[32:64])
 
                     # fast SPRs second
                     with m.Case(SPR.CTR, SPR.LR, SPR.TAR, SPR.SRR0,
@@ -116,9 +119,6 @@ class SPRMainStage(PipeModBase):
                             # carry
                             comb += o[63-XER_bits['CA']].eq(ca_i[0])
                             comb += o[63-XER_bits['CA32']].eq(ca_i[1])
-                    with m.Case(SPR.TBU):
-                        comb += o.data[0:32].eq(fast1_i[32:64])
-
                     # slow SPRs TODO
                     with m.Default():
                         comb += o.data.eq(spr1_i)

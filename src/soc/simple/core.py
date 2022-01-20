@@ -523,7 +523,8 @@ class NonProductionCore(ControlBase):
                 # spot MTSPR, spot that DEC/TB is what is to be updated.
                 # a job for PowerDecoder2, there
                 if funame.lower().startswith('spr'):
-                    with m.If(fu.busy_o):
+                    with m.If(fu.busy_o #& fu.oper_i.insn_type == OP_MTSPR
+                        ):
                         comb += self.pause_dec_tb.eq(1)
 
         # return both the function unit "enable" dict as well as the "busy".
