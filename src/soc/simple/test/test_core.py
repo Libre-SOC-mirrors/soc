@@ -173,7 +173,7 @@ def setup_regs(pdecode2, core, test):
             print("setting state reg %d (%s) to %x" %
                   (state, sprname, val))
             if stateregs.unary:
-                rval = stateregs.int.regs[state].reg
+                rval = stateregs.regs[state].reg
             else:
                 rval = stateregs.memory._array[state]
             yield rval.eq(val)
