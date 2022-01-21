@@ -59,7 +59,8 @@ class BranchAllCases(BranchTestCase):
 
 class TestRunner(unittest.TestCase):
     def test_it(self):
-        test_data = BranchAllCases().test_data
+        test_data = BranchTestCase().test_data
+        print ("test data", test_data)
         m = Module()
         comb = m.d.comb
         instruction = Signal(32)
