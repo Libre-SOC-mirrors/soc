@@ -307,6 +307,8 @@ class TestIssuerBase(Elaboratable):
         # hack method of keeping an eye on whether branch/trap set the PC
         self.state_nia = self.core.regs.rf['state'].w_ports['nia']
         self.state_nia.wen.name = 'state_nia_wen'
+        # and whether SPR pipeline sets DEC or TB
+        self.state_spr = self.core.regs.rf['state'].w_ports['state1']
 
         # pulse to synchronize the simulator at instruction end
         self.insn_done = Signal()
@@ -397,10 +399,6 @@ class TestIssuerBase(Elaboratable):
             for i, sram in enumerate(self.sram4k):
                 m.submodules["sram4k_%d" % i] = csd(sram)
                 comb += sram.enable.eq(self.wb_sram_en)
-
-        # terrible hack to stop a potential race condition.  if core
-        # is doing any operation (at all) pause the DEC/TB FSM
-        comb += self.pause_dec_tb.eq(core.pause_dec_tb)
 
         # XICS interrupt handler
         if self.xics:
@@ -1473,15 +1471,18 @@ class TestIssuerInternal(TestIssuerBase):
 
             # instruction started: must wait till it finishes
             with m.State("INSN_ACTIVE"):
-                # note changes to MSR, PC and SVSTATE
-                # XXX oops, really must monitor *all* State Regfile write
-                # ports looking for changes!
+                # note changes to MSR, PC and SVSTATE, and DEC/TB
+                # these last two are done together, and passed to the
+                # DEC/TB FSM
                 with m.If(self.state_nia.wen & (1 << StateRegs.SVSTATE)):
                     sync += self.sv_changed.eq(1)
                 with m.If(self.state_nia.wen & (1 << StateRegs.MSR)):
                     sync += self.msr_changed.eq(1)
                 with m.If(self.state_nia.wen & (1 << StateRegs.PC)):
                     sync += self.pc_changed.eq(1)
+                with m.If((self.state_spr.wen &
+                          ((1 << StateRegs.DEC) | (1 << StateRegs.TB))).bool()):
+                    comb += self.pause_dec_tb.eq(1)
                 with m.If(~core_busy_o):  # instruction done!
                     comb += exec_pc_o_valid.eq(1)
                     with m.If(exec_pc_i_ready):

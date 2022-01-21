@@ -90,8 +90,8 @@ def bitvector_remap(regfile, rfile, port):
     # 3 bits, unary: return the port
     if regfile == 'XER':
         return port
-    # 3 bits, unary: return the port
-    if regfile == 'SVSTATE':
+    # 5 bits, unary: return the port
+    if regfile == 'STATE':
         return port
     # 9 bits (9 entries), might be unary already
     if regfile == 'FAST':
