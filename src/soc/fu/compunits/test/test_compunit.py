@@ -344,7 +344,7 @@ class TestRunner(FHDLTestCase):
             m.d.comb += cu.ad.go_i.eq(cu.ad.rel_o)  # link addr direct to rel
             m.d.comb += cu.st.go_i.eq(cu.st.rel_o)  # link store direct to rel
         else:
-            m.submodules.cu = cu = self.fukls(0)
+            m.submodules.cu = cu = self.fukls(0, parent_pspec=None)
             l0 = None
 
         comb += pdecode2.dec.raw_opcode_in.eq(instruction)

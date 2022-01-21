@@ -102,7 +102,7 @@ class TestRunner(unittest.TestCase):
                         print(index)
                         ins, code = instructions[index]
 
-                        print("0x{:X}".format(ins & 0xffffffff))
+                        print("insn 0x{:X}".format(ins & 0xffffffff))
                         print(code)
 
                         # ask the decoder to decode this binary data (endian'd)
