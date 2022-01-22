@@ -747,6 +747,7 @@ class DCache(Elaboratable):
             comb += r.mmu_req.eq(0)
             comb += r.d_valid.eq(0)
 
+        sync += r0_full.eq(0)
         with m.If((~r1.full & ~d_in.hold) | ~r0_full):
             sync += r0.eq(r)
             sync += r0_full.eq(r.req.valid)
