@@ -691,6 +691,9 @@ class DCache(Elaboratable):
         self.m_out     = DCacheToMMUType("m_out")
 
         self.stall_out = Signal()
+        self.any_stall_out = Signal()
+        self.dreq_when_stall = Signal()
+        self.mreq_when_stall = Signal()
 
         # standard naming (wired to non-standard for compatibility)
         self.bus = Interface(addr_width=32,
@@ -1686,8 +1689,8 @@ class DCache(Elaboratable):
     def elaborate(self, platform):
 
         m = Module()
-        comb = m.d.comb
-        d_in = self.d_in
+        comb, sync = m.d.comb, m.d.sync
+        m_in, d_in = self.m_in, self.d_in
 
         # Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
         cache_tags       = CacheTagArray()
@@ -1763,6 +1766,14 @@ class DCache(Elaboratable):
         comb += r0_stall.eq(r0_full & (r1.full | d_in.hold))
         comb += r0_valid.eq(r0_full & ~r1.full & ~d_in.hold)
         comb += self.stall_out.eq(r0_stall)
+        # debugging: detect if any stall ever requested, which is fine,
+        # but if a request comes in when stall requested, that's bad.
+        with m.If(r0_stall):
+            sync += self.any_stall_out.eq(1)
+            with m.If(d_in.valid):
+                sync += self.dreq_when_stall.eq(1)
+            with m.If(m_in.valid):
+                sync += self.mreq_when_stall.eq(1)
 
         # deal with litex not doing wishbone pipeline mode
         # XXX in wrong way.  FIFOs are needed in the SRAM test
