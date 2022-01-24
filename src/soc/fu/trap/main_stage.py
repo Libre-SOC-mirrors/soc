@@ -87,8 +87,9 @@ class TrapMainStage(PipeModBase):
         # to copy microwatt behaviour.  see writeback.vhdl
         # IMPORTANT: PowerDecoder2 needed to actually read SRR1 for
         # it to have the contents *of* SRR1 to copy over!
-        comb += srr1_o.data.eq(srr1_i)              # preserve 0-5 and 11-14
-        comb += msr_copy(srr1_o.data, msr_i, False) # old MSR
+        comb += msr_copy(srr1_o.data, msr_i, False)  # old MSR
+        comb += srr1_o.data[16:22].eq(srr1_i[0:6])   # IR,DR,PMM,RI,LE
+        comb += srr1_o.data[27:31].eq(srr1_i[11:15]) # MR,FP,ME,FE0
         comb += srr1_o.ok.eq(1)
 
         # take a copy of the current SVSTATE into SVSRR0
@@ -215,7 +216,8 @@ class TrapMainStage(PipeModBase):
                         comb += srr1_o.data[PI.FP].eq(1)
                     with m.If(traptype & TT.ADDR):
                         comb += srr1_o.data[PI.ADR].eq(1)
-                    with m.If(traptype & TT.MEMEXC & (trapaddr == 0x400)):
+                    with m.If((traptype & TT.MEMEXC).bool() &
+                              (trapaddr == 0x400)):
                         # Instruction Storage Interrupt (ISI - 0x400)
                         #           v3.0C Book III Chap 7.5.5 p1085
                         # decode exception bits, store in SRR1
