@@ -558,18 +558,24 @@ class DTLBUpdate(Elaboratable):
             #comb += wr_valid.en.eq(1<<self.repl_way)
 
         # select one TLB way, use a register here
-        r_tlb_way        = TLBRecord("r_tlb_way")
         r_delay = Signal()
         sync += r_delay.eq(self.tlb_read)
+        # first deal with the valids, which are not in a Memory.
+        # tlb way valid is output on a 1 clock delay with sync,
+        # but have to explicitly deal with "forwarding" here
         with m.If(self.tlb_read):
-            sync += self.tlb_way.valid.eq(dtlb_valid[self.tlb_read_index])
+            with m.If(v_updated): # write *and* read in same cycle: forward
+                sync += self.tlb_way.valid.eq(db_out)
+            with m.Else():
+                sync += self.tlb_way.valid.eq(dtlb_valid[self.tlb_read_index])
+        # now deal with the Memory-read case. the output must remain
+        # valid (stable) even when a read-request is not made, but stable
+        # on a one-clock delay, hence the register
+        r_tlb_way        = TLBRecord("r_tlb_way")
         with m.If(r_delay):
             # on one clock delay, output the contents of the read port(s)
-            # comb += self.tlb_way.valid.eq(rd_valid.data)
             comb += self.tlb_way.tag.eq(rd_tagway.data)
             comb += self.tlb_way.pte.eq(rd_pteway.data)
-            # and also capture the (delayed) output...
-            #sync += r_tlb_way.valid.eq(rd_valid.data)
             sync += r_tlb_way.tag.eq(rd_tagway.data)
             sync += r_tlb_way.pte.eq(rd_pteway.data)
         with m.Else():
