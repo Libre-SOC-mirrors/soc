@@ -573,7 +573,7 @@ class DTLBUpdate(Elaboratable):
         # on a one-clock delay, hence the register
         r_tlb_way        = TLBRecord("r_tlb_way")
         with m.If(r_delay):
-            # on one clock delay, output the contents of the read port(s)
+            # on one clock delay, capture the contents of the read port(s)
             comb += self.tlb_way.tag.eq(rd_tagway.data)
             comb += self.tlb_way.pte.eq(rd_pteway.data)
             sync += r_tlb_way.tag.eq(rd_tagway.data)
