@@ -67,7 +67,9 @@ class TrapMainStage(PipeModBase):
         msr_i = op.msr
         svstate_i = op.svstate
 
-        srr1_i = self.i.srr1
+        exc = LDSTException("trapexc")
+        comb += exc.eq(op.ldst_exc)
+        srr1_i = exc.srr1 # new SRR1 bits come from exception
         nia_o = self.o.nia
         svsrr0_o, srr0_o, srr1_o = self.o.svsrr0, self.o.srr0, self.o.srr1
 

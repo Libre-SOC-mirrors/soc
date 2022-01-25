@@ -412,6 +412,12 @@ class LoadStore1(PortInterfaceBase):
         comb += exc.perm_error.eq(m_in.perm_error)
         comb += exc.rc_error.eq(m_in.rc_error)
         comb += exc.segment_fault.eq(m_in.segerr)
+        # conditions for 0x400 trap need these in SRR1
+        with m.If(exception & ~exc.alignment & exc.instr_fault):
+            comb += exc.srr1[14].eq(exc.invalid)      # 47-33
+            comb += exc.srr1[12].eq(exc.perm_error)   # 47-35
+            comb += exc.srr1[3].eq(exc.badtree)       # 47-44
+            comb += exc.srr1[2].eq(exc.rc_error)      # 47-45
 
         # TODO, connect dcache wb_in/wb_out to "standard" nmigen Wishbone bus
         comb += dbus.adr.eq(dcache.bus.adr)

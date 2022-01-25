@@ -20,7 +20,7 @@ class CompTrapOpSubset(CompOpSubsetBase):
                   ('is_32bit', 1),
                   ('traptype', TT.size), # see trap main_stage.py, PowerDecoder2
                   ('trapaddr', 13),
-                  ('ldst_exc', len(LDSTException._exc_types)),
+                  ('ldst_exc', LDSTException.length), # blech
                   ]
 
         super().__init__(layout, name=name)
