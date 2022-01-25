@@ -1,3 +1,17 @@
+#!/usr/bin/env python3
+#
+# Copyright (C) 2020,2021 Luke Kenneth Casson Leighton <lkcl@lkcl.net>
+# Copyright (C) 2020 Cole Poirier
+# Copyright (C) 2020,2021 Cesar Strauss
+# Copyright (C) 2021 Tobias Platen
+#
+# Original dcache.vhdl Copyright of its authors and licensed
+# by IBM under CC-BY 4.0
+# https://github.com/antonblanchard/microwatt
+#
+# Conversion to nmigen funded by NLnet and NGI POINTER under EU Grants
+# 871528 and 957073, under the LGPL-v3+ License
+
 """DCache
 
 based on Anton Blanchard microwatt dcache.vhdl
