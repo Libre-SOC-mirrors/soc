@@ -321,13 +321,16 @@ class LoadStore1(PortInterfaceBase):
                         with m.If(ldst_r.load):
                             m.d.comb += self.load_data[0:63].eq(d_in.data)
                             sync += self.load_data_delay[0:64].eq(d_in.data)
-                        # mmm kinda cheating, make a 2nd blip
+                        # mmm kinda cheating, make a 2nd blip.
+                        # use an aligned version of the address
+                        addr_aligned, z3 = Signal(64), Const(0, 3)
+                        comb += addr_aligned.eq(Cat(z3, ldst_r.raddr[3:]+1))
                         m.d.comb += self.d_validblip.eq(1)
                         comb += self.req.eq(ldst_r) # from copy of request
-                        comb += self.req.raddr.eq(ldst_r.raddr + 8)
+                        comb += self.req.raddr.eq(addr_aligned)
                         comb += self.req.byte_sel.eq(ldst_r.byte_sel[8:])
                         comb += self.req.alignstate.eq(Misalign.WAITSECOND)
-                        sync += ldst_r.raddr.eq(ldst_r.raddr + 8)
+                        sync += ldst_r.raddr.eq(addr_aligned)
                         sync += ldst_r.byte_sel.eq(ldst_r.byte_sel[8:])
                         sync += ldst_r.alignstate.eq(Misalign.WAITSECOND)
                         sync += Display("    second req %x", self.req.raddr)
