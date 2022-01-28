@@ -19,7 +19,7 @@ Links:
 
 from nmigen import (Elaboratable, Module, Signal, Shape, unsigned, Cat, Mux,
                     Record, Memory,
-                    Const)
+                    Const, C)
 from nmutil.iocontrol import RecordObject
 from nmutil.util import rising_edge, Display
 from enum import Enum, unique
@@ -118,6 +118,7 @@ class LoadStore1(PortInterfaceBase):
         self.load_data_delay = Signal(128) # perform 2 LD/STs
         self.byte_sel      = Signal(16)    # also for misaligned, 16-bit
         self.alignstate    = Signal(Misalign) # progress of alignment request
+        self.next_addr      = Signal(64)      # 2nd (aligned) read/write addr
         #self.xerc         : xer_common_t;
         #self.rc            = Signal()
         self.nc            = Signal()              # non-cacheable access
@@ -158,6 +159,7 @@ class LoadStore1(PortInterfaceBase):
         m.d.comb += self.req.dcbz.eq(is_dcbz)
         with m.If(misalign):
             m.d.comb += self.req.alignstate.eq(Misalign.NEED2WORDS)
+            m.d.sync += self.next_addr.eq(Cat(C(0, 3), addr[3:]+1))
 
         # m.d.comb += Display("set_wr_addr %i dcbz %i",addr,is_dcbz)
 
@@ -193,7 +195,9 @@ class LoadStore1(PortInterfaceBase):
         if self.disable_cache:
             m.d.comb += self.req.nc.eq(1)
         with m.If(misalign):
+            # need two reads: prepare next address in advance
             m.d.comb += self.req.alignstate.eq(Misalign.NEED2WORDS)
+            m.d.sync += self.next_addr.eq(Cat(C(0, 3), addr[3:]+1))
 
         # hmm, rather than add yet another argument to set_rd_addr
         # read direct from PortInterface
@@ -328,14 +332,12 @@ class LoadStore1(PortInterfaceBase):
                             m.d.sync += d_out.data.eq(self.store_data2)
                         # mmm kinda cheating, make a 2nd blip.
                         # use an aligned version of the address
-                        addr_aligned, z3 = Signal(64), Const(0, 3)
-                        comb += addr_aligned.eq(Cat(z3, ldst_r.raddr[3:]+1))
                         m.d.comb += self.d_validblip.eq(1)
                         comb += self.req.eq(ldst_r) # from copy of request
-                        comb += self.req.raddr.eq(addr_aligned)
+                        comb += self.req.raddr.eq(self.next_addr)
                         comb += self.req.byte_sel.eq(ldst_r.byte_sel[8:])
                         comb += self.req.alignstate.eq(Misalign.WAITSECOND)
-                        sync += ldst_r.raddr.eq(addr_aligned)
+                        sync += ldst_r.raddr.eq(self.next_addr)
                         sync += ldst_r.byte_sel.eq(ldst_r.byte_sel[8:])
                         sync += ldst_r.alignstate.eq(Misalign.WAITSECOND)
                         sync += Display("    second req %x", self.req.raddr)
