@@ -296,7 +296,7 @@ class PortInterfaceBase(Elaboratable):
         with m.If(st_active.q & pi.st.ok):
             # shift data up before storing.  lenexp *bit* version of mask is
             # passed straight through as byte-level "write-enable" lines.
-            stdata = Signal(self.regwid, reset_less=True)
+            stdata = Signal(self.regwid*2, reset_less=True)
             comb += stdata.eq(pi.st.data << (lenexp.addr_i*8))
             # TODO: replace with link to LoadStoreUnitInterface.x_store_data
             # and also handle the ready/stall/busy protocol

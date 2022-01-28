@@ -112,8 +112,9 @@ class LoadStore1(PortInterfaceBase):
         self.dcbz          = Signal()
         self.raddr          = Signal(64)
         self.maddr          = Signal(64)
-        self.store_data    = Signal(128)   # 128-bit to cope with
-        self.load_data     = Signal(128)   # misalignment
+        self.store_data    = Signal(64)   # first half (aligned)
+        self.store_data2   = Signal(64)   # second half (misaligned)
+        self.load_data     = Signal(128)   # 128 to cope with misalignment
         self.load_data_delay = Signal(128) # perform 2 LD/STs
         self.byte_sel      = Signal(16)    # also for misaligned, 16-bit
         self.alignstate    = Signal(Misalign) # progress of alignment request
@@ -208,6 +209,7 @@ class LoadStore1(PortInterfaceBase):
         # put data into comb which is picked up in main elaborate()
         m.d.comb += self.d_w_valid.eq(1)
         m.d.comb += self.store_data.eq(data)
+        m.d.sync += self.store_data2.eq(data[64:128])
         st_ok = self.done # TODO indicates write data is valid
         m.d.comb += self.pi.store_done.data.eq(self.d_in.store_done)
         m.d.comb += self.pi.store_done.ok.eq(1)
@@ -258,6 +260,7 @@ class LoadStore1(PortInterfaceBase):
         # fsm skeleton
         with m.Switch(self.state):
             with m.Case(State.IDLE):
+                sync += self.load_data_delay.eq(0) # clear out
                 with m.If((self.d_validblip | self.instr_fault) &
                           ~exc.happened):
                     comb += self.busy.eq(1)
@@ -321,6 +324,8 @@ class LoadStore1(PortInterfaceBase):
                         with m.If(ldst_r.load):
                             m.d.comb += self.load_data[0:63].eq(d_in.data)
                             sync += self.load_data_delay[0:64].eq(d_in.data)
+                        with m.Else():
+                            m.d.sync += d_out.data.eq(self.store_data2)
                         # mmm kinda cheating, make a 2nd blip.
                         # use an aligned version of the address
                         addr_aligned, z3 = Signal(64), Const(0, 3)
@@ -435,12 +440,9 @@ class LoadStore1(PortInterfaceBase):
         if hasattr(dbus, "stall"):
             comb += dcache.bus.stall.eq(dbus.stall)
 
-        # update out d data when flag set
+        # update out d data when flag set, for first half (second done in FSM)
         with m.If(self.d_w_valid):
-            with m.If(ldst_r.alignstate == Misalign.WAITSECOND):
-                m.d.sync += d_out.data.eq(self.store_data[64:128])
-            with m.Else():
-                m.d.sync += d_out.data.eq(self.store_data[0:64])
+            m.d.sync += d_out.data.eq(self.store_data)
         #with m.Else():
         #    m.d.sync += d_out.data.eq(0)
         # unit test passes with that change

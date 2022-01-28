@@ -20,7 +20,7 @@ from soc.experiment.test import pagetables
 
 from nmigen.compat.sim import run_simulation
 from random import random
-from openpower.test.wb_get import wb_get
+from openpower.test.wb_get import wb_get_classic
 from openpower.test import wb_get as wbget
 from openpower.exceptions import LDSTExceptionTuple
 
@@ -540,15 +540,25 @@ def _test_loadstore1_microwatt_mmu_bin_test5(dut, mem):
     wbget.stop = True
 
 
-def test_pi_ld_misalign(pi,addr,data_len,msr):
+def test_pi_ld_misalign(pi, addr, data_len, msr):
     for i in range(0,data_len):
         ld_data, exctype, exc = yield from pi_ld(pi, addr+i, data_len, msr=msr)
         yield
-        if i == 0:
-            assert exc is None # use "is None" not "== None"
-            print("MISALIGN: test_pi_ld_misalign returned",hex(ld_data))
-        else:
-            assert exc.alignment == 1
+        assert exc is None # use "is None" not "== None"
+        print("MISALIGN: test_pi_ld_misalign returned",hex(ld_data))
+
+
+def test_pi_st_ld_misalign(pi, addr, data_len, msr):
+    data = 0x0102030405060708
+    for i in range(0, data_len):
+        exctype, exc = yield from pi_st(pi, addr+i, data, data_len, msr=msr)
+        print (exctype, exc)
+        assert exc is None # use "is None" not "== None"
+        ld_data, exctype, exc = yield from pi_ld(pi, addr+i, data_len, msr=msr)
+        yield
+        assert exc is None # use "is None" not "== None"
+        print("MISALIGN: test_pi_ld_misalign returned",hex(ld_data))
+        assert ld_data == data
 
 
 def _test_loadstore1_misalign(dut, mem):
@@ -565,6 +575,8 @@ def _test_loadstore1_misalign(dut, mem):
     msr = MSRSpec(pr=0, dr=0, sf=1)
 
     yield from test_pi_ld_misalign(pi,0,8,msr)
+
+    yield from test_pi_st_ld_misalign(pi,0,8,msr)
 
     wbget.stop = True
 
@@ -855,10 +867,10 @@ def test_loadstore1_ifetch_unit_iface():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(_test_loadstore1_ifetch_iface(m, mem)))
-    # add two wb_get processes onto the *same* memory dictionary.
+    # add two wb_get_classic processes onto the *same* memory dictionary.
     # this shouuuld work.... cross-fingers...
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
-    sim.add_sync_process(wrap(wb_get(icache.ibus, mem))) # ibus not bus
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(icache.ibus, mem))) # ibus not bus
     with sim.write_vcd('test_loadstore1_ifetch_iface.vcd',
                       traces=[m.debug_status]): # include extra debug
         sim.run()
@@ -876,10 +888,10 @@ def test_loadstore1_ifetch():
 
     icache = m.submodules.ldst.icache
     sim.add_sync_process(wrap(_test_loadstore1_ifetch(m, mem)))
-    # add two wb_get processes onto the *same* memory dictionary.
+    # add two wb_get_classic processes onto the *same* memory dictionary.
     # this shouuuld work.... cross-fingers...
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
-    sim.add_sync_process(wrap(wb_get(icache.bus, mem)))
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(icache.bus, mem)))
     with sim.write_vcd('test_loadstore1_ifetch.vcd',
                       traces=[m.debug_status]): # include extra debug
         sim.run()
@@ -896,7 +908,7 @@ def test_loadstore1():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(_test_loadstore1(m, mem)))
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
     with sim.write_vcd('test_loadstore1.vcd'):
         sim.run()
 
@@ -912,7 +924,7 @@ def test_loadstore1_microwatt_mmu_bin_test2():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(_test_loadstore1_microwatt_mmu_bin_test2(m, mem)))
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
     with sim.write_vcd('test_microwatt_mmu_test2.vcd'):
         sim.run()
 
@@ -928,7 +940,7 @@ def test_loadstore1_microwatt_mmu_bin_test5():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(_test_loadstore1_microwatt_mmu_bin_test5(m, mem)))
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
     with sim.write_vcd('test_microwatt_mmu_test5.vcd'):
         sim.run()
 
@@ -945,11 +957,13 @@ def test_loadstore1_misalign():
 
     ###########1122334455667788
     mem[0] = 0x0102030405060708
+    mem[8] = 0xffffffffffffffff
 
     sim.add_sync_process(wrap(_test_loadstore1_misalign(m, mem)))
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
     with sim.write_vcd('test_loadstore1_misalign.vcd'):
         sim.run()
+    print ("mem", mem)
 
 
 def test_loadstore1_invalid():
@@ -963,7 +977,7 @@ def test_loadstore1_invalid():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(_test_loadstore1_invalid(m, mem)))
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
     with sim.write_vcd('test_loadstore1_invalid.vcd'):
         sim.run()
 
@@ -981,10 +995,10 @@ def test_loadstore1_ifetch_invalid():
 
     icache = m.submodules.ldst.icache
     sim.add_sync_process(wrap(_test_loadstore1_ifetch_invalid(m, mem)))
-    # add two wb_get processes onto the *same* memory dictionary.
+    # add two wb_get_classic processes onto the *same* memory dictionary.
     # this shouuuld work.... cross-fingers...
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
-    sim.add_sync_process(wrap(wb_get(icache.bus, mem)))
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(icache.bus, mem)))
     with sim.write_vcd('test_loadstore1_ifetch_invalid.vcd',
                       traces=[m.debug_status]): # include extra debug
         sim.run()
@@ -1009,10 +1023,10 @@ def test_loadstore1_ifetch_multi():
     sim.add_clock(1e-6)
 
     sim.add_sync_process(wrap(_test_loadstore1_ifetch_multi(m, mem)))
-    # add two wb_get processes onto the *same* memory dictionary.
+    # add two wb_get_classic processes onto the *same* memory dictionary.
     # this shouuuld work.... cross-fingers...
-    sim.add_sync_process(wrap(wb_get(cmpi.wb_bus(), mem)))
-    sim.add_sync_process(wrap(wb_get(icache.ibus, mem))) # ibus not bus
+    sim.add_sync_process(wrap(wb_get_classic(cmpi.wb_bus(), mem)))
+    sim.add_sync_process(wrap(wb_get_classic(icache.ibus, mem))) # ibus not bus
     with sim.write_vcd('test_loadstore1_ifetch_multi.vcd',
                       traces=[m.debug_status]): # include extra debug
         sim.run()
@@ -1020,10 +1034,10 @@ def test_loadstore1_ifetch_multi():
 if __name__ == '__main__':
     #test_loadstore1()
     #test_loadstore1_microwatt_mmu_bin_test2()
-    test_loadstore1_microwatt_mmu_bin_test5()
+    #test_loadstore1_microwatt_mmu_bin_test5()
     #test_loadstore1_invalid()
     #test_loadstore1_ifetch() #FIXME
     #test_loadstore1_ifetch_invalid()
     #test_loadstore1_ifetch_unit_iface() # guess: should be working
     #test_loadstore1_ifetch_multi()
-    #test_loadstore1_misalign()
+    test_loadstore1_misalign()
