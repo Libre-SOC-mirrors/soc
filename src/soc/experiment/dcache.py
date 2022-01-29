@@ -1638,6 +1638,7 @@ class DCache(Elaboratable):
                 with m.If(~bus.stall):
                     # See if there is another store waiting
                     # to be done which is in the same real page.
+                    # (this is when same_tsg is true)
                     with m.If(req.valid):
                         _ra = req.real_addr[ROW_OFF_BITS:SET_SIZE_BITS]
                         sync += r1.wb.adr[0:SET_SIZE_BITS-ROW_OFF_BITS].eq(_ra)
