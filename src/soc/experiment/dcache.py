@@ -1463,7 +1463,7 @@ class DCache(Elaboratable):
         with m.Switch(r1.state):
 
             with m.Case(State.IDLE):
-                sync += r1.wb.adr.eq(req.real_addr[ROW_LINE_BITS:])
+                sync += r1.wb.adr.eq(req.real_addr[ROW_OFF_BITS:])
                 sync += r1.wb.sel.eq(req.byte_sel)
                 sync += r1.wb.dat.eq(req.data)
                 sync += r1.dcbz.eq(req.dcbz)
