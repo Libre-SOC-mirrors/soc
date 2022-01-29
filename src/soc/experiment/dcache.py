@@ -1639,7 +1639,7 @@ class DCache(Elaboratable):
                     # See if there is another store waiting
                     # to be done which is in the same real page.
                     with m.If(req.valid):
-                        _ra = req.real_addr[ROW_LINE_BITS:SET_SIZE_BITS]
+                        _ra = req.real_addr[0:SET_SIZE_BITS]
                         sync += r1.wb.adr[0:SET_SIZE_BITS].eq(_ra)
                         sync += r1.wb.dat.eq(req.data)
                         sync += r1.wb.sel.eq(req.byte_sel)
