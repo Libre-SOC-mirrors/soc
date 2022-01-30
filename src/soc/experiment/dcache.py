@@ -179,16 +179,13 @@ print ("     NUM_WAYS", NUM_WAYS)
 print ("    NUM_LINES", NUM_LINES)
 
 
-def CacheTag(name=None):
-    tag_layout = [('valid', NUM_WAYS),
-                  ('tag', TAG_RAM_WIDTH),
-                 ]
-    return Record(tag_layout, name=name)
-
-
 def CacheTagArray():
-    return Array(CacheTag(name="tag%d" % x) for x in range(NUM_LINES))
+    return Array(Signal(TAG_RAM_WIDTH, name="tag%d" % x) \
+                   for x in range(NUM_LINES))
 
+def CacheValidsArray():
+    return Array(Signal(NUM_WAYS, name="tag_valids%d" % x)
+                 for x in range(NUM_LINES))
 
 def RowPerLineValidArray():
     return Array(Signal(name="rows_valid%d" % x) \
@@ -934,7 +931,8 @@ class DCache(Elaboratable):
         comb += plrus.isel.eq(r1.store_index) # select victim
         comb += plru_victim.eq(plrus.o_index) # selected victim
 
-    def cache_tag_read(self, m, r0_stall, req_index, cache_tag_set, cache_tags):
+    def cache_tag_read(self, m, r0_stall, req_index, cache_tag_set,
+                            cache_tags):
         """Cache tag RAM read port
         """
         comb = m.d.comb
@@ -949,10 +947,10 @@ class DCache(Elaboratable):
             comb += index.eq(get_index(m_in.addr))
         with m.Else():
             comb += index.eq(get_index(d_in.addr))
-        sync += cache_tag_set.eq(cache_tags[index].tag)
+        sync += cache_tag_set.eq(cache_tags[index])
 
     def dcache_request(self, m, r0, ra, req_index, req_row, req_tag,
-                       r0_valid, r1, cache_tags, replace_way,
+                       r0_valid, r1, cache_tags, cache_valids, replace_way,
                        use_forward1_next, use_forward2_next,
                        req_hit_way, plru_victim, rc_ok, perm_attr,
                        valid_ra, perm_ok, access_ok, req_op, req_go,
@@ -982,7 +980,7 @@ class DCache(Elaboratable):
                     r0.req.addr, ra, req_index, req_tag, req_row)
 
         comb += go.eq(r0_valid & ~(r0.tlbie | r0.tlbld) & ~r1.ls_error)
-        comb += cache_i_validdx.eq(cache_tags[req_index].valid)
+        comb += cache_i_validdx.eq(cache_valids[req_index])
 
         m.submodules.dcache_pend = dc = DCachePendingHit(tlb_way,
                                             cache_i_validdx, cache_tag_set,
@@ -1347,7 +1345,7 @@ class DCache(Elaboratable):
     def dcache_slow(self, m, r1, use_forward1_next, use_forward2_next,
                     r0, replace_way,
                     req_hit_way, req_same_tag,
-                    r0_valid, req_op, cache_tags, req_go, ra):
+                    r0_valid, req_op, cache_tags, cache_valids, req_go, ra):
 
         comb = m.d.comb
         sync = m.d.sync
@@ -1412,9 +1410,9 @@ class DCache(Elaboratable):
             for i in range(NUM_WAYS):
                 with m.If(replace_way_onehot[i]):
                     ct = Signal(TAG_RAM_WIDTH)
-                    comb += ct.eq(cache_tags[r1.store_index].tag)
+                    comb += ct.eq(cache_tags[r1.store_index])
                     comb += ct.word_select(i, TAG_WIDTH).eq(r1.reload_tag)
-                    sync += cache_tags[r1.store_index].tag.eq(ct)
+                    sync += cache_tags[r1.store_index].eq(ct)
             sync += r1.store_way.eq(replace_way)
             sync += r1.write_tag.eq(0)
 
@@ -1606,9 +1604,9 @@ class DCache(Elaboratable):
 
                         # Cache line is now valid
                         cv = Signal(INDEX_BITS)
-                        comb += cv.eq(cache_tags[r1.store_index].valid)
+                        comb += cv.eq(cache_valids[r1.store_index])
                         comb += cv.bit_select(r1.store_way, 1).eq(1)
-                        sync += cache_tags[r1.store_index].valid.eq(cv)
+                        sync += cache_valids[r1.store_index].eq(cv)
 
                         sync += r1.state.eq(State.IDLE)
                         sync += Display("cache valid set %x "
@@ -1715,6 +1713,7 @@ class DCache(Elaboratable):
 
         # Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
         cache_tags       = CacheTagArray()
+        cache_valids     = CacheValidsArray()
         cache_tag_set    = Signal(TAG_RAM_WIDTH)
 
         # TODO attribute ram_style : string;
@@ -1824,9 +1823,10 @@ class DCache(Elaboratable):
                         tlb_hit, tlb_plru_victim)
         self.maybe_plrus(m, r1, plru_victim)
         self.maybe_tlb_plrus(m, r1, tlb_plru_victim, tlb_req_index)
-        self.cache_tag_read(m, r0_stall, req_index, cache_tag_set, cache_tags)
+        self.cache_tag_read(m, r0_stall, req_index, cache_tag_set,
+                            cache_tags)
         self.dcache_request(m, r0, ra, req_index, req_row, req_tag,
-                           r0_valid, r1, cache_tags, replace_way,
+                           r0_valid, r1, cache_tags, cache_valids, replace_way,
                            use_forward1_next, use_forward2_next,
                            req_hit_way, plru_victim, rc_ok, perm_attr,
                            valid_ra, perm_ok, access_ok, req_op, req_go,
@@ -1844,7 +1844,7 @@ class DCache(Elaboratable):
         self.dcache_slow(m, r1, use_forward1_next, use_forward2_next,
                     r0, replace_way,
                     req_hit_way, req_same_tag,
-                         r0_valid, req_op, cache_tags, req_go, ra)
+                         r0_valid, req_op, cache_tags, cache_valids, req_go, ra)
         #self.dcache_log(m, r1, valid_ra, tlb_hit, stall_out)
 
         return m
