@@ -644,7 +644,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
     def icache_miss_clr_tag(self, m, r, replace_way,
                             req_index,
-                            tagset, cache_tags):
+                            cache_tags):
         comb = m.d.comb
         sync = m.d.sync
 
@@ -659,6 +659,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         for i in range(NUM_WAYS):
             with m.If(i == replace_way):
+                tagset = Signal(TAG_RAM_WIDTH)
                 comb += tagset.eq(cache_tags[r.store_index].tag)
                 comb += write_tag(i, tagset, r.store_tag)
                 sync += cache_tags[r.store_index].tag.eq(tagset)
@@ -737,7 +738,6 @@ class ICache(FetchUnitInterface, Elaboratable):
         stall_in, flush_in = self.stall_in, self.flush_in
         inval_in           = self.inval_in
 
-        tagset    = Signal(TAG_RAM_WIDTH)
         stbs_done = Signal()
 
         comb += r.wb.sel.eq(-1)
@@ -760,7 +760,7 @@ class ICache(FetchUnitInterface, Elaboratable):
             with m.Case(State.CLR_TAG, State.WAIT_ACK):
                 with m.If(r.state == State.CLR_TAG):
                     self.icache_miss_clr_tag(m, r, replace_way,
-                                             req_index, tagset, cache_tags)
+                                             req_index, cache_tags)
 
                 self.icache_miss_wait_ack(m, r, replace_way, inval_in,
                                           cache_tags, stbs_done)
