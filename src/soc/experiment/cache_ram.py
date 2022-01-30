@@ -1,6 +1,7 @@
 # TODO: replace with Memory at some point
-from nmigen import Elaboratable, Signal, Array, Module
+from nmigen import Elaboratable, Signal, Array, Module, Memory
 from nmutil.util import Display
+
 
 class CacheRam(Elaboratable):
 
@@ -28,30 +29,51 @@ class CacheRam(Elaboratable):
         ADD_BUF = self.ADD_BUF
         SIZE = 2**ROW_BITS
      
-        ram = Array(Signal(WIDTH) for i in range(SIZE))
+        # set up the Cache RAM Memory and create one read and one write port
+        # the read port is *not* transparent (does not pass write-thru-read)
         #attribute ram_style of ram : signal is "block";
-     
-        rd_data0 = Signal(WIDTH)
-     
+        ram = Memory(depth=SIZE, width=WIDTH)
+        m.submodules.rdport = rdport = ram.read_port(transparent=False)
+        m.submodules.wrport = wrport = ram.write_port(granularity=8)
+
         with m.If(TRACE):
             with m.If(self.wr_sel.bool()):
                 sync += Display( "write ramno %d a: %%x "
                                  "sel: %%x dat: %%x" % self.ram_num,
                                 self.wr_addr,
                                 self.wr_sel, self.wr_data)
-        for i in range(WIDTH//8):
-            lbit = i * 8;
-            mbit = lbit + 8;
-            with m.If(self.wr_sel[i]):
-                sync += ram[self.wr_addr][lbit:mbit].eq(self.wr_data[lbit:mbit])
-        with m.If(self.rd_en):
-            sync += rd_data0.eq(ram[self.rd_addr])
-            if TRACE:
+
+        # read data output and a latched copy. behaves like microwatt cacheram
+        rd_data0 = Signal(WIDTH)
+        rd_data0l = Signal(WIDTH)
+
+        # delay on read address/en
+        rd_delay = Signal()
+        rd_delay_addr = Signal.like(self.rd_addr)
+        sync += rd_delay_addr.eq(self.rd_addr)
+        sync += rd_delay.eq(self.rd_en)
+
+        # write port
+        comb += wrport.addr.eq(self.wr_addr)
+        comb += wrport.en.eq(self.wr_sel)
+        comb += wrport.data.eq(self.wr_data)
+
+        # read port (include a latch on the output, for microwatt compatibility)
+        comb += rdport.addr.eq(self.rd_addr)
+        comb += rdport.en.eq(self.rd_en)
+        with m.If(rd_delay):
+            comb += rd_data0.eq(rdport.data)
+            sync += rd_data0l.eq(rd_data0)   # preserve latched data
+        with m.Else():
+            comb += rd_data0.eq(rd_data0l)   # output latched (last-read)
+
+        if TRACE:
+            with m.If(rd_delay):
                 sync += Display("read ramno %d a: %%x dat: %%x" % self.ram_num,
-                                self.rd_addr, ram[self.rd_addr])
+                                rd_delay_addr, rd_data0)
                 pass
 
-
+        # extra delay requested?
         if ADD_BUF:
             sync += self.rd_data_o.eq(rd_data0)
         else:
