@@ -187,10 +187,6 @@ assert (REAL_ADDR_BITS == (TAG_BITS + ROW_BITS + ROW_OFF_BITS)), \
 # The cache tags LUTRAM has a row per set. Vivado is a pain and will
 # not handle a clean (commented) definition of the cache tags as a 3d
 # memory. For now, work around it by putting all the tags
-def CacheTagArray():
-    return Array(Signal(TAG_RAM_WIDTH, name="tag%d" % x) \
-                 for x in range(NUM_LINES))
-
 def CacheValidsArray():
     return Array(Signal(NUM_WAYS, name="tag_valids%d" % x) \
                  for x in range(NUM_LINES))
