@@ -198,12 +198,12 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         # ALU only proceeds when all src are ready.  rd_rel_o is delayed
         # so combine it with go_rd_i.  if all bits are set we're good
         all_rd = Signal(reset_less=True)
-        m.d.comb += all_rd.eq(self.busy_o & rok_l.q &
+        m.d.comb += all_rd.eq(self.busy_o & rok_l.q & # XXX LOOP
                               (((~self.rd.rel_o) | self.rd.go_i).all()))
 
         # generate read-done pulse
         all_rd_pulse = Signal(reset_less=True)
-        m.d.comb += all_rd_pulse.eq(rising_edge(m, all_rd))
+        m.d.comb += all_rd_pulse.eq(rising_edge(m, all_rd)) # XXX LOOP
 
         # create rising pulse from alu valid condition.
         alu_done = self.cu.alu_done_o
@@ -245,7 +245,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
 
         # read-done,wr-proceed latch
         rw_domain += rok_l.s.eq(self.issue_i)  # set up when issue starts
-        rw_domain += rok_l.r.eq(self.alu.n.o_valid & self.busy_o)  # ALU done
+        rw_domain += rok_l.r.eq(self.alu.n.o_valid & self.busy_o) # ALUdone LOOP
 
         # wr-done, back-to-start latch
         rw_domain += rst_l.s.eq(all_rd)     # set when read-phase is fully done
