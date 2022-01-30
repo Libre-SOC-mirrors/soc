@@ -202,17 +202,16 @@ def RowPerLineValidArray():
 # attribute ram_style : string;
 # attribute ram_style of cache_tags : signal is "distributed";
 
+def TLBValidArray():
+    return Array(Signal(name="tlb_valid%d" % x)
+                        for x in range(TLB_SIZE))
+
 def TLBArray():
-    tlb_layout = [('valid', 1),
+    tlb_layout = [
                   ('tag', TLB_EA_TAG_BITS),
                   ('pte', TLB_PTE_BITS)
                  ]
     return Array(Record(tlb_layout, name="tlb%d" % x) for x in range(TLB_SIZE))
-
-# Cache RAM interface
-def CacheRamOut():
-    return Array(Signal(ROW_SIZE_BITS, name="cache_out_%d" %x) \
-                 for x in range(NUM_WAYS))
 
 # PLRU output interface
 def PLRUOut():
@@ -406,7 +405,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         comb += plru_victim.eq(plru.o_index) # selected victim
 
     # TLB hit detection and real address generation
-    def itlb_lookup(self, m, tlb_req_index, itlb,
+    def itlb_lookup(self, m, tlb_req_index, itlb, itlb_valid,
                     real_addr, ra_valid, eaa_priv,
                     priv_fault, access_ok):
 
@@ -422,13 +421,11 @@ class ICache(FetchUnitInterface, Elaboratable):
         comb += ttag.eq(itlb[tlb_req_index].tag)
 
         with m.If(i_in.virt_mode):
-            comb += real_addr.eq(Cat(
-                     i_in.nia[:TLB_LG_PGSZ],
-                     pte[TLB_LG_PGSZ:REAL_ADDR_BITS]
-                    ))
+            comb += real_addr.eq(Cat(i_in.nia[:TLB_LG_PGSZ],
+                                     pte[TLB_LG_PGSZ:REAL_ADDR_BITS]))
 
             with m.If(ttag == i_in.nia[TLB_LG_PGSZ + TLB_BITS:64]):
-                comb += ra_valid.eq(itlb[tlb_req_index].valid)
+                comb += ra_valid.eq(itlb_valid[tlb_req_index])
 
             comb += eaa_priv.eq(pte[3])
 
@@ -442,7 +439,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         comb += access_ok.eq(ra_valid & ~priv_fault)
 
     # iTLB update
-    def itlb_update(self, m, itlb):
+    def itlb_update(self, m, itlb, itlb_valid):
         comb = m.d.comb
         sync = m.d.sync
 
@@ -454,16 +451,16 @@ class ICache(FetchUnitInterface, Elaboratable):
         with m.If(m_in.tlbie & m_in.doall):
             # Clear all valid bits
             for i in range(TLB_SIZE):
-                sync += itlb[i].valid.eq(0)
+                sync += itlb_valid[i].eq(0)
 
         with m.Elif(m_in.tlbie):
             # Clear entry regardless of hit or miss
-            sync += itlb[wr_index].valid.eq(0)
+            sync += itlb_valid[wr_index].eq(0)
 
         with m.Elif(m_in.tlbld):
             sync += itlb[wr_index].tag.eq(m_in.addr[TLB_LG_PGSZ + TLB_BITS:64])
             sync += itlb[wr_index].pte.eq(m_in.pte)
-            sync += itlb[wr_index].valid.eq(1)
+            sync += itlb_valid[wr_index].eq(1)
 
     # Cache hit detection, output to fetch2 and other misc logic
     def icache_comb(self, m, use_previous, r, req_index, req_row,
@@ -803,6 +800,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # TLB Array
         itlb            = TLBArray()
+        itlb_valid      = TLBValidArray()
 
         # TODO to be passed to nmigen as ram attributes
         # attribute ram_style of itlb_tags : signal is "distributed";
@@ -838,10 +836,10 @@ class ICache(FetchUnitInterface, Elaboratable):
         # using shared signals established above
         self.rams(m, r, cache_out_row, use_previous, replace_way, req_row)
         self.maybe_plrus(m, r, plru_victim)
-        self.itlb_lookup(m, tlb_req_index, itlb, real_addr,
+        self.itlb_lookup(m, tlb_req_index, itlb, itlb_valid, real_addr,
                          ra_valid, eaa_priv, priv_fault,
                          access_ok)
-        self.itlb_update(m, itlb)
+        self.itlb_update(m, itlb, itlb_valid)
         self.icache_comb(m, use_previous, r, req_index, req_row, req_hit_way,
                          req_tag, real_addr, req_laddr,
                          cache_tags, access_ok, req_is_hit, req_is_miss,
