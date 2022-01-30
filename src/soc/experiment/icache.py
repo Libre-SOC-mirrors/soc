@@ -669,7 +669,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         sync += r.state.eq(State.WAIT_ACK)
 
     def icache_miss_wait_ack(self, m, r, replace_way, inval_in,
-                             cache_tags, cache_valids, stbs_done):
+                             cache_valids, stbs_done):
         comb = m.d.comb
         sync = m.d.sync
 
@@ -766,7 +766,7 @@ class ICache(FetchUnitInterface, Elaboratable):
                                              cache_tags, cache_valids)
 
                 self.icache_miss_wait_ack(m, r, replace_way, inval_in,
-                                          cache_tags, cache_valids, stbs_done)
+                                          cache_valids, stbs_done)
 
         # TLB miss and protection fault processing
         with m.If(flush_in | m_in.tlbld):
