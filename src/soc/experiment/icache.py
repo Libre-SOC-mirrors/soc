@@ -206,12 +206,14 @@ def TLBValidArray():
     return Array(Signal(name="tlb_valid%d" % x)
                         for x in range(TLB_SIZE))
 
-def TLBArray():
-    tlb_layout = [
-                  ('tag', TLB_EA_TAG_BITS),
+def TLBRecord(name):
+    tlb_layout = [ ('tag', TLB_EA_TAG_BITS),
                   ('pte', TLB_PTE_BITS)
                  ]
-    return Array(Record(tlb_layout, name="tlb%d" % x) for x in range(TLB_SIZE))
+    return Record(tlb_layout, name=name)
+
+def TLBArray():
+    return Array(TLBRecord("tlb%d" % x) for x in range(TLB_SIZE))
 
 # PLRU output interface
 def PLRUOut():
@@ -413,12 +415,14 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         i_in = self.i_in
 
-        pte  = Signal(TLB_PTE_BITS)
-        ttag = Signal(TLB_EA_TAG_BITS)
+        # use an *asynchronous* Memory read port here (combinatorial)
+        m.submodules.rd_tlb = rd_tlb = self.tlbmem.read_port(domain="comb")
+        tlb = TLBRecord("tlb_rdport")
+        pte, ttag = tlb.pte, tlb.tag
 
         comb += tlb_req_index.eq(hash_ea(i_in.nia))
-        comb += pte.eq(itlb[tlb_req_index].pte)
-        comb += ttag.eq(itlb[tlb_req_index].tag)
+        comb += rd_tlb.addr.eq(tlb_req_index)
+        comb += tlb.eq(rd_tlb.data)
 
         with m.If(i_in.virt_mode):
             comb += real_addr.eq(Cat(i_in.nia[:TLB_LG_PGSZ],
@@ -448,6 +452,8 @@ class ICache(FetchUnitInterface, Elaboratable):
         wr_index = Signal(TLB_SIZE)
         comb += wr_index.eq(hash_ea(m_in.addr))
 
+        m.submodules.wr_tlb = wr_tlb = self.tlbmem.write_port()
+
         with m.If(m_in.tlbie & m_in.doall):
             # Clear all valid bits
             for i in range(TLB_SIZE):
@@ -458,8 +464,12 @@ class ICache(FetchUnitInterface, Elaboratable):
             sync += itlb_valid[wr_index].eq(0)
 
         with m.Elif(m_in.tlbld):
-            sync += itlb[wr_index].tag.eq(m_in.addr[TLB_LG_PGSZ + TLB_BITS:64])
-            sync += itlb[wr_index].pte.eq(m_in.pte)
+            tlb = TLBRecord("tlb_wrport")
+            comb += tlb.tag.eq(m_in.addr[TLB_LG_PGSZ + TLB_BITS:64])
+            comb += tlb.pte.eq(m_in.pte)
+            comb += wr_tlb.en.eq(1)
+            comb += wr_tlb.addr.eq(wr_index)
+            comb += wr_tlb.data.eq(tlb)
             sync += itlb_valid[wr_index].eq(1)
 
     # Cache hit detection, output to fetch2 and other misc logic
@@ -831,6 +841,8 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         plru_victim      = Signal(WAY_BITS)
         replace_way      = Signal(WAY_BITS)
+
+        self.tlbmem = Memory(depth=TLB_SIZE, width=TLB_EA_TAG_BITS+TLB_PTE_BITS)
 
         # call sub-functions putting everything together,
         # using shared signals established above
