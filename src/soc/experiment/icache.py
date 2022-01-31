@@ -184,13 +184,6 @@ assert (REAL_ADDR_BITS == (TAG_BITS + ROW_BITS + ROW_OFF_BITS)), \
 # The cache data BRAM organized as described above for each way
 #subtype cache_row_t is std_ulogic_vector(ROW_SIZE_BITS-1 downto 0);
 #
-# The cache tags LUTRAM has a row per set. Vivado is a pain and will
-# not handle a clean (commented) definition of the cache tags as a 3d
-# memory. For now, work around it by putting all the tags
-def CacheValidsArray():
-    return Array(Signal(NUM_WAYS, name="tag_valids%d" % x) \
-                 for x in range(NUM_LINES))
-
 def RowPerLineValidArray():
     return Array(Signal(name="rows_valid_%d" %x) \
                  for x in range(ROW_PER_LINE))
@@ -516,7 +509,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         ctag = Signal(TAG_RAM_WIDTH)
         comb += rd_tag.addr.eq(req_index)
         comb += ctag.eq(rd_tag.data)
-        comb += cvb.eq(cache_valids[req_index])
+        comb += cvb.eq(cache_valids.word_select(req_index, NUM_WAYS))
         m.submodules.store_way_e = se = Decoder(NUM_WAYS)
         comb += se.i.eq(r.store_way)
         comb += se.n.eq(~i_in.req)
@@ -654,10 +647,8 @@ class ICache(FetchUnitInterface, Elaboratable):
         sync += r.store_way.eq(replace_way)
 
         # Force misses on that way while reloading that line
-        cv = Signal(INDEX_BITS)
-        comb += cv.eq(cache_valids[req_index])
-        comb += cv.bit_select(replace_way, 1).eq(0)
-        sync += cache_valids[req_index].eq(cv)
+        idx = req_index*NUM_WAYS + replace_way # 2D index, 1st dim: NUM_WAYS
+        sync += cache_valids.bit_select(idx, 1).eq(0)
 
         # use write-port "granularity" to select the tag to write to
         # TODO: the Memory should be multipled-up (by NUM_TAGS)
@@ -718,12 +709,9 @@ class ICache(FetchUnitInterface, Elaboratable):
                 sync += r.req_adr.eq(0)
 
                 # Cache line is now valid
-                cv = Signal(INDEX_BITS)
-                comb += cv.eq(cache_valids[r.store_index])
-                comb += cv.bit_select(replace_way, 1).eq(
-                         r.store_valid & ~inval_in)
-                sync += cache_valids[r.store_index].eq(cv)
-
+                idx = r.store_index*NUM_WAYS + replace_way # 2D index again
+                valid = r.store_valid & ~inval_in
+                sync += cache_valids.bit_select(idx, 1).eq(valid)
                 sync += r.state.eq(State.IDLE)
 
             # move on to next request in row
@@ -748,8 +736,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # Process cache invalidations
         with m.If(inval_in):
-            for i in range(NUM_LINES):
-                sync += cache_valids[i].eq(0)
+            sync += cache_valids.eq(0)
             sync += r.store_valid.eq(0)
 
         # Main state machine
@@ -809,8 +796,9 @@ class ICache(FetchUnitInterface, Elaboratable):
         m                = Module()
         comb             = m.d.comb
 
-        # Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
-        cache_valids     = CacheValidsArray()
+        # Cache-Ways "valid" indicators.  this is a 2D Signal, by the
+        # number of ways and the number of lines.
+        cache_valids     = Signal(NUM_WAYS*NUM_LINES)
 
         # TLB Array
         itlb            = TLBArray()
