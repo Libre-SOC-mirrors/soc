@@ -801,7 +801,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # TLB Array
         itlb            = TLBArray()
-        vec = SRLatch(sync=True, llen=TLB_SIZE, name="tlbvalids")
+        vec = SRLatch(sync=False, llen=TLB_SIZE, name="tlbvalids")
         m.submodules.itlb_valids = itlb_valid = vec
 
         # TODO to be passed to nmigen as ram attributes
