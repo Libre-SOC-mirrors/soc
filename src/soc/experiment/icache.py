@@ -443,14 +443,16 @@ class ICache(FetchUnitInterface, Elaboratable):
         comb += wr_unary.eq(1<<wr_index)
 
         m.submodules.wr_tlb = wr_tlb = self.tlbmem.write_port()
+        sync += itlb_valid.s.eq(0)
+        sync += itlb_valid.r.eq(0)
 
         with m.If(m_in.tlbie & m_in.doall):
             # Clear all valid bits
-            comb += itlb_valid.r.eq(-1)
+            sync += itlb_valid.r.eq(-1)
 
         with m.Elif(m_in.tlbie):
             # Clear entry regardless of hit or miss
-            comb += itlb_valid.r.eq(wr_unary)
+            sync += itlb_valid.r.eq(wr_unary)
 
         with m.Elif(m_in.tlbld):
             tlb = TLBRecord("tlb_wrport")
@@ -459,7 +461,7 @@ class ICache(FetchUnitInterface, Elaboratable):
             comb += wr_tlb.en.eq(1)
             comb += wr_tlb.addr.eq(wr_index)
             comb += wr_tlb.data.eq(tlb)
-            comb += itlb_valid.s.eq(wr_unary)
+            sync += itlb_valid.s.eq(wr_unary)
 
     # Cache hit detection, output to fetch2 and other misc logic
     def icache_comb(self, m, use_previous, r, req_index, req_row,
