@@ -83,9 +83,9 @@ from nmutil.util import wrap
 # TODO: make these parameters of DCache at some point
 LINE_SIZE = 64    # Line size in bytes
 NUM_LINES = 64    # Number of lines in a set
-NUM_WAYS = 2      # Number of ways
+NUM_WAYS = 1      # Number of ways
 TLB_SET_SIZE = 64 # L1 DTLB entries per set
-TLB_NUM_WAYS = 2  # L1 DTLB number of sets
+TLB_NUM_WAYS = 1  # L1 DTLB number of sets
 TLB_LG_PGSZ = 12  # L1 DTLB log_2(page_size)
 LOG_LENGTH = 0    # Non-zero to enable log data collection
 
@@ -931,13 +931,16 @@ class DCache(Elaboratable):
         comb += plrus.isel.eq(r1.store_index) # select victim
         comb += plru_victim.eq(plrus.o_index) # selected victim
 
-    def cache_tag_read(self, m, r0_stall, req_index, cache_tag_set,
-                            cache_tags):
+    def cache_tag_read(self, m, r0_stall, req_index, cache_tag_set):
         """Cache tag RAM read port
         """
         comb = m.d.comb
         sync = m.d.sync
+
         m_in, d_in = self.m_in, self.d_in
+
+        # synchronous tag read-port
+        m.submodules.rd_tag = rd_tag = self.tagmem.read_port()
 
         index = Signal(INDEX_BITS)
 
@@ -947,10 +950,11 @@ class DCache(Elaboratable):
             comb += index.eq(get_index(m_in.addr))
         with m.Else():
             comb += index.eq(get_index(d_in.addr))
-        sync += cache_tag_set.eq(cache_tags[index])
+        comb += rd_tag.addr.eq(index)
+        comb += cache_tag_set.eq(rd_tag.data) # read-port is a 1-clock delay
 
     def dcache_request(self, m, r0, ra, req_index, req_row, req_tag,
-                       r0_valid, r1, cache_tags, cache_valids, replace_way,
+                       r0_valid, r1, cache_valids, replace_way,
                        use_forward1_next, use_forward2_next,
                        req_hit_way, plru_victim, rc_ok, perm_attr,
                        valid_ra, perm_ok, access_ok, req_op, req_go,
@@ -1345,12 +1349,15 @@ class DCache(Elaboratable):
     def dcache_slow(self, m, r1, use_forward1_next, use_forward2_next,
                     r0, replace_way,
                     req_hit_way, req_same_tag,
-                    r0_valid, req_op, cache_tags, cache_valids, req_go, ra):
+                    r0_valid, req_op, cache_valids, req_go, ra):
 
         comb = m.d.comb
         sync = m.d.sync
         bus = self.bus
         d_in = self.d_in
+
+        m.submodules.wr_tag = wr_tag = self.tagmem.write_port(
+                                                    granularity=TAG_WIDTH)
 
         req         = MemAccessRequest("mreq_ds")
 
@@ -1407,12 +1414,12 @@ class DCache(Elaboratable):
             # Store new tag in selected way
             replace_way_onehot = Signal(NUM_WAYS)
             comb += replace_way_onehot.eq(1<<replace_way)
-            for i in range(NUM_WAYS):
-                with m.If(replace_way_onehot[i]):
-                    ct = Signal(TAG_RAM_WIDTH)
-                    comb += ct.eq(cache_tags[r1.store_index])
-                    comb += ct.word_select(i, TAG_WIDTH).eq(r1.reload_tag)
-                    sync += cache_tags[r1.store_index].eq(ct)
+            ct = Signal(TAG_RAM_WIDTH)
+            comb += ct.eq(r1.reload_tag << (replace_way*TAG_WIDTH))
+            comb += wr_tag.en.eq(replace_way_onehot)
+            comb += wr_tag.addr.eq(r1.store_index)
+            comb += wr_tag.data.eq(ct)
+
             sync += r1.store_way.eq(replace_way)
             sync += r1.write_tag.eq(0)
 
@@ -1712,12 +1719,10 @@ class DCache(Elaboratable):
         m_in, d_in = self.m_in, self.d_in
 
         # Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
-        cache_tags       = CacheTagArray()
         cache_valids     = CacheValidsArray()
         cache_tag_set    = Signal(TAG_RAM_WIDTH)
 
-        # TODO attribute ram_style : string;
-        # TODO attribute ram_style of cache_tags : signal is "distributed";
+        self.tagmem = Memory(depth=NUM_LINES, width=TAG_RAM_WIDTH)
 
         """note: these are passed to nmigen.hdl.Memory as "attributes".
            don't know how, just that they are.
@@ -1823,10 +1828,9 @@ class DCache(Elaboratable):
                         tlb_hit, tlb_plru_victim)
         self.maybe_plrus(m, r1, plru_victim)
         self.maybe_tlb_plrus(m, r1, tlb_plru_victim, tlb_req_index)
-        self.cache_tag_read(m, r0_stall, req_index, cache_tag_set,
-                            cache_tags)
+        self.cache_tag_read(m, r0_stall, req_index, cache_tag_set)
         self.dcache_request(m, r0, ra, req_index, req_row, req_tag,
-                           r0_valid, r1, cache_tags, cache_valids, replace_way,
+                           r0_valid, r1, cache_valids, replace_way,
                            use_forward1_next, use_forward2_next,
                            req_hit_way, plru_victim, rc_ok, perm_attr,
                            valid_ra, perm_ok, access_ok, req_op, req_go,
@@ -1844,7 +1848,7 @@ class DCache(Elaboratable):
         self.dcache_slow(m, r1, use_forward1_next, use_forward2_next,
                     r0, replace_way,
                     req_hit_way, req_same_tag,
-                         r0_valid, req_op, cache_tags, cache_valids, req_go, ra)
+                         r0_valid, req_op, cache_valids, req_go, ra)
         #self.dcache_log(m, r1, valid_ra, tlb_hit, stall_out)
 
         return m
