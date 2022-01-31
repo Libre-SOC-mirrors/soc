@@ -56,6 +56,11 @@ ls180_4k_verilog:
 	        --enable-xics --enable-sram4x4kblock --disable-svp64 \
 			src/soc/litex/florent/libresoc/libresoc.v
 
+# build microwatt "external core"
+microwatt_external_core:
+	python3 simple/issuer_verilog.py --microwatt-compat --enable-mmu \
+            external_core_top.v
+
 # build the litex libresoc SoC without 4k SRAMs
 ls180_verilog_build: ls180_verilog
 	make -C soc/soc/litex/florent ls180
