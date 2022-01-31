@@ -194,10 +194,6 @@ def RowPerLineValidArray():
 # attribute ram_style : string;
 # attribute ram_style of cache_tags : signal is "distributed";
 
-def TLBValidArray():
-    return Array(Signal(name="tlb_valid%d" % x)
-                        for x in range(TLB_SIZE))
-
 def TLBRecord(name):
     tlb_layout = [ ('tag', TLB_EA_TAG_BITS),
                   ('pte', TLB_PTE_BITS)
@@ -421,7 +417,7 @@ class ICache(FetchUnitInterface, Elaboratable):
                                      pte[TLB_LG_PGSZ:REAL_ADDR_BITS]))
 
             with m.If(ttag == i_in.nia[TLB_LG_PGSZ + TLB_BITS:64]):
-                comb += ra_valid.eq(itlb_valid[tlb_req_index])
+                comb += ra_valid.eq(itlb_valid.q.bit_select(tlb_req_index, 1))
 
             comb += eaa_priv.eq(pte[3])
 
@@ -441,19 +437,20 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         m_in = self.m_in
 
-        wr_index = Signal(TLB_SIZE)
+        wr_index = Signal(TLB_BITS)
+        wr_unary = Signal(TLB_SIZE)
         comb += wr_index.eq(hash_ea(m_in.addr))
+        comb += wr_unary.eq(1<<wr_index)
 
         m.submodules.wr_tlb = wr_tlb = self.tlbmem.write_port()
 
         with m.If(m_in.tlbie & m_in.doall):
             # Clear all valid bits
-            for i in range(TLB_SIZE):
-                sync += itlb_valid[i].eq(0)
+            comb += itlb_valid.r.eq(-1)
 
         with m.Elif(m_in.tlbie):
             # Clear entry regardless of hit or miss
-            sync += itlb_valid[wr_index].eq(0)
+            comb += itlb_valid.r.eq(wr_unary)
 
         with m.Elif(m_in.tlbld):
             tlb = TLBRecord("tlb_wrport")
@@ -462,7 +459,7 @@ class ICache(FetchUnitInterface, Elaboratable):
             comb += wr_tlb.en.eq(1)
             comb += wr_tlb.addr.eq(wr_index)
             comb += wr_tlb.data.eq(tlb)
-            sync += itlb_valid[wr_index].eq(1)
+            comb += itlb_valid.s.eq(wr_unary)
 
     # Cache hit detection, output to fetch2 and other misc logic
     def icache_comb(self, m, use_previous, r, req_index, req_row,
@@ -804,7 +801,8 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # TLB Array
         itlb            = TLBArray()
-        itlb_valid      = TLBValidArray()
+        vec = SRLatch(sync=True, llen=TLB_SIZE, name="tlbvalids")
+        m.submodules.itlb_valids = itlb_valid = vec
 
         # TODO to be passed to nmigen as ram attributes
         # attribute ram_style of itlb_tags : signal is "distributed";
