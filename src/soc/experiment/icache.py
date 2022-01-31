@@ -34,6 +34,7 @@ from nmutil.iocontrol import RecordObject
 from nmigen.utils import log2_int
 from nmigen.lib.coding import Decoder
 from nmutil.util import Display
+from nmutil.latch import SRLatch
 
 #from nmutil.plru import PLRU
 from soc.experiment.plru import PLRU, PLRUs
@@ -509,7 +510,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         ctag = Signal(TAG_RAM_WIDTH)
         comb += rd_tag.addr.eq(req_index)
         comb += ctag.eq(rd_tag.data)
-        comb += cvb.eq(cache_valids.word_select(req_index, NUM_WAYS))
+        comb += cvb.eq(cache_valids.q.word_select(req_index, NUM_WAYS))
         m.submodules.store_way_e = se = Decoder(NUM_WAYS)
         comb += se.i.eq(r.store_way)
         comb += se.n.eq(~i_in.req)
@@ -648,7 +649,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # Force misses on that way while reloading that line
         idx = req_index*NUM_WAYS + replace_way # 2D index, 1st dim: NUM_WAYS
-        sync += cache_valids.bit_select(idx, 1).eq(0)
+        comb += cache_valids.r.eq(1<<idx)
 
         # use write-port "granularity" to select the tag to write to
         # TODO: the Memory should be multipled-up (by NUM_TAGS)
@@ -711,7 +712,7 @@ class ICache(FetchUnitInterface, Elaboratable):
                 # Cache line is now valid
                 idx = r.store_index*NUM_WAYS + replace_way # 2D index again
                 valid = r.store_valid & ~inval_in
-                sync += cache_valids.bit_select(idx, 1).eq(valid)
+                comb += cache_valids.s.eq(1<<idx)
                 sync += r.state.eq(State.IDLE)
 
             # move on to next request in row
@@ -736,7 +737,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # Process cache invalidations
         with m.If(inval_in):
-            sync += cache_valids.eq(0)
+            comb += cache_valids.r.eq(-1)
             sync += r.store_valid.eq(0)
 
         # Main state machine
@@ -798,7 +799,8 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # Cache-Ways "valid" indicators.  this is a 2D Signal, by the
         # number of ways and the number of lines.
-        cache_valids     = Signal(NUM_WAYS*NUM_LINES)
+        vec = SRLatch(sync=True, llen=NUM_WAYS*NUM_LINES, name="cachevalids")
+        m.submodules.cache_valids = cache_valids = vec
 
         # TLB Array
         itlb            = TLBArray()
