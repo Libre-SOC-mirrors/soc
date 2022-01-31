@@ -198,7 +198,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         # ALU only proceeds when all src are ready.  rd_rel_o is delayed
         # so combine it with go_rd_i.  if all bits are set we're good
         all_rd = Signal(reset_less=True)
-        m.d.comb += all_rd.eq(self.busy_o & rok_l.q & # XXX LOOP
+        m.d.comb += all_rd.eq(self.busy_o & # rok_l.q & # XXX LOOP
                               (((~self.rd.rel_o) | self.rd.go_i).all()))
 
         # generate read-done pulse
@@ -355,7 +355,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         m.submodules.alu_l = alu_l = SRLatch(False, name="alu")
         m.d.comb += self.alu.n.i_ready.eq(alu_l.q)
         m.d.sync += alu_l.r.eq(self.alu.n.o_valid & alu_l.q)
-        m.d.comb += alu_l.s.eq(all_rd_pulse)
+        m.d.comb += alu_l.s.eq(all_rd_pulse) # XXX LOOP
 
         # -----
         # outputs
