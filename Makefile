@@ -58,7 +58,7 @@ ls180_4k_verilog:
 
 # build microwatt "external core"
 microwatt_external_core:
-	python3 simple/issuer_verilog.py --microwatt-compat --enable-mmu \
+	python3 src/soc/simple/issuer_verilog.py --microwatt-compat --enable-mmu \
             external_core_top.v
 
 # build the litex libresoc SoC without 4k SRAMs
