@@ -33,15 +33,13 @@ class TrapBasePipe(ControlBase):
     def __init__(self, pspec):
         ControlBase.__init__(self)
         self.pspec = pspec
-        #self.pipe1 = TrapDummyStages(pspec)
+        self.pipe1 = TrapDummyStages(pspec)
         self.pipe2 = TrapStages(pspec)
-        #pipes = [self.pipe1, self.pipe2]
-        pipes = [self.pipe1]
-        self._eqs = self.connect(pipes)
+        self._eqs = self.connect([self.pipe1, self.pipe2])
 
     def elaborate(self, platform):
         m = ControlBase.elaborate(self, platform)
         m.submodules.pipe1 = self.pipe1
-        #m.submodules.pipe2 = self.pipe2
+        m.submodules.pipe2 = self.pipe2
         m.d.comb += self._eqs
         return m
