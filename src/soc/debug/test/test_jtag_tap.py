@@ -25,11 +25,16 @@ def tms_state_set(dut, bits):
         yield
     yield dut.bus.tms.eq(0)
 
+def tms_data_getset(dut, tms, d_len, d_in=0, reverse=False):
+    if reverse:
+        # Reverse the for loop to transmit MSB-first
+        bit_range = range(d_len-1, -1, -1)
+    else:
+        bit_range = range(d_len)
 
-def tms_data_getset(dut, tms, d_len, d_in=0):
     res = 0
     yield dut.bus.tms.eq(tms)
-    for i in range(d_len):
+    for i in bit_range:
         tdi = 1 if (d_in & (1<<i)) else 0
         yield dut.bus.tck.eq(1)
         res |= (1<<i) if (yield dut.bus.tdo) else 0
@@ -58,14 +63,14 @@ def jtag_set_idle(dut):
     yield from tms_state_set(dut, [1, 1, 0])
 
 
-def jtag_read_write_reg(dut, addr, d_len, d_in=0):
+def jtag_read_write_reg(dut, addr, d_len, d_in=0, reverse=False):
     yield from jtag_set_run(dut)
     yield from jtag_set_shift_ir(dut)
     yield from tms_data_getset(dut, 0, dut._ir_width, addr)
     yield from jtag_set_idle(dut)
 
     yield from jtag_set_shift_dr(dut)
-    result = yield from tms_data_getset(dut, 0, d_len, d_in)
+    result = yield from tms_data_getset(dut, 0, d_len, d_in, reverse)
     yield from jtag_set_idle(dut)
     return result
 
