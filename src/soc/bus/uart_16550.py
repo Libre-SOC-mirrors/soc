@@ -12,12 +12,14 @@ from nmigen import (Elaboratable, Cat, Module, Signal, ClockSignal, Instance,
 
 from nmigen_soc.wishbone.bus import Interface
 from nmigen.cli import rtlil, verilog
+import os
 
 __all__ = ["UART16550"]
 
 
 class UART16550(Elaboratable):
-    """16550 UART from opencores, nmigen wrapper
+    """16550 UART from opencores, nmigen wrapper.  remember to call
+       UART16550.add_verilog_source
     """
 
     def __init__(self, bus=None, features=None, name=None):
@@ -26,6 +28,7 @@ class UART16550(Elaboratable):
             self.idx = int(name.split("_")[-1])
         else:
             self.idx = 0
+            name = "uart_0"
 
         # set up the wishbone bus
         if features is None:
@@ -34,6 +37,7 @@ class UART16550(Elaboratable):
             bus = Interface(addr_width=5,
                             data_width=32,
                             features=features,
+                            granularity=8,
                             name=name+"_wb_%d" % self.idx)
         self.bus = bus
         assert len(self.bus.dat_r) == 32, "bus width must be 32"
@@ -51,14 +55,30 @@ class UART16550(Elaboratable):
         self.ri_i = Signal() # can't even remember what this is!
         self.dcd_i = Signal() # or this!
 
+    @classmethod
+    def add_verilog_source(cls, verilog_src_dir, platform):
+        # add each of the verilog sources, needed for when doing platform.build
+        for fname in ['raminfr.v', 'uart_defines.v', 'uart_rfifo.v',
+                      'uart_top.v', 'timescale.v', 'uart_receiver.v',
+                      'uart_sync_flops.v', 'uart_transmitter.v',
+                      'uart_debug_if.v', 'uart_regs.v',
+                      'uart_tfifo.v', 'uart_wb.v'
+                     ]:
+            # prepend the src directory to each filename, add its contents
+            fullname = os.path.join(verilog_src_dir, fname)
+            with open(fullname) as f:
+                platform.add_file(fullname, f)
+
     def elaborate(self, platform):
         m = Module()
 
-        # create external verilog 16550 uart here
+        # create definition of external verilog 16550 uart here, so that                # nmigen understands I/O directions (defined by i_ and o_ prefixes)
         idx, bus = self.idx, self.bus
-        uart = Instance("uart_top_%d" % idx, 
+        uart = Instance("uart_top",
+                            # clock/reset (use DomainRenamer if needed)
                             i_wb_clk_i=ClockSignal(),
                             i_wb_rst_i=ResetSignal(),
+                            # wishbone bus signals
                             i_wb_adr_i=bus.adr,
                             i_wb_dat_i=bus.dat_w,
                             i_wb_sel_i=bus.sel,
@@ -67,7 +87,9 @@ class UART16550(Elaboratable):
                             i_wb_stb_i=bus.stb,
                             i_wb_cyc_i=bus.cyc,
                             o_wb_ack_o=bus.ack,
+                            # interrupt line
                             o_int_o=self.irq,
+                            # 9-pin RS232/UART signals
                             o_stx_pad_o=self.tx_o,
                             i_srx_pad_i=self.rx_i,
                             o_rts_pad_o=self.rts_o,
