@@ -8,7 +8,7 @@
 # this is a wrapper around the opencores verilog core16550 module
 
 from nmigen import (Elaboratable, Cat, Module, Signal, ClockSignal, Instance,
-                    ResetSignal)
+                    ResetSignal, Const)
 from nmigen.cli import rtlil, verilog
 
 from soc.debug.dmi import DMIInterface
@@ -74,10 +74,18 @@ class ExternalCore(Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
+        comb = m.d.comb
 
         # create definition of external core here, so that
         # nmigen understands I/O directions (defined by i_ and o_ prefixes)
         ibus, dbus, dmi = self.ibus, self.dbus, self.dmi
+
+        # sigh, microwatt wishbone address is borked, it contains the 3 LSBs
+        ibus_adr = Signal(32)
+        dbus_adr = Signal(32)
+        m.d.comb += ibus.adr.eq(ibus_adr[3:])
+        m.d.comb += dbus.adr.eq(dbus_adr[3:])
+
         kwargs = {
             # clock/reset signals
             'i_clk': ClockSignal(),
@@ -98,7 +106,7 @@ class ExternalCore(Elaboratable):
             'i_alt_reset': self.alt_reset,
             'o_terminated_out': self.terminated_o,
             # wishbone instruction bus
-            'o_wishbone_insn_out.adr': ibus.adr,
+            'o_wishbone_insn_out.adr': ibus_adr,
             'o_wishbone_insn_out.dat': ibus.dat_w,
             'o_wishbone_insn_out.sel': ibus.sel,
             'o_wishbone_insn_out.cyc': ibus.cyc,
@@ -108,7 +116,7 @@ class ExternalCore(Elaboratable):
             'i_wishbone_insn_in.ack': ibus.ack,
             'i_wishbone_insn_in.stall': ibus.stall,
             # wishbone data bus
-            'o_wishbone_data_out.adr': dbus.adr,
+            'o_wishbone_data_out.adr': dbus_adr,
             'o_wishbone_data_out.dat': dbus.dat_w,
             'o_wishbone_data_out.sel': dbus.sel,
             'o_wishbone_data_out.cyc': dbus.cyc,
