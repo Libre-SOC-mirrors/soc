@@ -55,7 +55,6 @@ class ExternalCore(Elaboratable):
         self.nia = Signal(64)
         self.nia_req = Signal()
         self.msr = Signal(64)
-        self.msr_req = Signal()
         self.ldst_addr = Signal(64)
         self.ldst_req = Signal()
 
@@ -81,8 +80,8 @@ class ExternalCore(Elaboratable):
         ibus, dbus, dmi = self.ibus, self.dbus, self.dmi
         kwargs = {
             # clock/reset signals
-            'i_clk_i': ClockSignal(),
-            'i_rst_i': ResetSignal(),
+            'i_clk': ClockSignal(),
+            'i_rst': ResetSignal(),
             # DMI interface
             'i_dmi_addr': dmi.addr_i,
             'i_dmi_req': dmi.req_i,
@@ -93,36 +92,35 @@ class ExternalCore(Elaboratable):
             # debug/monitor signals
             'o_nia': self.nia,
             'o_nia_req': self.nia_req,
-            'o_msr': self.msr,
-            'o_msr_req': self.msr_req,
+            'o_msr_o': self.msr,
             'o_ldst_addr': self.ldst_addr,
             'o_ldst_req': self.ldst_req,
             'i_alt_reset': self.alt_reset,
             'o_terminated_out': self.terminated_o,
             # wishbone instruction bus
-            'i_wishbone_insn_out.adr': ibus.adr,
-            'i_wishbone_insn_out.dat': ibus.dat_w,
-            'i_wishbone_insn_out.sel': ibus.sel,
-            'i_wishbone_insn_out.cyc': ibus.cyc,
-            'i_wishbone_insn_out.stb': ibus.stb,
-            'i_wishbone_insn_out.we': ibus.we,
-            'o_wishbone_insn_in.dat': ibus.dat_r,
-            'o_wishbone_insn_in.ack': ibus.ack,
-            'o_wishbone_insn_in.stall': ibus.stall,
+            'o_wishbone_insn_out.adr': ibus.adr,
+            'o_wishbone_insn_out.dat': ibus.dat_w,
+            'o_wishbone_insn_out.sel': ibus.sel,
+            'o_wishbone_insn_out.cyc': ibus.cyc,
+            'o_wishbone_insn_out.stb': ibus.stb,
+            'o_wishbone_insn_out.we': ibus.we,
+            'i_wishbone_insn_in.dat': ibus.dat_r,
+            'i_wishbone_insn_in.ack': ibus.ack,
+            'i_wishbone_insn_in.stall': ibus.stall,
             # wishbone data bus
-            'i_wishbone_data_out.adr': dbus.adr,
-            'i_wishbone_data_out.dat': dbus.dat_w,
-            'i_wishbone_data_out.sel': dbus.sel,
-            'i_wishbone_data_out.cyc': dbus.cyc,
-            'i_wishbone_data_out.stb': dbus.stb,
-            'i_wishbone_data_out.we': dbus.we,
-            'o_wishbone_data_in.dat': dbus.dat_r,
-            'o_wishbone_data_in.ack': dbus.ack,
-            'o_wishbone_data_in.stall': dbus.stall,
+            'o_wishbone_data_out.adr': dbus.adr,
+            'o_wishbone_data_out.dat': dbus.dat_w,
+            'o_wishbone_data_out.sel': dbus.sel,
+            'o_wishbone_data_out.cyc': dbus.cyc,
+            'o_wishbone_data_out.stb': dbus.stb,
+            'o_wishbone_data_out.we': dbus.we,
+            'i_wishbone_data_in.dat': dbus.dat_r,
+            'i_wishbone_data_in.ack': dbus.ack,
+            'i_wishbone_data_in.stall': dbus.stall,
             # external interrupt request
             'i_ext_irq': self.irq,
         }
-        core = Instance("core_top", **kwargs)
+        core = Instance("external_core_top", **kwargs)
         m.submodules['core_top'] = core
 
         return m
@@ -149,8 +147,7 @@ if __name__ == "__main__":
                         core.dbus.dat_r, core.dbus.dat_w, core.dbus.adr,
                         core.dbus.we, core.dbus.sel,
                         core.irq, core.alt_reset, core.terminated_o,
-                        core.nia, core.nia_req,
-                        core.msr, core.msr_req,
+                        core.msr, core.nia, core.nia_req,
                         core.ldst_addr, core.ldst_req,
                         core.dmi.addr_i, core.dmi.req_i, core.dmi.we_i,
                         core.dmi.din, core.dmi.dout, core.dmi.ack_o,
