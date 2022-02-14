@@ -106,7 +106,7 @@ class WishboneDownConvert(Elaboratable):
 
         # stall
         if hasattr(slave, 'stall'):
-            comb += slave.stall.eq(master.stall)
+            comb += master.stall.eq(slave.stall)
 
         # write Datapath - select fragments of data, depending on "counter"
         with m.Switch(counter):
