@@ -104,6 +104,10 @@ class WishboneDownConvert(Elaboratable):
                 comb += slave.cti.eq(2)
         comb += slave.adr.eq(Cat(counter, master.adr))
 
+        # stall
+        if hasattr(slave, 'stall'):
+            comb += slave.stall.eq(master.stall)
+
         # write Datapath - select fragments of data, depending on "counter"
         with m.Switch(counter):
             slen = slave.sel.width
