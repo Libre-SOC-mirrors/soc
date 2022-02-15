@@ -74,9 +74,12 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
         # uart peripheral clock rate, currently assumed to be system clock
         # 0 ..31  : UART clock freq (in HZ)
         #     32  : UART is 16550 (otherwise pp)
-        if self.has_uart:
-            comb += self._uart0_info_r.r_data[0:32].eq(int(self.sys_clk_freq))
-            comb += self._uart0_info_r.r_data[32].eq(1)
+        comb += self._uart0_info_r.r_data[0:32].eq(int(self.sys_clk_freq))
+        comb += self._uart0_info_r.r_data[32].eq(1)
+
+        # Reg Info, defines what peripherals and characteristics are present
+        comb += self._reg_info_r.r_data[0].eq(self.has_uart) # has UART0
+        comb += self._reg_info_r.r_data[5].eq(1)             # Large SYSCON
 
         # system control
         sysctrl = Cat(self.dram_at_0, self.core_reset, self.soc_reset)
