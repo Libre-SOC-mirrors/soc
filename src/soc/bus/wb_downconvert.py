@@ -73,8 +73,7 @@ class WishboneDownConvert(Elaboratable):
                     comb += slave.cyc.eq(1)
                     comb += slave.stb.eq(1)
                     with m.If(slave.ack | skip):
-                        comb += cur_counter.eq(counter + 1) # TODO use Picker
-                        sync += counter.eq(cur_counter)
+                        sync += counter.eq(counter + 1)
                         with m.If(counter_done):
                             comb += master.ack.eq(1)
                             m.next = "IDLE"
