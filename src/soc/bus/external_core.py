@@ -5,7 +5,9 @@
 # Sponsored by NLnet and NGI POINTER under EU Grants 871528 and 957073
 # Part of the Libre-SOC Project.
 #
-# this is a wrapper around the opencores verilog core16550 module
+# this is a wrapper around the external_core_top.v verilog module
+# which allows for faster development iteration (oh and microwatt or
+# other core to be dropped into a peripheral fabric)
 
 from nmigen import (Elaboratable, Cat, Module, Signal, ClockSignal, Instance,
                     ResetSignal, Const)
