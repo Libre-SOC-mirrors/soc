@@ -22,7 +22,7 @@ class UART16550(Elaboratable):
        UART16550.add_verilog_source
     """
 
-    def __init__(self, bus=None, features=None, name=None):
+    def __init__(self, bus=None, features=None, name=None, data_width=32):
         if name is not None:
             # convention: give the name in the format "name_number"
             self.idx = int(name.split("_")[-1])
@@ -35,12 +35,13 @@ class UART16550(Elaboratable):
             features = frozenset()
         if bus is None:
             bus = Interface(addr_width=5,
-                            data_width=32,
+                            data_width=data_width,
                             features=features,
                             granularity=8,
                             name=name+"_wb_%d" % self.idx)
         self.bus = bus
-        assert len(self.bus.dat_r) == 32, "bus width must be 32"
+        assert len(self.bus.dat_r) == data_width, \
+                        "bus width must be %d" % data_width
 
         # IRQ for data buffer receive/xmit
         self.irq = Signal() 
@@ -117,7 +118,7 @@ def create_verilog(dut, ports, test_name):
 
 
 if __name__ == "__main__":
-    uart = UART16550(name="uart_0")
+    uart = UART16550(name="uart_0", data_width=8)
     create_ilang(uart, [uart.bus.cyc, uart.bus.stb, uart.bus.ack,
                         uart.bus.dat_r, uart.bus.dat_w, uart.bus.adr,
                         uart.bus.we, uart.bus.sel,
