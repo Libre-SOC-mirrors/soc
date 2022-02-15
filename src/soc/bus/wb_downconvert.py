@@ -42,28 +42,23 @@ class WishboneDownConvert(Elaboratable):
 
         read = Signal()
         write = Signal()
-        dat_r = Signal(dw_from)
+
+        cached_data = Signal(dw_from)
+        shift_reg = Signal(dw_from)
 
         counter = Signal(log2_int(ratio, False))
-        counter_reset = Signal()
-        counter_ce = Signal()
-        with m.If(counter_reset):
-            sync += counter.eq(0)
-        with m.Elif(counter_ce):
-            sync += counter.eq(counter + 1)
+        cur_counter = Signal(log2_int(ratio, False))
 
         counter_done = Signal()
         comb += counter_done.eq(counter == ratio-1)
+        comb += cur_counter.eq(counter)
 
         # Main FSM
         with m.FSM() as fsm:
             with m.State("IDLE"):
-                comb += counter_reset.eq(1)
-                sync += dat_r.eq(0)
-                sync += master.ack.eq(0)
+                sync += counter.eq(0)
+                sync += cached_data.eq(0)
                 with m.If(master.stb & master.cyc):
-                    if hasattr(master, 'stall'):
-                        comb += master.stall.eq(1)
                     with m.If(master.we):
                         m.next = "WRITE"
                     with m.Else():
@@ -71,43 +66,30 @@ class WishboneDownConvert(Elaboratable):
 
             with m.State("WRITE"):
                 comb += write.eq(1)
-                comb += slave.we.eq(1)
-                comb += slave.cyc.eq(1)
                 with m.If(master.stb & master.cyc):
-                    if hasattr(master, 'stall'):
-                        comb += master.stall.eq(1)
-                    if hasattr(slave, 'stall'):
-                        with m.If(~slave.stall):
-                            comb += slave.stb.eq(1)
-                    else:
-                        comb += slave.stb.eq(1)
+                    comb += slave.we.eq(1)
+                    comb += slave.cyc.eq(1)
+                    comb += slave.stb.eq(1)
                     with m.If(slave.ack):
-                        comb += counter_ce.eq(1)
+                        comb += cur_counter.eq(counter + 1)
+                        sync += counter.eq(cur_counter)
                         with m.If(counter_done):
-                            if hasattr(master, 'stall'):
-                                comb += master.stall.eq(0)
-                            sync += master.ack.eq(1)
+                            comb += master.ack.eq(1)
                             m.next = "IDLE"
                 with m.Elif(~master.cyc):
                     m.next = "IDLE"
 
             with m.State("READ"):
                 comb += read.eq(1)
-                comb += slave.cyc.eq(1)
                 with m.If(master.stb & master.cyc):
-                    if hasattr(master, 'stall'):
-                        comb += master.stall.eq(1)
-                    if hasattr(slave, 'stall'):
-                        with m.If(~slave.stall):
-                            comb += slave.stb.eq(1)
-                    else:
-                        comb += slave.stb.eq(1)
+                    comb += slave.cyc.eq(1)
+                    comb += slave.stb.eq(1)
                     with m.If(slave.ack):
-                        comb += counter_ce.eq(1)
+                        comb += cur_counter.eq(counter + 1)
+                        sync += counter.eq(cur_counter)
                         with m.If(counter_done):
-                            if hasattr(master, 'stall'):
-                                comb += master.stall.eq(0)
-                            sync += master.ack.eq(1)
+                            comb += master.ack.eq(1)
+                            comb += master.dat_r.eq(shift_reg)
                             m.next = "IDLE"
                 with m.Elif(~master.cyc):
                     m.next = "IDLE"
@@ -118,7 +100,7 @@ class WishboneDownConvert(Elaboratable):
                 comb += slave.cti.eq(7) # indicate end of burst
             with m.Else():
                 comb += slave.cti.eq(2)
-        comb += slave.adr.eq(Cat(counter, master.adr))
+        comb += slave.adr.eq(Cat(cur_counter, master.adr))
 
         # write Datapath - select fragments of data, depending on "counter"
         with m.Switch(counter):
@@ -132,8 +114,9 @@ class WishboneDownConvert(Elaboratable):
 
         # read Datapath - uses cached_data and master.dat_r as a shift-register.
         # by the time "counter" is done (counter_done) this is complete
-        comb += master.dat_r.eq(Cat(dat_r[dw_to:], slave.dat_r))
+        comb += shift_reg.eq(Cat(cached_data[dw_to:], slave.dat_r))
         with m.If(read & slave.ack):
-            sync += dat_r.eq(master.dat_r)
+            sync += cached_data.eq(shift_reg)
+
 
         return m
