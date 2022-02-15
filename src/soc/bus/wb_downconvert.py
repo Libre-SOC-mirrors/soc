@@ -52,6 +52,7 @@ class WishboneDownConvert(Elaboratable):
         counter_done = Signal()
         comb += counter_done.eq(counter == ratio-1)
         comb += cur_counter.eq(counter)
+        skip = Signal()
 
         # Main FSM
         with m.FSM() as fsm:
@@ -67,11 +68,12 @@ class WishboneDownConvert(Elaboratable):
             with m.State("WRITE"):
                 comb += write.eq(1)
                 with m.If(master.stb & master.cyc):
+                    comb += skip.eq(slave.sel == 0)
                     comb += slave.we.eq(1)
                     comb += slave.cyc.eq(1)
                     comb += slave.stb.eq(1)
-                    with m.If(slave.ack):
-                        comb += cur_counter.eq(counter + 1)
+                    with m.If(slave.ack | skip):
+                        comb += cur_counter.eq(counter + 1) # TODO use Picker
                         sync += counter.eq(cur_counter)
                         with m.If(counter_done):
                             comb += master.ack.eq(1)
@@ -82,10 +84,11 @@ class WishboneDownConvert(Elaboratable):
             with m.State("READ"):
                 comb += read.eq(1)
                 with m.If(master.stb & master.cyc):
+                    comb += skip.eq(slave.sel == 0)
                     comb += slave.cyc.eq(1)
                     comb += slave.stb.eq(1)
-                    with m.If(slave.ack):
-                        comb += cur_counter.eq(counter + 1)
+                    with m.If(slave.ack | skip):
+                        comb += cur_counter.eq(counter + 1) # TODO use Picker
                         sync += counter.eq(cur_counter)
                         with m.If(counter_done):
                             comb += master.ack.eq(1)
@@ -115,7 +118,7 @@ class WishboneDownConvert(Elaboratable):
         # read Datapath - uses cached_data and master.dat_r as a shift-register.
         # by the time "counter" is done (counter_done) this is complete
         comb += shift_reg.eq(Cat(cached_data[dw_to:], slave.dat_r))
-        with m.If(read & slave.ack):
+        with m.If(read & (slave.ack | skip)):
             sync += cached_data.eq(shift_reg)
 
 
