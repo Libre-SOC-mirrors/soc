@@ -22,13 +22,15 @@ class UART16550(Elaboratable):
        UART16550.add_verilog_source
     """
 
-    def __init__(self, bus=None, features=None, name=None, data_width=32):
+    def __init__(self, bus=None, features=None, name=None, data_width=32,
+                       pins=None):
         if name is not None:
             # convention: give the name in the format "name_number"
             self.idx = int(name.split("_")[-1])
         else:
             self.idx = 0
             name = "uart_0"
+        self.data_width = data_width
 
         # set up the wishbone bus
         if features is None:
@@ -56,6 +58,9 @@ class UART16550(Elaboratable):
         self.ri_i = Signal() # can't even remember what this is!
         self.dcd_i = Signal() # or this!
 
+        # pins resource
+        self.pins = pins
+
     @classmethod
     def add_verilog_source(cls, verilog_src_dir, platform):
         # add each of the verilog sources, needed for when doing platform.build
@@ -72,6 +77,7 @@ class UART16550(Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
+        comb = m.d.comb
 
         # create definition of external verilog 16550 uart here, so that                # nmigen understands I/O directions (defined by i_ and o_ prefixes)
         idx, bus = self.idx, self.bus
@@ -102,6 +108,10 @@ class UART16550(Elaboratable):
                             );
 
         m.submodules['uart16550_%d' % self.idx] = uart
+
+        if self.pins is not None:
+            comb += self.pins.tx.eq(self.tx_o)
+            comb += self.rx_i.eq(self.pins.rx)
 
         return m
 
