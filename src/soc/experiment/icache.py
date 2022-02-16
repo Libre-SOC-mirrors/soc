@@ -313,7 +313,7 @@ class ICache(FetchUnitInterface, Elaboratable):
                             data_width=64,
                             granularity=8,
                             features={'stall'},
-                            alignment=0,
+                            #alignment=0,
                             name="icache_wb")
 
         self.log_out        = Signal(54)
