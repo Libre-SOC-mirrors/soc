@@ -513,12 +513,14 @@ class DTLBUpdate(Elaboratable):
         print ("    TLB_NUM_WAYS", cfg.TLB_NUM_WAYS)
 
         # TAG and PTE Memory SRAMs. transparent, write-enables are TLB_NUM_WAYS
-        tagway = Memory(depth=cfg.TLB_SET_SIZE, width=cfg.TLB_TAG_WAY_BITS)
+        tagway = Memory(depth=cfg.TLB_SET_SIZE, width=cfg.TLB_TAG_WAY_BITS,
+                             attrs={'syn_ramstyle': "block_ram"})
         m.submodules.rd_tagway = rd_tagway = tagway.read_port()
         m.submodules.wr_tagway = wr_tagway = tagway.write_port(
                                     granularity=cfg.TLB_EA_TAG_BITS)
 
-        pteway = Memory(depth=cfg.TLB_SET_SIZE, width=cfg.TLB_PTE_WAY_BITS)
+        pteway = Memory(depth=cfg.TLB_SET_SIZE, width=cfg.TLB_PTE_WAY_BITS,
+                             attrs={'syn_ramstyle': "block_ram"})
         m.submodules.rd_pteway = rd_pteway = pteway.read_port()
         m.submodules.wr_pteway = wr_pteway = pteway.write_port(
                                     granularity=cfg.TLB_PTE_BITS)
@@ -966,8 +968,9 @@ class DCache(Elaboratable, DCacheConfig):
 
         m_in, d_in = self.m_in, self.d_in
 
-        # synchronous tag read-port
-        m.submodules.rd_tag = rd_tag = self.tagmem.read_port()
+        # synchronous tag read-port: NOT TRANSPARENT (cannot pass through
+        # write-to-a-read at the same time), seems to pass tests ok
+        m.submodules.rd_tag = rd_tag = self.tagmem.read_port(transparent=False)
 
         index = Signal(self.INDEX_BITS)
 
@@ -1757,7 +1760,8 @@ class DCache(Elaboratable, DCacheConfig):
         cache_valids     = self.CacheValidsArray()
         cache_tag_set    = Signal(self.TAG_RAM_WIDTH)
 
-        self.tagmem = Memory(depth=self.NUM_LINES, width=self.TAG_RAM_WIDTH)
+        self.tagmem = Memory(depth=self.NUM_LINES, width=self.TAG_RAM_WIDTH,
+                             attrs={'syn_ramstyle': "block_ram"})
 
         """note: these are passed to nmigen.hdl.Memory as "attributes".
            don't know how, just that they are.

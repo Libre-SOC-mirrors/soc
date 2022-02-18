@@ -32,7 +32,8 @@ class CacheRam(Elaboratable):
         # set up the Cache RAM Memory and create one read and one write port
         # the read port is *not* transparent (does not pass write-thru-read)
         #attribute ram_style of ram : signal is "block";
-        ram = Memory(depth=SIZE, width=WIDTH)
+        ram = Memory(depth=SIZE, width=WIDTH,
+                     attrs={'syn_ramstyle': "block_ram"})
         m.submodules.rdport = rdport = ram.read_port(transparent=False)
         m.submodules.wrport = wrport = ram.write_port(granularity=8)
 

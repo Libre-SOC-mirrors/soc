@@ -865,9 +865,13 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
         replace_way      = Signal(self.WAY_BITS)
 
         self.tlbmem = Memory(depth=self.TLB_SIZE,
-                             width=self.TLB_EA_TAG_BITS+self.TLB_PTE_BITS)
+                             width=self.TLB_EA_TAG_BITS+self.TLB_PTE_BITS,
+                             #attrs={'syn_ramstyle': "block_ram"}
+                            )
         self.tagmem = Memory(depth=self.NUM_LINES,
-                             width=self.TAG_RAM_WIDTH)
+                             width=self.TAG_RAM_WIDTH,
+                             #attrs={'syn_ramstyle': "block_ram"}
+                            )
 
         # call sub-functions putting everything together,
         # using shared signals established above
