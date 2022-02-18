@@ -60,7 +60,7 @@ class SRAM(Elaboratable):
                             data_width=self.memory.width,
                             granularity=granularity,
                             features=features,
-                            alignment=0,
+                            #alignment=0,
                             name=None)
         self.bus = bus
         self.granularity = bus.granularity

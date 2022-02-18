@@ -72,197 +72,203 @@ SIM            = 0
 LOG_LENGTH     = 0
 
 class ICacheConfig:
-    def __init__(self, self.LINE_SIZE      = 64
-                       self.NUM_LINE      = 16 # Number of lines in a set
-                       self.NUM_WAYS       = 1,  # Number of ways
-                       self.TLB_SIZE       = 64,  # L1 ITLB number of entries 
-                       self.TLB_LG_PGSZ    = 12): # L1 ITLB log_2(page_size)
-self.LINE_SIZE      = 64
-self.NUM_LINE      = 16 # Number of lines in a set
-self.NUM_WAYS       = 1 # Number of ways
-self.TLB_SIZE       = 64 # L1 ITLB number of entries 
-self.TLB_LG_PGSZ    = 12 # L1 ITLB log_2(page_size)
+    def __init__(self, LINE_SIZE     = 64,
+                       NUM_LINES     = 16,  # Number of lines in a set
+                       NUM_WAYS      = 1,  # Number of ways
+                       TLB_SIZE      = 64,  # L1 ITLB number of entries
+                       TLB_LG_PGSZ   = 12): # L1 ITLB log_2(page_size)
+        self.LINE_SIZE      = LINE_SIZE
+        self.NUM_LINES      = NUM_LINES
+        self.NUM_WAYS       = NUM_WAYS
+        self.TLB_SIZE       = TLB_SIZE
+        self.TLB_LG_PGSZ    = TLB_LG_PGSZ
 
-# BRAM organisation: We never access more than wishbone_data_bits
-# at a time so to save resources we make the array only that wide,
-# and use consecutive indices for to make a cache "line"
-#
-# self.ROW_SIZE is the width in bytes of the BRAM (based on WB, so 64-bits)
-self.ROW_SIZE       = WB_DATA_BITS // 8
-# Number of real address bits that we store
-self.REAL_ADDR_BITS = 56
+        # BRAM organisation: We never access more than wishbone_data_bits
+        # at a time so to save resources we make the array only that wide,
+        # and use consecutive indices for to make a cache "line"
+        #
+        # self.ROW_SIZE is the width in bytes of the BRAM
+        # (based on WB, so 64-bits)
+        self.ROW_SIZE       = WB_DATA_BITS // 8
+        # Number of real address bits that we store
+        self.REAL_ADDR_BITS = 56
 
-self.ROW_SIZE_BITS  = self.ROW_SIZE * 8
-# ROW_PER_LINE is the number of row (wishbone) transactions in a line
-self.ROW_PER_LINE   = self.LINE_SIZE // self.ROW_SIZE
-# BRAM_ROWS is the number of rows in BRAM
-# needed to represent the full icache
-self.BRAM_ROWS      = self.NUM_LINE * self.ROW_PER_LINE
-# INSN_PER_ROW is the number of 32bit instructions per BRAM row
-self.INSN_PER_ROW   = self.ROW_SIZE_BITS // 32
+        self.ROW_SIZE_BITS  = self.ROW_SIZE * 8
+        # ROW_PER_LINE is the number of row (wishbone) transactions in a line
+        self.ROW_PER_LINE   = self.LINE_SIZE // self.ROW_SIZE
+        # BRAM_ROWS is the number of rows in BRAM
+        # needed to represent the full icache
+        self.BRAM_ROWS      = self.NUM_LINES * self.ROW_PER_LINE
+        # INSN_PER_ROW is the number of 32bit instructions per BRAM row
+        self.INSN_PER_ROW   = self.ROW_SIZE_BITS // 32
 
-# Bit fields counts in the address
-#
-# INSN_BITS is the number of bits to select an instruction in a row
-self.INSN_BITS      = log2_int(self.INSN_PER_ROW)
-# ROW_BITS is the number of bits to select a row
-self.ROW_BITS       = log2_int(self.BRAM_ROWS)
-# ROW_LINE_BITS is the number of bits to select a row within a line
-self.ROW_LINE_BITS  = log2_int(self.ROW_PER_LINE)
-# LINE_OFF_BITS is the number of bits for the offset in a cache line
-self.LINE_OFF_BITS  = log2_int(self.LINE_SIZE)
-# ROW_OFF_BITS is the number of bits for the offset in a row
-self.ROW_OFF_BITS   = log2_int(self.ROW_SIZE)
-# INDEX_BITS is the number of bits to select a cache line
-self.INDEX_BITS     = log2_int(self.NUM_LINE)
-# SET_SIZE_BITS is the log base 2 of the set size
-self.SET_SIZE_BITS  = self.LINE_OFF_BITS + self.INDEX_BITS
-# TAG_BITS is the number of bits of the tag part of the address
-self.TAG_BITS       = self.REAL_ADDR_BITS - self.SET_SIZE_BITS
-# TAG_WIDTH is the width in bits of each way of the tag RAM
-self.TAG_WIDTH      = self.TAG_BITS + 7 - ((self.TAG_BITS + 7) % 8)
+        # Bit fields counts in the address
+        #
+        # INSN_BITS is the number of bits to select an instruction in a row
+        self.INSN_BITS      = log2_int(self.INSN_PER_ROW)
+        # ROW_BITS is the number of bits to select a row
+        self.ROW_BITS       = log2_int(self.BRAM_ROWS)
+        # ROW_LINE_BITS is the number of bits to select a row within a line
+        self.ROW_LINE_BITS  = log2_int(self.ROW_PER_LINE)
+        # LINE_OFF_BITS is the number of bits for the offset in a cache line
+        self.LINE_OFF_BITS  = log2_int(self.LINE_SIZE)
+        # ROW_OFF_BITS is the number of bits for the offset in a row
+        self.ROW_OFF_BITS   = log2_int(self.ROW_SIZE)
+        # INDEX_BITS is the number of bits to select a cache line
+        self.INDEX_BITS     = log2_int(self.NUM_LINES)
+        # SET_SIZE_BITS is the log base 2 of the set size
+        self.SET_SIZE_BITS  = self.LINE_OFF_BITS + self.INDEX_BITS
+        # TAG_BITS is the number of bits of the tag part of the address
+        self.TAG_BITS       = self.REAL_ADDR_BITS - self.SET_SIZE_BITS
+        # TAG_WIDTH is the width in bits of each way of the tag RAM
+        self.TAG_WIDTH      = self.TAG_BITS + 7 - ((self.TAG_BITS + 7) % 8)
 
-# WAY_BITS is the number of bits to select a way
-self.WAY_BITS       = log2_int(self.NUM_WAYS)
-self.TAG_RAM_WIDTH  = self.TAG_BITS * self.NUM_WAYS
+        # WAY_BITS is the number of bits to select a way
+        self.WAY_BITS       = log2_int(self.NUM_WAYS)
+        self.TAG_RAM_WIDTH  = self.TAG_BITS * self.NUM_WAYS
 
-# L1 ITLB
-self.TL_BITS        = log2_int(self.TLB_SIZE)
-self.TLB_EA_TAG_BITS = 64 - (self.TLB_LG_PGSZ + self.TL_BITS)
-self.TLB_PTE_BITS    = 64
+        # L1 ITLB
+        self.TL_BITS        = log2_int(self.TLB_SIZE)
+        self.TLB_EA_TAG_BITS = 64 - (self.TLB_LG_PGSZ + self.TL_BITS)
+        self.TLB_PTE_BITS    = 64
 
-print("self.BRAM_ROWS       =", self.BRAM_ROWS)
-print("self.INDEX_BITS      =", self.INDEX_BITS)
-print("self.INSN_BITS       =", self.INSN_BITS)
-print("self.INSN_PER_ROW    =", self.INSN_PER_ROW)
-print("self.LINE_SIZE       =", self.LINE_SIZE)
-print("self.LINE_OFF_BITS   =", self.LINE_OFF_BITS)
-print("LOG_LENGTH      =", LOG_LENGTH)
-print("self.NUM_LINE       =", self.NUM_LINE)
-print("self.NUM_WAYS        =", self.NUM_WAYS)
-print("self.REAL_ADDR_BITS  =", self.REAL_ADDR_BITS)
-print("self.ROW_BITS        =", self.ROW_BITS)
-print("self.ROW_OFF_BITS    =", self.ROW_OFF_BITS)
-print("self.ROW_LINE_BITS   =", self.ROW_LINE_BITS)
-print("self.ROW_PER_LINE    =", self.ROW_PER_LINE)
-print("self.ROW_SIZE        =", self.ROW_SIZE)
-print("self.ROW_SIZE_BITS   =", self.ROW_SIZE_BITS)
-print("self.SET_SIZE_BITS   =", self.SET_SIZE_BITS)
-print("SIM             =", SIM)
-print("self.TAG_BITS        =", self.TAG_BITS)
-print("self.TAG_RAM_WIDTH   =", self.TAG_RAM_WIDTH)
-print("self.TAG_BITS        =", self.TAG_BITS)
-print("self.TL_BITS        =", self.TL_BITS)
-print("self.TLB_EA_TAG_BITS =", self.TLB_EA_TAG_BITS)
-print("self.TLB_LG_PGSZ     =", self.TLB_LG_PGSZ)
-print("self.TLB_PTE_BITS    =", self.TLB_PTE_BITS)
-print("self.TLB_SIZE        =", self.TLB_SIZE)
-print("self.WAY_BITS        =", self.WAY_BITS)
+        print("self.BRAM_ROWS       =", self.BRAM_ROWS)
+        print("self.INDEX_BITS      =", self.INDEX_BITS)
+        print("self.INSN_BITS       =", self.INSN_BITS)
+        print("self.INSN_PER_ROW    =", self.INSN_PER_ROW)
+        print("self.LINE_SIZE       =", self.LINE_SIZE)
+        print("self.LINE_OFF_BITS   =", self.LINE_OFF_BITS)
+        print("LOG_LENGTH      =", LOG_LENGTH)
+        print("self.NUM_LINES       =", self.NUM_LINES)
+        print("self.NUM_WAYS        =", self.NUM_WAYS)
+        print("self.REAL_ADDR_BITS  =", self.REAL_ADDR_BITS)
+        print("self.ROW_BITS        =", self.ROW_BITS)
+        print("self.ROW_OFF_BITS    =", self.ROW_OFF_BITS)
+        print("self.ROW_LINE_BITS   =", self.ROW_LINE_BITS)
+        print("self.ROW_PER_LINE    =", self.ROW_PER_LINE)
+        print("self.ROW_SIZE        =", self.ROW_SIZE)
+        print("self.ROW_SIZE_BITS   =", self.ROW_SIZE_BITS)
+        print("self.SET_SIZE_BITS   =", self.SET_SIZE_BITS)
+        print("SIM             =", SIM)
+        print("self.TAG_BITS        =", self.TAG_BITS)
+        print("self.TAG_RAM_WIDTH   =", self.TAG_RAM_WIDTH)
+        print("self.TAG_BITS        =", self.TAG_BITS)
+        print("self.TL_BITS        =", self.TL_BITS)
+        print("self.TLB_EA_TAG_BITS =", self.TLB_EA_TAG_BITS)
+        print("self.TLB_LG_PGSZ     =", self.TLB_LG_PGSZ)
+        print("self.TLB_PTE_BITS    =", self.TLB_PTE_BITS)
+        print("self.TLB_SIZE        =", self.TLB_SIZE)
+        print("self.WAY_BITS        =", self.WAY_BITS)
 
-assert self.LINE_SIZE % self.ROW_SIZE == 0
-assert ispow2(self.LINE_SIZE), "self.LINE_SIZE not power of 2"
-assert ispow2(self.NUM_LINE), "self.NUM_LINE not power of 2"
-assert ispow2(self.ROW_PER_LINE), "self.ROW_PER_LINE not power of 2"
-assert ispow2(self.INSN_PER_ROW), "self.INSN_PER_ROW not power of 2"
-assert (self.ROW_BITS == (self.INDEX_BITS + self.ROW_LINE_BITS)), \
-    "geometry bits don't add up"
-assert (self.LINE_OFF_BITS == (self.ROW_OFF_BITS + self.ROW_LINE_BITS)), \
-   "geometry bits don't add up"
-assert (self.REAL_ADDR_BITS == (self.TAG_BITS + self.INDEX_BITS + self.LINE_OFF_BITS)), \
-    "geometry bits don't add up"
-assert (self.REAL_ADDR_BITS == (self.TAG_BITS + self.ROW_BITS + self.ROW_OFF_BITS)), \
-    "geometry bits don't add up"
+        assert self.LINE_SIZE % self.ROW_SIZE == 0
+        assert ispow2(self.LINE_SIZE), "self.LINE_SIZE not power of 2"
+        assert ispow2(self.NUM_LINES), "self.NUM_LINES not power of 2"
+        assert ispow2(self.ROW_PER_LINE), "self.ROW_PER_LINE not power of 2"
+        assert ispow2(self.INSN_PER_ROW), "self.INSN_PER_ROW not power of 2"
+        assert (self.ROW_BITS == (self.INDEX_BITS + self.ROW_LINE_BITS)), \
+            "geometry bits don't add up"
+        assert (self.LINE_OFF_BITS ==
+            (self.ROW_OFF_BITS + self.ROW_LINE_BITS)), \
+           "geometry bits don't add up"
+        assert (self.REAL_ADDR_BITS ==
+            (self.TAG_BITS + self.INDEX_BITS + self.LINE_OFF_BITS)), \
+            "geometry bits don't add up"
+        assert (self.REAL_ADDR_BITS ==
+            (self.TAG_BITS + self.ROW_BITS + self.ROW_OFF_BITS)), \
+            "geometry bits don't add up"
 
-# Example of layout for 32 lines of 64 bytes:
-#
-# ..  tag    |index|  line  |
-# ..         |   row   |    |
-# ..         |     |   | |00| zero          (2)
-# ..         |     |   |-|  | self.INSN_BITS     (1)
-# ..         |     |---|    | self.ROW_LINE_BITS  (3)
-# ..         |     |--- - --| self.LINE_OFF_BITS (6)
-# ..         |         |- --| self.ROW_OFF_BITS  (3)
-# ..         |----- ---|    | self.ROW_BITS      (8)
-# ..         |-----|        | self.INDEX_BITS    (5)
-# .. --------|              | self.TAG_BITS      (53)
+        # Example of layout for 32 lines of 64 bytes:
+        #
+        # ..  tag    |index|  line  |
+        # ..         |   row   |    |
+        # ..         |     |   | |00| zero          (2)
+        # ..         |     |   |-|  | self.INSN_BITS     (1)
+        # ..         |     |---|    | self.ROW_LINE_BITS  (3)
+        # ..         |     |--- - --| self.LINE_OFF_BITS (6)
+        # ..         |         |- --| self.ROW_OFF_BITS  (3)
+        # ..         |----- ---|    | self.ROW_BITS      (8)
+        # ..         |-----|        | self.INDEX_BITS    (5)
+        # .. --------|              | self.TAG_BITS      (53)
 
-# The cache data BRAM organized as described above for each way
-#subtype cache_row_t is std_ulogic_vector(self.ROW_SIZE_BITS-1 downto 0);
-#
-def RowPerLineValidArray():
-    return Array(Signal(name="rows_valid_%d" %x) \
-                 for x in range(self.ROW_PER_LINE))
+    # The cache data BRAM organized as described above for each way
+    #subtype cache_row_t is std_ulogic_vector(self.ROW_SIZE_BITS-1 downto 0);
+    #
+    def RowPerLineValidArray(self):
+        return Array(Signal(name="rows_valid_%d" %x) \
+                     for x in range(self.ROW_PER_LINE))
 
 
-# TODO to be passed to nigmen as ram attributes
-# attribute ram_style : string;
-# attribute ram_style of cache_tags : signal is "distributed";
+    # TODO to be passed to nigmen as ram attributes
+    # attribute ram_style : string;
+    # attribute ram_style of cache_tags : signal is "distributed";
 
-def TLBRecord(name):
-    tlb_layout = [ ('tag', self.TLB_EA_TAG_BITS),
-                  ('pte', self.TLB_PTE_BITS)
-                 ]
-    return Record(tlb_layout, name=name)
+    def TLBRecord(self, name):
+        tlb_layout = [ ('tag', self.TLB_EA_TAG_BITS),
+                      ('pte', self.TLB_PTE_BITS)
+                     ]
+        return Record(tlb_layout, name=name)
 
-def TLBArray():
-    return Array(TLBRecord("tlb%d" % x) for x in range(self.TLB_SIZE))
+    def TLBArray(self):
+        return Array(self.TLBRecord("tlb%d" % x) for x in range(self.TLB_SIZE))
 
-# PLRU output interface
-def PLRUOut():
-    return Array(Signal(self.WAY_BITS, name="plru_out_%d" %x) \
-                 for x in range(self.NUM_LINE))
+    # PLRU output interface
+    def PLRUOut(self):
+        return Array(Signal(self.WAY_BITS, name="plru_out_%d" %x) \
+                     for x in range(self.NUM_LINES))
 
-# Return the cache line index (tag index) for an address
-def get_index(addr):
-    return addr[self.LINE_OFF_BITS:self.SET_SIZE_BITS]
+    # Return the cache line index (tag index) for an address
+    def get_index(self, addr):
+        return addr[self.LINE_OFF_BITS:self.SET_SIZE_BITS]
 
-# Return the cache row index (data memory) for an address
-def get_row(addr):
-    return addr[self.ROW_OFF_BITS:self.SET_SIZE_BITS]
+    # Return the cache row index (data memory) for an address
+    def get_row(self, addr):
+        return addr[self.ROW_OFF_BITS:self.SET_SIZE_BITS]
 
-# Return the index of a row within a line
-def get_row_of_line(row):
-    return row[:self.ROW_BITS][:self.ROW_LINE_BITS]
+    # Return the index of a row within a line
+    def get_row_of_line(self, row):
+        return row[:self.ROW_BITS][:self.ROW_LINE_BITS]
 
-# Returns whether this is the last row of a line
-def is_last_row_addr(addr, last):
-    return addr[self.ROW_OFF_BITS:self.LINE_OFF_BITS] == last
+    # Returns whether this is the last row of a line
+    def is_last_row_addr(self, addr, last):
+        return addr[self.ROW_OFF_BITS:self.LINE_OFF_BITS] == last
 
-# Returns whether this is the last row of a line
-def is_last_row(row, last):
-    return get_row_of_line(row) == last
+    # Returns whether this is the last row of a line
+    def is_last_row(self, row, last):
+        return self.get_row_of_line(row) == last
 
-# Return the next row in the current cache line. We use a dedicated
-# function in order to limit the size of the generated adder to be
-# only the bits within a cache line (3 bits with default settings)
-def next_row(row):
-    row_v = row[0:self.ROW_LINE_BITS] + 1
-    return Cat(row_v[:self.ROW_LINE_BITS], row[self.ROW_LINE_BITS:])
+    # Return the next row in the current cache line. We use a dedicated
+    # function in order to limit the size of the generated adder to be
+    # only the bits within a cache line (3 bits with default settings)
+    def next_row(self, row):
+        row_v = row[0:self.ROW_LINE_BITS] + 1
+        return Cat(row_v[:self.ROW_LINE_BITS], row[self.ROW_LINE_BITS:])
 
-# Read the instruction word for the given address
-# in the current cache row
-def read_insn_word(addr, data):
-    word = addr[2:self.INSN_BITS+2]
-    return data.word_select(word, 32)
+    # Read the instruction word for the given address
+    # in the current cache row
+    def read_insn_word(self, addr, data):
+        word = addr[2:self.INSN_BITS+2]
+        return data.word_select(word, 32)
 
-# Get the tag value from the address
-def get_tag(addr):
-    return addr[self.SET_SIZE_BITS:self.REAL_ADDR_BITS]
+    # Get the tag value from the address
+    def get_tag(self, addr):
+        return addr[self.SET_SIZE_BITS:self.REAL_ADDR_BITS]
 
-# Read a tag from a tag memory row
-def read_tag(way, tagset):
-    return tagset.word_select(way, self.TAG_BITS)
+    # Read a tag from a tag memory row
+    def read_tag(self, way, tagset):
+        return tagset.word_select(way, self.TAG_BITS)
 
-# Write a tag to tag memory row
-def write_tag(way, tagset, tag):
-    return read_tag(way, tagset).eq(tag)
+    # Write a tag to tag memory row
+    def write_tag(self, way, tagset, tag):
+        return self.read_tag(way, tagset).eq(tag)
 
-# Simple hash for direct-mapped TLB index
-def hash_ea(addr):
-    hsh = (addr[self.TLB_LG_PGSZ:self.TLB_LG_PGSZ + self.TL_BITS] ^
-           addr[self.TLB_LG_PGSZ + self.TL_BITS:self.TLB_LG_PGSZ + 2 * self.TL_BITS ] ^
-           addr[self.TLB_LG_PGSZ + 2 * self.TL_BITS:self.TLB_LG_PGSZ + 3 * self.TL_BITS])
-    return hsh
+    # Simple hash for direct-mapped TLB index
+    def hash_ea(self, addr):
+        hsh = (addr[self.TLB_LG_PGSZ:self.TLB_LG_PGSZ + self.TL_BITS] ^
+               addr[self.TLB_LG_PGSZ + self.TL_BITS:
+                    self.TLB_LG_PGSZ + 2 * self.TL_BITS ] ^
+               addr[self.TLB_LG_PGSZ + 2 * self.TL_BITS:
+                    self.TLB_LG_PGSZ + 3 * self.TL_BITS])
+        return hsh
 
 
 # Cache reload state machine
@@ -274,10 +280,10 @@ class State(Enum):
 
 
 class RegInternal(RecordObject):
-    def __init__(self):
+    def __init__(self, cfg):
         super().__init__()
         # Cache hit state (Latches for 1 cycle BRAM access)
-        self.hit_way      = Signal(self.WAY_BITS)
+        self.hit_way      = Signal(cfg.WAY_BITS)
         self.hit_nia      = Signal(64)
         self.hit_smark    = Signal()
         self.hit_valid    = Signal()
@@ -286,22 +292,23 @@ class RegInternal(RecordObject):
         self.state        = Signal(State, reset=State.IDLE)
         self.wb           = WBMasterOut("wb")
         self.req_adr      = Signal(64)
-        self.store_way    = Signal(self.WAY_BITS)
-        self.store_index  = Signal(self.INDEX_BITS)
-        self.store_row    = Signal(self.ROW_BITS)
-        self.store_tag    = Signal(self.TAG_BITS)
+        self.store_way    = Signal(cfg.WAY_BITS)
+        self.store_index  = Signal(cfg.INDEX_BITS)
+        self.store_row    = Signal(cfg.ROW_BITS)
+        self.store_tag    = Signal(cfg.TAG_BITS)
         self.store_valid  = Signal()
-        self.end_row_ix   = Signal(self.ROW_LINE_BITS)
-        self.rows_valid   = RowPerLineValidArray()
+        self.end_row_ix   = Signal(cfg.ROW_LINE_BITS)
+        self.rows_valid   = cfg.RowPerLineValidArray()
 
         # TLB miss state
         self.fetch_failed = Signal()
 
 
-class ICache(FetchUnitInterface, Elaboratable):
+class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
     """64 bit direct mapped icache. All instructions are 4B aligned."""
     def __init__(self, pspec):
         FetchUnitInterface.__init__(self, pspec)
+        ICacheConfig.__init__(self)
         self.i_in           = Fetch1ToICacheType(name="i_in")
         self.i_out          = ICacheToDecode1Type(name="i_out")
 
@@ -359,7 +366,8 @@ class ICache(FetchUnitInterface, Elaboratable):
             d_out    = Signal(self.ROW_SIZE_BITS, name="d_out_%d" % i)
             wr_sel   = Signal(self.ROW_SIZE, name="wr_sel_%d" % i)
 
-            way = CacheRam(self.ROW_BITS, self.ROW_SIZE_BITS, TRACE=True, ram_num=i)
+            way = CacheRam(self.ROW_BITS, self.ROW_SIZE_BITS,
+                           TRACE=True, ram_num=i)
             m.submodules["cacheram_%d" % i] =  way
 
             comb += way.rd_en.eq(do_read)
@@ -391,10 +399,10 @@ class ICache(FetchUnitInterface, Elaboratable):
             return
 
 
-        m.submodules.plrus = plru = PLRUs(self.NUM_LINE, self.WAY_BITS)
+        m.submodules.plrus = plru = PLRUs(self.NUM_LINES, self.WAY_BITS)
         comb += plru.way.eq(r.hit_way)
         comb += plru.valid.eq(r.hit_valid)
-        comb += plru.index.eq(get_index(r.hit_nia))
+        comb += plru.index.eq(self.get_index(r.hit_nia))
         comb += plru.isel.eq(r.store_index) # select victim
         comb += plru_victim.eq(plru.o_index) # selected victim
 
@@ -409,10 +417,10 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # use an *asynchronous* Memory read port here (combinatorial)
         m.submodules.rd_tlb = rd_tlb = self.tlbmem.read_port(domain="comb")
-        tlb = TLBRecord("tlb_rdport")
+        tlb = self.TLBRecord("tlb_rdport")
         pte, ttag = tlb.pte, tlb.tag
 
-        comb += tlb_req_index.eq(hash_ea(i_in.nia))
+        comb += tlb_req_index.eq(self.hash_ea(i_in.nia))
         comb += rd_tlb.addr.eq(tlb_req_index)
         comb += tlb.eq(rd_tlb.data)
 
@@ -443,7 +451,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         wr_index = Signal(self.TL_BITS)
         wr_unary = Signal(self.TLB_SIZE)
-        comb += wr_index.eq(hash_ea(m_in.addr))
+        comb += wr_index.eq(self.hash_ea(m_in.addr))
         comb += wr_unary.eq(1<<wr_index)
 
         m.submodules.wr_tlb = wr_tlb = self.tlbmem.write_port()
@@ -459,7 +467,7 @@ class ICache(FetchUnitInterface, Elaboratable):
             sync += itlb_valid.r.eq(wr_unary)
 
         with m.Elif(m_in.tlbld):
-            tlb = TLBRecord("tlb_wrport")
+            tlb = self.TLBRecord("tlb_wrport")
             comb += tlb.tag.eq(m_in.addr[self.TLB_LG_PGSZ + self.TL_BITS:64])
             comb += tlb.pte.eq(m_in.pte)
             comb += wr_tlb.en.eq(1)
@@ -491,9 +499,9 @@ class ICache(FetchUnitInterface, Elaboratable):
             comb += use_previous.eq(i_in.sequential & r.hit_valid)
 
         # Extract line, row and tag from request
-        comb += req_index.eq(get_index(i_in.nia))
-        comb += req_row.eq(get_row(i_in.nia))
-        comb += req_tag.eq(get_tag(real_addr))
+        comb += req_index.eq(self.get_index(i_in.nia))
+        comb += req_row.eq(self.get_row(i_in.nia))
+        comb += req_tag.eq(self.get_tag(real_addr))
 
         # Calculate address of beginning of cache row, will be
         # used for cache miss processing if needed
@@ -521,7 +529,7 @@ class ICache(FetchUnitInterface, Elaboratable):
             tagi = Signal(self.TAG_BITS, name="tag_i%d" % i)
             hit_test = Signal(name="hit_test%d" % i)
             is_tag_hit = Signal(name="is_tag_hit_%d" % i)
-            comb += tagi.eq(read_tag(i, ctag))
+            comb += tagi.eq(self.read_tag(i, ctag))
             comb += hit_test.eq(se.o[i])
             comb += is_tag_hit.eq((cvb[i] | (hitcond & hit_test)) &
                                   (tagi == req_tag))
@@ -551,7 +559,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         # be output an entire row which I prefer not to do just yet
         # as it would force fetch2 to know about some of the cache
         # geometry information.
-        comb += i_out.insn.eq(read_insn_word(r.hit_nia, cache_out_row))
+        comb += i_out.insn.eq(self.read_insn_word(r.hit_nia, cache_out_row))
         comb += i_out.valid.eq(r.hit_valid)
         comb += i_out.nia.eq(r.hit_nia)
         comb += i_out.stop_mark.eq(r.hit_smark)
@@ -623,12 +631,12 @@ class ICache(FetchUnitInterface, Elaboratable):
 
             # Keep track of our index and way for subsequent stores
             st_row = Signal(self.ROW_BITS)
-            comb += st_row.eq(get_row(req_laddr))
+            comb += st_row.eq(self.get_row(req_laddr))
             sync += r.store_index.eq(req_index)
             sync += r.store_row.eq(st_row)
             sync += r.store_tag.eq(req_tag)
             sync += r.store_valid.eq(1)
-            sync += r.end_row_ix.eq(get_row_of_line(st_row) - 1)
+            sync += r.end_row_ix.eq(self.get_row_of_line(st_row) - 1)
 
             # Prep for first wishbone read.  We calculate the address
             # of the start of the cache line and start the WB cycle.
@@ -681,7 +689,7 @@ class ICache(FetchUnitInterface, Elaboratable):
             # That was the last word? We are done sending.
             # Clear stb and set stbs_done so we can handle
             # an eventual last ack on the same cycle.
-            with m.If(is_last_row_addr(r.req_adr, r.end_row_ix)):
+            with m.If(self.is_last_row_addr(r.req_adr, r.end_row_ix)):
                 sync += Display("IS_LAST_ROW_ADDR r.wb.addr:%x "
                          "r.end_row_ix:%x r.wb.stb:%x stbs_zero:%x "
                          "stbs_done:%x", r.wb.adr, r.end_row_ix,
@@ -691,7 +699,8 @@ class ICache(FetchUnitInterface, Elaboratable):
 
             # Calculate the next row address
             rarange = Signal(self.LINE_OFF_BITS - self.ROW_OFF_BITS)
-            comb += rarange.eq(r.req_adr[self.ROW_OFF_BITS:self.LINE_OFF_BITS] + 1)
+            comb += rarange.eq(r.req_adr[self.ROW_OFF_BITS:
+                                         self.LINE_OFF_BITS] + 1)
             sync += r.req_adr[self.ROW_OFF_BITS:self.LINE_OFF_BITS].eq(rarange)
             sync += Display("RARANGE r.req_adr:%x rarange:%x "
                             "stbs_zero:%x stbs_done:%x",
@@ -706,7 +715,7 @@ class ICache(FetchUnitInterface, Elaboratable):
             sync += r.rows_valid[r.store_row % self.ROW_PER_LINE].eq(1)
 
             # Check for completion
-            with m.If(stbs_done & is_last_row(r.store_row, r.end_row_ix)):
+            with m.If(stbs_done & self.is_last_row(r.store_row, r.end_row_ix)):
                 # Complete wishbone cycle
                 sync += r.wb.cyc.eq(0)
                 # be nice, clear addr
@@ -720,7 +729,7 @@ class ICache(FetchUnitInterface, Elaboratable):
 
             # move on to next request in row
             # Increment store row counter
-            sync += r.store_row.eq(next_row(r.store_row))
+            sync += r.store_row.eq(self.next_row(r.store_row))
 
     # Cache miss/reload synchronous machine
     def icache_miss(self, m, r, req_is_miss,
@@ -802,11 +811,12 @@ class ICache(FetchUnitInterface, Elaboratable):
 
         # Cache-Ways "valid" indicators.  this is a 2D Signal, by the
         # number of ways and the number of lines.
-        vec = SRLatch(sync=True, llen=self.NUM_WAYS*self.NUM_LINE, name="cachevalids")
+        vec = SRLatch(sync=True, llen=self.NUM_WAYS*self.NUM_LINES,
+                      name="cachevalids")
         m.submodules.cache_valids = cache_valids = vec
 
         # TLB Array
-        itlb            = TLBArray()
+        itlb            = self.TLBArray()
         vec = SRLatch(sync=False, llen=self.TLB_SIZE, name="tlbvalids")
         m.submodules.itlb_valids = itlb_valid = vec
 
@@ -817,7 +827,7 @@ class ICache(FetchUnitInterface, Elaboratable):
         # Privilege bit from PTE EAA field
         eaa_priv         = Signal()
 
-        r                = RegInternal()
+        r                = RegInternal(self)
 
         # Async signal on incoming request
         req_index        = Signal(self.INDEX_BITS)
@@ -840,8 +850,10 @@ class ICache(FetchUnitInterface, Elaboratable):
         plru_victim      = Signal(self.WAY_BITS)
         replace_way      = Signal(self.WAY_BITS)
 
-        self.tlbmem = Memory(depth=self.TLB_SIZE, width=self.TLB_EA_TAG_BITS+self.TLB_PTE_BITS)
-        self.tagmem = Memory(depth=self.NUM_LINE, width=self.TAG_RAM_WIDTH)
+        self.tlbmem = Memory(depth=self.TLB_SIZE,
+                             width=self.TLB_EA_TAG_BITS+self.TLB_PTE_BITS)
+        self.tagmem = Memory(depth=self.NUM_LINES,
+                             width=self.TAG_RAM_WIDTH)
 
         # call sub-functions putting everything together,
         # using shared signals established above
