@@ -197,7 +197,8 @@ class DCacheConfig:
         self.TLB_PTE_BITS     = 64
         self.TLB_PTE_WAY_BITS = self.TLB_NUM_WAYS * self.TLB_PTE_BITS;
 
-        assert (self.LINE_SIZE % self.ROW_SIZE) == 0, "LINE_SIZE not multiple of ROW_SIZE"
+        assert (self.LINE_SIZE % self.ROW_SIZE) == 0, \
+                "LINE_SIZE not multiple of ROW_SIZE"
         assert ispow2(self.LINE_SIZE), "LINE_SIZE not power of 2"
         assert ispow2(self.NUM_LINES), "NUM_LINES not power of 2"
         assert ispow2(self.ROW_PER_LINE), "ROW_PER_LINE not power of 2"
@@ -746,7 +747,8 @@ class DCache(Elaboratable, DCacheConfig):
             # reduce way sizes and num lines
             super().__init__(NUM_LINES = 16,
                               NUM_WAYS = 1,
-                              TLB_NUM_WAYS = 1)
+                              TLB_NUM_WAYS = 1,
+                              TLB_SET_SIZE=16) # XXX needs device-tree entry
         else:
             super().__init__()
 

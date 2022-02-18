@@ -56,7 +56,9 @@ ls180_4k_verilog:
 	        --enable-xics --enable-sram4x4kblock --disable-svp64 \
 			src/soc/litex/florent/libresoc/libresoc.v
 
-# build microwatt "external core"
+# build microwatt "external core", note that the TLB set size is set to 16
+# for I/D-Cache which needs a corresponding alteration of the device-tree
+# entries for linux
 microwatt_external_core:
 	python3 src/soc/simple/issuer_verilog.py --microwatt-compat --enable-mmu \
             external_core_top.v
