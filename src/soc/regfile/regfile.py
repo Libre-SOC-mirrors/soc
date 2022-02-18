@@ -199,7 +199,8 @@ class RegFileMem(Elaboratable):
         self.fwd_bus_mode = fwd_bus_mode
         self.synced = synced
         self.width, self.depth = width, depth
-        self.memory = Memory(width=width, depth=depth)
+        self.memory = Memory(width=width, depth=depth,
+                             attrs={'syn_ramstyle': "block_ram"})
         self._rdports = {}
         self._wrports = {}
 
