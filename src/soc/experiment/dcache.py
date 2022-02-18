@@ -1619,11 +1619,15 @@ class DCache(Elaboratable, DCacheConfig):
                     # Compare the whole address in case the
                     # request in r1.req is not the one that
                     # started this refill.
+                    rowmatch = Signal()
+                    lastrow = Signal()
+                    comb += rowmatch.eq(r1.store_row ==
+                                        self.get_row(r1.req.real_addr))
+                    comb += lastrow.eq(self.is_last_row(r1.store_row,
+                                                      r1.end_row_ix))
                     with m.If(r1.full & r1.req.same_tag &
                               ((r1.dcbz & req.dcbz) |
-                               (r1.req.op == Op.OP_LOAD_MISS)) &
-                                (r1.store_row ==
-                                 self.get_row(r1.req.real_addr))):
+                               (r1.req.op == Op.OP_LOAD_MISS)) & rowmatch):
                         sync += r1.full.eq(r1_next_cycle)
                         sync += r1.slow_valid.eq(1)
                         with m.If(r1.mmu_req):
@@ -1634,8 +1638,7 @@ class DCache(Elaboratable, DCacheConfig):
                         sync += r1.use_forward1.eq(1)
 
                     # Check for completion
-                    with m.If(ld_stbs_done & self.is_last_row(r1.store_row,
-                                                      r1.end_row_ix)):
+                    with m.If(ld_stbs_done & lastrow):
                         # Complete wishbone cycle
                         sync += r1.wb.cyc.eq(0)
 

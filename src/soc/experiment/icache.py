@@ -524,9 +524,11 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
 
         # Test if pending request is a hit on any way
         hitcond = Signal()
-        comb += hitcond.eq((r.state == State.WAIT_ACK)
-                 & (req_index == r.store_index)
-                 & r.rows_valid[req_row % self.ROW_PER_LINE]
+        rowvalid = Signal()
+        comb += rowvalid.eq(r.rows_valid[req_row % self.ROW_PER_LINE])
+        comb += hitcond.eq((r.state == State.WAIT_ACK) &
+                            (req_index == r.store_index) &
+                             rowvalid
                 )
         # i_in.req asserts Decoder active
         cvb = Signal(self.NUM_WAYS)
