@@ -6,7 +6,7 @@ Links:
 """
 
 from nmigen import (Module, Signal, Elaboratable, Mux, Cat, Repl,
-                    signed)
+                    signed, Array)
 from nmigen.asserts import Assert, AnyConst, Assume, Cover
 from nmutil.formaltest import FHDLTestCase
 from nmigen.cli import rtlil
@@ -242,6 +242,21 @@ class Driver(Elaboratable):
                     for j in range(8):
                         with m.If(j == idx):
                             comb += Assert(dut.o.o.data[i] == lut[j])
+            with m.Case(MicrOp.OP_GREV):
+                ra_bits = Array(dut.i.ra[i] for i in range(64))
+                with m.If(dut.i.ctx.op.is_32bit):
+                    # assert zero-extended
+                    comb += Assert(dut.o.o.data[32:] == 0)
+                    for i in range(32):
+                        idx = dut.i.rb[0:5] ^ i
+                        comb += Assert(dut.o.o.data[i]
+                                       == ra_bits[idx])
+                with m.Else():
+                    for i in range(64):
+                        idx = dut.i.rb[0:6] ^ i
+                        comb += Assert(dut.o.o.data[i]
+                                       == ra_bits[idx])
+
             with m.Default():
                 comb += o_ok.eq(0)
 
