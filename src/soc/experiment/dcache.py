@@ -745,7 +745,7 @@ class DCache(Elaboratable, DCacheConfig):
 
         if self.microwatt_compat:
             # reduce way sizes and num lines
-            super().__init__(NUM_LINES = 16,
+            super().__init__(NUM_LINES = 8,
                               NUM_WAYS = 1,
                               TLB_NUM_WAYS = 1,
                               TLB_SET_SIZE=16) # XXX needs device-tree entry
