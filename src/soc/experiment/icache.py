@@ -73,8 +73,8 @@ LOG_LENGTH     = 0
 
 class ICacheConfig:
     def __init__(self, LINE_SIZE     = 64,
-                       NUM_LINES     = 16,  # Number of lines in a set
-                       NUM_WAYS      = 1,  # Number of ways
+                       NUM_LINES     = 64,  # Number of lines in a set
+                       NUM_WAYS      = 2,  # Number of ways
                        TLB_SIZE      = 64,  # L1 ITLB number of entries
                        TLB_LG_PGSZ   = 12): # L1 ITLB log_2(page_size)
         self.LINE_SIZE      = LINE_SIZE
@@ -308,7 +308,6 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
     """64 bit direct mapped icache. All instructions are 4B aligned."""
     def __init__(self, pspec):
         FetchUnitInterface.__init__(self, pspec)
-        ICacheConfig.__init__(self)
         self.i_in           = Fetch1ToICacheType(name="i_in")
         self.i_out          = ICacheToDecode1Type(name="i_out")
 
@@ -331,6 +330,18 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
 
         # use FetchUnitInterface, helps keep some unit tests running
         self.use_fetch_iface = False
+
+        # test if microwatt compatibility is to be enabled
+        self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
+                                 (pspec.microwatt_compat == True))
+
+        if self.microwatt_compat:
+            # reduce way sizes and num lines
+            ICacheConfig.__init__(self, NUM_LINES = 4,
+                                        NUM_WAYS = 1,
+                                 )
+        else:
+            ICacheConfig.__init__(self)
 
     def use_fetch_interface(self):
         self.use_fetch_iface = True
