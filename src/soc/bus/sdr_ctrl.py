@@ -8,13 +8,31 @@
 # this is a wrapper around the opencores verilog uart16550 module
 
 from nmigen import (Elaboratable, Cat, Module, Signal, ClockSignal, Instance,
-                    ResetSignal)
+                    ResetSignal, Record)
 
 from nmigen_soc.wishbone.bus import Interface
 from nmigen.cli import rtlil, verilog
 import os
 
-__all__ = ["SDRAM"]
+__all__ = ["SDRAM", "SDRAMConfig"]
+
+
+class SDRAMConfig(Record):
+    def __init__(self, refresh_timer_sz, refresh_row_count, name=None):
+        super().__init__(name=name, layout=[
+        # configuration parameters, these need to match the SDRAM IC datasheet
+                        ('req_depth', 2),       # max request accepted
+                        ('sdr_en', 1),          # Enable SDRAM controller
+                        ('sdr_mode_reg', 13),
+                        ('sdr_tras_d', 4),      # Active to precharge delay
+                        ('sdr_trp_d', 4),       # Precharge to active delay
+                        ('sdr_trcd_d', 4),      # Active to R/W delay
+                        ('sdr_cas', 3),         # SDRAM CAS Latency
+                        ('sdr_trcar_d', 4),     # Auto-refresh period
+                        ('sdr_twr_d', 4),       # Write recovery delay
+                        ('sdr_rfsh', refresh_timer_sz),
+                        ('sdr_rfmax', refresh_row_count)
+                    ])
 
 
 class SDRAM(Elaboratable):
@@ -23,12 +41,13 @@ class SDRAM(Elaboratable):
 
     * the SDRAM IC will be accessible over the Wishbone Bus
     * sdr_* signals must be wired to the IC
-    * cfg_* parameters must match those listed in the SDRAM IC's datasheet
+    * cfg parameters must match those listed in the SDRAM IC's datasheet
     """
 
     def __init__(self, bus=None, features=None, name=None,
                        data_width=32, addr_width=26,
                        sdr_data_width=16,
+                       cfg=None,
                        pins=None):
         if name is not None:
             name = "sdram"
@@ -72,20 +91,13 @@ class SDRAM(Elaboratable):
 
         # configuration parameters, these need to match the SDRAM IC datasheet
         self.sdr_init_done       = Signal()  # Indicate SDRAM init Done
-        self.cfg_req_depth       = Signal(2) # max request accepted 
-        self.cfg_sdr_en          = Signal()  # Enable SDRAM controller
-        self.cfg_sdr_mode_reg    = Signal(13)
-        self.cfg_sdr_tras_d      = Signal(4) # Active to precharge delay
-        self.cfg_sdr_trp_d       = Signal(4) # Precharge to active delay
-        self.cfg_sdr_trcd_d      = Signal(4) # Active to R/W delay
-        self.cfg_sdr_cas         = Signal(3) # SDRAM CAS Latency
-        self.cfg_sdr_trcar_d     = Signal(4) # Auto-refresh period
-        self.cfg_sdr_twr_d       = Signal(4) # Write recovery delay
-        self.cfg_sdr_rfsh        = Signal(self.refresh_timer_sz)
-        self.cfg_sdr_rfmax       = Signal(self.refresh_row_count)
+        if cfg is None:
+            cfg = SDRAMConfig(self.refresh_timer_sz,
+                                   self.refresh_row_count, name="sdr_cfg")
 
-        # pins resource
+        # config and pins resource
         self.pins = pins
+        self.cfg = cfg
 
     @classmethod
     def add_verilog_source(cls, verilog_src_dir, platform):
@@ -141,28 +153,28 @@ class SDRAM(Elaboratable):
 
             # configuration parameters (from the SDRAM IC datasheet)
             'o_sdr_init_done'      : self.sdr_init_done       ,
-            'i_cfg_req_depth'      : self.cfg_req_depth       ,
-            'i_cfg_sdr_en'         : self.cfg_sdr_en          ,
-            'i_cfg_sdr_mode_reg'   : self.cfg_sdr_mode_reg    ,
-            'i_cfg_sdr_tras_d'     : self.cfg_sdr_tras_d      ,
-            'i_cfg_sdr_trp_d'      : self.cfg_sdr_trp_d       ,
-            'i_cfg_sdr_trcd_d'     : self.cfg_sdr_trcd_d      ,
-            'i_cfg_sdr_cas'        : self.cfg_sdr_cas         ,
-            'i_cfg_sdr_trcar_d'    : self.cfg_sdr_trcar_d     ,
-            'i_cfg_sdr_twr_d'      : self.cfg_sdr_twr_d       ,
-            'i_cfg_sdr_rfsh'       : self.cfg_sdr_rfsh        ,
-            'i_cfg_sdr_rfmax'      : self.cfg_sdr_rfmax,
+            'i_cfg_req_depth'      : self.cfg.req_depth       ,
+            'i_cfg_sdr_en'         : self.cfg.sdr_en          ,
+            'i_cfg_sdr_mode_reg'   : self.cfg.sdr_mode_reg    ,
+            'i_cfg_sdr_tras_d'     : self.cfg.sdr_tras_d      ,
+            'i_cfg_sdr_trp_d'      : self.cfg.sdr_trp_d       ,
+            'i_cfg_sdr_trcd_d'     : self.cfg.sdr_trcd_d      ,
+            'i_cfg_sdr_cas'        : self.cfg.sdr_cas         ,
+            'i_cfg_sdr_trcar_d'    : self.cfg.sdr_trcar_d     ,
+            'i_cfg_sdr_twr_d'      : self.cfg.sdr_twr_d       ,
+            'i_cfg_sdr_rfsh'       : self.cfg.sdr_rfsh        ,
+            'i_cfg_sdr_rfmax'      : self.cfg.sdr_rfmax,
 
             # verilog parameters
             'p_APP_AW'   : self.addr_width,    # Application Address Width
-            'p_APP_DW'   : self.data_width,    # Application Data Width 
+            'p_APP_DW'   : self.data_width,    # Application Data Width
             'p_APP_BW'   : self.addr_width//8, # Application Byte Width
             'p_APP_RW'   : 9,                  # Application Request Width
-            'p_SDR_DW'   : self.sdr_data_width,    # SDR Data Width 
+            'p_SDR_DW'   : self.sdr_data_width,    # SDR Data Width
             'p_SDR_BW'   : self.sdr_data_width//8, # SDR Byte Width
             'p_dw'       : self.data_width,    # data width
             'p_tw'       : 8,   # tag id width
-            'p_bl'       : 9,   # burst_length_width 
+            'p_bl'       : 9,   # burst_length_width
         }
         m.submodules['sdrc_top'] = Instance("sdrc_top", **params)
 
@@ -196,11 +208,11 @@ if __name__ == "__main__":
                          sdram.sdr_ras_n, sdram.sdr_cas_n, sdram.sdr_we_n,
                          sdram.sdr_dqm, sdram.sdr_ba, sdram.sdr_addr,
                          sdram.sdr_den_n, sdram.sdr_din, sdram.sdr_dout,
-                         sdram.sdr_init_done, sdram.cfg_req_depth,
-                         sdram.cfg_sdr_en, sdram.cfg_sdr_mode_reg,
-                         sdram.cfg_sdr_tras_d, sdram.cfg_sdr_trp_d,
-                         sdram.cfg_sdr_trcd_d, sdram.cfg_sdr_cas,
-                         sdram.cfg_sdr_trcar_d, sdram.cfg_sdr_twr_d,
-                         sdram.cfg_sdr_rfsh, sdram.cfg_sdr_rfmax,
+                         sdram.sdr_init_done, sdram.cfg.req_depth,
+                         sdram.cfg.sdr_en, sdram.cfg.sdr_mode_reg,
+                         sdram.cfg.sdr_tras_d, sdram.cfg.sdr_trp_d,
+                         sdram.cfg.sdr_trcd_d, sdram.cfg.sdr_cas,
+                         sdram.cfg.sdr_trcar_d, sdram.cfg.sdr_twr_d,
+                         sdram.cfg.sdr_rfsh, sdram.cfg.sdr_rfmax,
                        ], "sdram")
 
