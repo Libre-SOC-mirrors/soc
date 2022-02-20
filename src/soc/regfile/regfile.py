@@ -56,7 +56,8 @@ class Register(Elaboratable):
 
     def elaborate(self, platform):
         m = Module()
-        self.reg = reg = Signal(self.width, name="reg", reset=self.reset)
+        self.reg = reg = Signal(self.width, name="reg", reset=self.reset,
+                                attrs={'syn_ramstyle': "block_ram"})
 
         if self.synced:
             domain = m.d.sync
@@ -290,7 +291,9 @@ class RegFile(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         bsz = int(log(self.width) / log(2))
-        regs = Array(Signal(self.width, name="reg") for _ in range(self.depth))
+        regs = Array(Signal(self.width, name="reg",
+                            attrs={'syn_ramstyle': "block_ram"}) \
+                    for _ in range(self.depth))
 
         # read ports. has write-through detection (returns data written)
         for rp in self._rdports:

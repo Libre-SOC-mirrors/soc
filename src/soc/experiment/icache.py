@@ -339,7 +339,7 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
             # reduce way sizes and num lines
             ICacheConfig.__init__(self, NUM_LINES = 4,
                                         NUM_WAYS = 1,
-                                        TLB_SIZE=16 # needs device-tree update
+                                        TLB_SIZE=4 # needs device-tree update
                                  )
         else:
             ICacheConfig.__init__(self)
