@@ -462,12 +462,13 @@ class TestIssuerBase(Elaboratable):
         comb += pdecode2.dec.bigendian.eq(self.core_bigendian_i)
 
         # temporary hack: says "go" immediately for both address gen and ST
+        # XXX: st.go_i is set to 1 cycle delay to reduce combinatorial chains
         l0 = core.l0
         ldst = core.fus.fus['ldst0']
         st_go_edge = rising_edge(m, ldst.st.rel_o)
         # link addr-go direct to rel
         m.d.comb += ldst.ad.go_i.eq(ldst.ad.rel_o)
-        m.d.comb += ldst.st.go_i.eq(st_go_edge)  # link store-go to rising rel
+        m.d.sync += ldst.st.go_i.eq(st_go_edge)  # link store-go to rising rel
 
     def do_dmi(self, m, dbg):
         """deals with DMI debug requests
