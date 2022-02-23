@@ -149,7 +149,8 @@ class LoadStore1(PortInterfaceBase):
     def external_busy(self, m):
         return self.instr_fault | self.r_instr_fault
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz):
+    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz, is_nc):
+        m.d.comb += self.req.nc.eq(is_nc)
         m.d.comb += self.req.load.eq(0) # store operation
         m.d.comb += self.req.byte_sel.eq(mask)
         m.d.comb += self.req.raddr.eq(addr)
@@ -179,7 +180,7 @@ class LoadStore1(PortInterfaceBase):
 
         return None
 
-    def set_rd_addr(self, m, addr, mask, misalign, msr):
+    def set_rd_addr(self, m, addr, mask, misalign, msr, is_nc):
         m.d.comb += self.d_valid.eq(1)
         m.d.comb += self.req.load.eq(1) # load operation
         m.d.comb += self.req.byte_sel.eq(mask)
@@ -187,6 +188,7 @@ class LoadStore1(PortInterfaceBase):
         m.d.comb += self.req.priv_mode.eq(~msr.pr) # not-problem  ==> priv
         m.d.comb += self.req.virt_mode.eq(msr.dr) # DR ==> virt
         m.d.comb += self.req.mode_32bit.eq(~msr.sf) # not-sixty-four ==> 32bit
+        m.d.comb += self.req.nc.eq(is_nc)
         # BAD HACK! disable cacheing on LD when address is 0xCxxx_xxxx
         # this is for peripherals. same thing done in Microwatt loadstore1.vhdl
         with m.If(addr[28:] == Const(0xc, 4)):

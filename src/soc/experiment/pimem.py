@@ -181,8 +181,8 @@ class PortInterfaceBase(Elaboratable):
     def connect_port(self, inport):
         return self.pi.connect_port(inport)
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz): pass
-    def set_rd_addr(self, m, addr, mask, misalign, msr): pass
+    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz, is_nc): pass
+    def set_rd_addr(self, m, addr, mask, misalign, msr, is_nc): pass
     def set_wr_data(self, m, data, wen): pass
     def get_rd_data(self, m): pass
 
@@ -258,7 +258,8 @@ class PortInterfaceBase(Elaboratable):
             comb += lenexp.len_i.eq(pi.data_len)
             comb += lenexp.addr_i.eq(lsbaddr)
             with m.If(pi.addr.ok & adrok_l.qn):
-                self.set_rd_addr(m, pi.addr.data, lenexp.lexp_o, misalign, msr)
+                self.set_rd_addr(m, pi.addr.data, lenexp.lexp_o, misalign,
+                                    msr, pi.is_nc)
                 comb += pi.addr_ok_o.eq(1)  # acknowledge addr ok
                 sync += adrok_l.s.eq(1)       # and pull "ack" latch
 
@@ -271,7 +272,7 @@ class PortInterfaceBase(Elaboratable):
             comb += lenexp.addr_i.eq(lsbaddr)
             with m.If(pi.addr.ok):
                 self.set_wr_addr(m, pi.addr.data, lenexp.lexp_o, misalign, msr,
-                                 pi.is_dcbz_i)
+                                 pi.is_dcbz_i, pi.is_nc)
                 with m.If(adrok_l.qn & self.pi.exc_o.happened==0):
                     comb += pi.addr_ok_o.eq(1)  # acknowledge addr ok
                     sync += adrok_l.s.eq(1)       # and pull "ack" latch
@@ -367,11 +368,11 @@ class TestMemoryPortInterface(PortInterfaceBase):
         # hard-code memory addressing width to 6 bits
         self.mem = TestMemory(regwid, 5, granularity=regwid//8, init=False)
 
-    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz):
+    def set_wr_addr(self, m, addr, mask, misalign, msr, is_dcbz, is_nc):
         lsbaddr, msbaddr = self.splitaddr(addr)
         m.d.comb += self.mem.wrport.addr.eq(msbaddr)
 
-    def set_rd_addr(self, m, addr, mask, misalign, msr):
+    def set_rd_addr(self, m, addr, mask, misalign, msr, is_nc):
         lsbaddr, msbaddr = self.splitaddr(addr)
         m.d.comb += self.mem.rdport.addr.eq(msbaddr)
 
