@@ -481,7 +481,25 @@ class Driver(Elaboratable):
         m.d.comb += Assert(dut.o.xer_ca.data == 0)
 
     def _check_rlcr(self, m, dut):
-        raise NotImplementedError
+        m.d.comb += Assume(~dut.i.ctx.op.is_32bit)
+        # rldicr and rldcr
+
+        m.d.comb += Assume(~dut.i.ctx.op.is_signed)
+        m.d.comb += Assume(dut.i.ra == 0)
+
+        m.submodules.mask = mask = Mask()
+        m.d.comb += mask.start.eq(0)
+        me = dut.fields.FormMD.me[:]
+        m.d.comb += mask.end.eq(Cat(me[1:6], me[0]))
+
+        rot = Signal(64)
+        m.d.comb += rot.eq(rotl64(dut.i.rs, dut.i.rb[:6]))
+
+        expected = Signal(64)
+        m.d.comb += expected.eq(rot & mask.out)
+
+        m.d.comb += Assert(dut.o.o.data == expected)
+        m.d.comb += Assert(dut.o.xer_ca.data == 0)
 
     def _check_extswsli(self, m, dut):
         m.d.comb += Assume(dut.i.ra == 0)
