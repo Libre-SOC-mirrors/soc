@@ -114,7 +114,7 @@ def rotl32(v, amt):
 # properties about its outputs
 class Driver(Elaboratable):
     def __init__(self, which):
-        assert isinstance(which, TstOp)
+        assert isinstance(which, TstOp) or which is None
         self.which = which
 
     def elaborate(self, platform):
@@ -152,11 +152,17 @@ class Driver(Elaboratable):
         comb += Assert(dut.o.ctx.op == dut.i.ctx.op)
         comb += Assert(dut.o.ctx.muxid == dut.i.ctx.muxid)
 
-        # we're only checking a particular operation:
-        comb += Assume(dut.i.ctx.op.insn_type == self.which.op)
+        if self.which is None:
+            for i in TstOp:
+                comb += Assume(dut.i.ctx.op.insn_type != i.op)
+            comb += Assert(~dut.o.o.ok)
+        else:
+            # we're only checking a particular operation:
+            comb += Assume(dut.i.ctx.op.insn_type == self.which.op)
+            comb += Assert(dut.o.o.ok)
 
-        # dispatch to check fn for each op
-        getattr(self, f"_check_{self.which.name.lower()}")(m, dut)
+            # dispatch to check fn for each op
+            getattr(self, f"_check_{self.which.name.lower()}")(m, dut)
 
         return m
 
@@ -327,6 +333,9 @@ class ALUTestCase(FHDLTestCase):
         module = Driver(which)
         self.assertFormal(module, mode="bmc", depth=2)
         self.assertFormal(module, mode="cover", depth=2)
+
+    def test_none(self):
+        self.run_it(None)
 
     def test_shl(self):
         self.run_it(TstOp.SHL)
