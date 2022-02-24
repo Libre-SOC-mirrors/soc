@@ -3,6 +3,13 @@
 """
 Links:
 * https://bugs.libre-soc.org/show_bug.cgi?id=340
+
+run tests with:
+pip install pytest
+pip install pytest-xdist
+pytest -n auto src/soc/fu/shift_rot/formal/proof_main_stage.py
+because that tells pytest to run the tests in parallel, it will take a few
+minutes instead of an hour.
 """
 
 import unittest
