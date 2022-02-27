@@ -49,7 +49,7 @@ class ShiftRotMainStage(PipeModBase):
             comb += bitwise_lut.inputs[1].eq(self.i.ra)
             comb += bitwise_lut.inputs[2].eq(self.i.rc)
             # 6 == log2(64) because we have 64-bit values
-            grev = GRev(log2_width=XLEN.bit_length())
+            grev = GRev(log2_width=(XLEN-1).bit_length())
             m.submodules.grev = grev
             with m.If(op.is_32bit):
                 # 32-bit, so input is lower 32-bits zero-extended
