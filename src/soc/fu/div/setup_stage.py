@@ -27,6 +27,7 @@ class DivSetupStage(PipeModBase):
         return CoreInputData(self.pspec)
 
     def elaborate(self, platform):
+        XLEN = self.pspec.XLEN
         m = Module()
         comb = m.d.comb
         # convenience variables
@@ -42,14 +43,15 @@ class DivSetupStage(PipeModBase):
 
         # work out if a/b are negative (check 32-bit / signed)
         comb += dividend_neg_o.eq(Mux(op.is_32bit,
-                                      a[31], a[63]) & op.is_signed)
-        comb += divisor_neg_o.eq(Mux(op.is_32bit, b[31], b[63]) & op.is_signed)
+                                      a[31], a[XLEN-1]) & op.is_signed)
+        comb += divisor_neg_o.eq(Mux(op.is_32bit,
+                                      b[31], b[XLEN-1]) & op.is_signed)
 
         # negation of a 64-bit value produces the same lower 32-bit
         # result as negation of just the lower 32-bits, so we don't
         # need to do anything special before negating
-        abs_dor = Signal(64, reset_less=True)  # absolute of divisor
-        abs_dend = Signal(64, reset_less=True)  # absolute of dividend
+        abs_dor = Signal(XLEN, reset_less=True)  # absolute of divisor
+        abs_dend = Signal(XLEN, reset_less=True)  # absolute of dividend
         comb += abs_dor.eq(Mux(divisor_neg_o, -b, b))
         comb += abs_dend.eq(Mux(dividend_neg_o, -a, a))
 
@@ -78,7 +80,7 @@ class DivSetupStage(PipeModBase):
                 with m.If(op.is_32bit):
                     comb += dividend_o.eq(abs_dend[0:32] << 32)
                 with m.Else():
-                    comb += dividend_o.eq(abs_dend[0:64] << 64)
+                    comb += dividend_o.eq(abs_dend[0:XLEN] << XLEN)
 
         ###### sticky overflow and context, both pass-through #####
 

@@ -15,8 +15,6 @@ class MulIntermediateData(DivInputData):
 
 
 class MulOutputData(FUBaseData):
-    regspec = [('INT', 'o', '0:128'),
-               ('XER', 'xer_so', '32')] # XER bit 32: SO
     def __init__(self, pspec):
         super().__init__(pspec, False) # still input style
 
@@ -24,6 +22,11 @@ class MulOutputData(FUBaseData):
         self.neg_res32 = Signal(reset_less=True)
         self.data.append(self.neg_res)
         self.data.append(self.neg_res32)
+
+    @property
+    def regspec(self):
+        return [('INT', 'o', "0:%d" % (self.pspec.XLEN)),
+               ('XER', 'xer_so', '32')] # XER bit 32: SO
 
 
 class MulPipeSpec(CommonPipeSpec):

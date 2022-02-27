@@ -18,6 +18,7 @@ class MulMainStage1(PipeModBase):
         return MulIntermediateData(self.pspec) # pipeline stage output format
 
     def elaborate(self, platform):
+        XLEN = self.pspec.XLEN
         m = Module()
         comb = m.d.comb
 
@@ -35,8 +36,8 @@ class MulMainStage1(PipeModBase):
         comb += is_32bit.eq(op.is_32bit)
 
         # work out if a/b are negative (check 32-bit / signed)
-        comb += sign_a.eq(Mux(op.is_32bit, a[31], a[63]) & op.is_signed)
-        comb += sign_b.eq(Mux(op.is_32bit, b[31], b[63]) & op.is_signed)
+        comb += sign_a.eq(Mux(op.is_32bit, a[31], a[XLEN-1]) & op.is_signed)
+        comb += sign_b.eq(Mux(op.is_32bit, b[31], b[XLEN-1]) & op.is_signed)
         comb += sign32_a.eq(a[31] & op.is_signed)
         comb += sign32_b.eq(b[31] & op.is_signed)
 
@@ -47,8 +48,8 @@ class MulMainStage1(PipeModBase):
         # negation of a 64-bit value produces the same lower 32-bit
         # result as negation of just the lower 32-bits, so we don't
         # need to do anything special before negating
-        abs_a = Signal(64, reset_less=True)
-        abs_b = Signal(64, reset_less=True)
+        abs_a = Signal(XLEN, reset_less=True)
+        abs_b = Signal(XLEN, reset_less=True)
         comb += abs_a.eq(Mux(sign_a, -a, a))
         comb += abs_b.eq(Mux(sign_b, -b, b))
 
