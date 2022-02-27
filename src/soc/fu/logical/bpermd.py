@@ -58,15 +58,16 @@ class Bpermd(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         perm = Signal(self.width, reset_less=True)
-        rb64 = [Signal(1, reset_less=True, name=f"rb64_{i}") for i in range(64)]
-        for i in range(64):
-            m.d.comb += rb64[i].eq(self.rb[63-i])
+        rb64 = [Signal(1, reset_less=True, name=f"rb64_{i}")
+                for i in range(self.width)]
+        for i in range(self.width):
+            m.d.comb += rb64[i].eq(self.rb[self.width-1-i])
         rb64 = Array(rb64)
-        for i in range(8):
+        for i in range(self.width//8):
             index = self.rs[8*i:8*i+8]
             idx = Signal(8, name=f"idx_{i}", reset_less=True)
             m.d.comb += idx.eq(index)
-            with m.If(idx < 64):
+            with m.If(idx < self.width):
                 m.d.comb += perm[i].eq(rb64[idx])
         m.d.comb += self.ra[0:8].eq(perm)
         return m

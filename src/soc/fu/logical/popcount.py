@@ -23,11 +23,13 @@ def array_of(count, bitwidth):
 
 
 class Popcount(Elaboratable):
-    def __init__(self):
-        self.a = Signal(64, reset_less=True)
-        self.b = Signal(64, reset_less=True)
+    def __init__(self, width=64):
+        self.width = width
+        self.a = Signal(width, reset_less=True)
+        self.b = Signal(width, reset_less=True)
         self.data_len = Signal(4, reset_less=True) # data len up to... err.. 8?
-        self.o = Signal(64, reset_less=True)
+        self.o = Signal(width, reset_less=True)
+        assert width in [32, 64], "only 32 or 64 bit supported for now"
 
     def elaborate(self, platform):
         m = Module()
@@ -38,11 +40,13 @@ class Popcount(Elaboratable):
         # creating arrays big enough to store the sum, each time
         pc = [a]
         # QTY32 2-bit (to take 2x 1-bit sums) etc.
-        work = [(32, 2), (16, 3), (8, 4), (4, 5), (2, 6), (1, 7)]
+        work = [(16, 3), (8, 4), (4, 5), (2, 6), (1, 7)]
+        if self.width == 64:
+            work = [(32, 2)] + work
         for l, bw in work: # l=number of add-reductions, bw=bitwidth
             pc.append(array_of(l, bw))
-        pc8 = pc[3]     # array of 8 8-bit counts (popcntb)
-        pc32 = pc[5]    # array of 2 32-bit counts (popcntw)
+        pc8 = pc[-4]     # array of 8 8-bit counts (popcntb)
+        pc32 = pc[-2]    # array of 2 32-bit counts (popcntw)
         popcnt = pc[-1]  # array of 1 64-bit count (popcntd)
         # cascade-tree of adds
         for idx, (l, bw) in enumerate(work):
@@ -54,12 +58,15 @@ class Popcount(Elaboratable):
         # decode operation length (1-hot)
         with m.If(data_len == 1):
             # popcntb - pack 8x 4-bit answers into 8x 8-bit output fields
-            for i in range(8):
+            for i in range(self.width//8):
                 comb += o[i*8:(i+1)*8].eq(pc8[i])
         with m.Elif(data_len == 4):
-            # popcntw - pack 2x 5-bit answers into 2x 32-bit output fields
-            for i in range(2):
-                comb += o[i*32:(i+1)*32].eq(pc32[i])
+            if self.width == 64:
+                # popcntw - pack 2x 5-bit answers into 2x 32-bit output fields
+                for i in range(2):
+                    comb += o[i*32:(i+1)*32].eq(pc32[i])
+            else:
+                comb += o.eq(popcnt[0])
         with m.Else():
             # popcntd - put 1x 6-bit answer into 64-bit output
             comb += o.eq(popcnt[0])

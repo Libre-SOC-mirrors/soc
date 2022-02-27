@@ -6,6 +6,8 @@
 # to the output stage
 
 # Copyright (C) 2020 Michael Nolan <mtnolan2640@gmail.com>
+# Copyright (C) 2020, 2021 Luke Kenneth Casson Leighton <lkcl@lkcl.net>
+
 from nmigen import (Module, Signal, Cat, Repl, Mux, Const, Array)
 from nmutil.pipemodbase import PipeModBase
 from nmutil.clz import CLZ
@@ -33,14 +35,15 @@ class LogicalMainStage(PipeModBase):
         return LogicalOutputData(self.pspec)
 
     def elaborate(self, platform):
+        XLEN = self.pspec.XLEN
         m = Module()
         comb = m.d.comb
         op, a, b, o = self.i.ctx.op, self.i.a, self.i.b, self.o.o
 
         comb += o.ok.eq(1) # overridden if no op activates
 
-        m.submodules.bpermd = bpermd = Bpermd(64)
-        m.submodules.popcount = popcount = Popcount()
+        m.submodules.bpermd = bpermd = Bpermd(XLEN)
+        m.submodules.popcount = popcount = Popcount(XLEN)
 
         ##########################
         # main switch for logic ops AND, OR and XOR, cmpb, parity, and popcount
@@ -84,12 +87,14 @@ class LogicalMainStage(PipeModBase):
                 par0 = Signal(reset_less=True)
                 par1 = Signal(reset_less=True)
                 comb += par0.eq(Cat(a[0], a[8], a[16], a[24]).xor())
-                comb += par1.eq(Cat(a[32], a[40], a[48], a[56]).xor())
+                if XLEN == 64:
+                    comb += par1.eq(Cat(a[32], a[40], a[48], a[56]).xor())
                 with m.If(op.data_len[3] == 1):
                     comb += o.data.eq(par0 ^ par1)
                 with m.Else():
                     comb += o[0].eq(par0)
-                    comb += o[32].eq(par1)
+                    if XLEN == 64:
+                        comb += o[32].eq(par1)
 
             ###################
             ###### cntlz v3.0B p99
@@ -99,7 +104,7 @@ class LogicalMainStage(PipeModBase):
                 count_right = Signal(reset_less=True)
                 comb += count_right.eq(XO[-1])
 
-                cntz_i = Signal(64, reset_less=True)
+                cntz_i = Signal(XLEN, reset_less=True)
                 a32 = Signal(32, reset_less=True)
                 comb += a32.eq(a[0:32])
 
@@ -108,7 +113,7 @@ class LogicalMainStage(PipeModBase):
                 with m.Else():
                     comb += cntz_i.eq(Mux(count_right, a[::-1], a))
 
-                m.submodules.clz = clz = CLZ(64)
+                m.submodules.clz = clz = CLZ(XLEN)
                 comb += clz.sig_in.eq(cntz_i)
                 comb += o.data.eq(Mux(op.is_32bit, clz.lz-32, clz.lz))
 

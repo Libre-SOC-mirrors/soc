@@ -51,17 +51,17 @@ def set_alu_inputs(alu, dec2, sim):
 class LogicalIlangCase(TestAccumulatorBase):
 
     def case_ilang(self):
-        pspec = LogicalPipeSpec(id_wid=2, parent_pspec=None)
+        class PPspec:
+            XLEN = 64
+        pps = PPspec()
+        pspec = LogicalPipeSpec(id_wid=2, parent_pspec=pps)
         alu = LogicalBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("logical_pipeline.il", "w") as f:
             f.write(vl)
 
 
-class TestRunner(FHDLTestCase):
-    def __init__(self, test_data):
-        super().__init__("run_all")
-        self.test_data = test_data
+class TestRunner(unittest.TestCase):
 
     def execute(self, alu, instruction, pdecode2, test):
         print(test.name)
@@ -107,7 +107,9 @@ class TestRunner(FHDLTestCase):
                                               simulator, code)
             yield Settle()
 
-    def run_all(self):
+    def test_it(self):
+        test_data = LogicalIlangCase().test_data + \
+                    LogicalTestCase().test_data
         m = Module()
         comb = m.d.comb
         instruction = Signal(32)
@@ -116,7 +118,10 @@ class TestRunner(FHDLTestCase):
 
         m.submodules.pdecode2 = pdecode2 = PowerDecode2(pdecode)
 
-        pspec = LogicalPipeSpec(id_wid=2, parent_pspec=None)
+        class PPspec:
+            XLEN = 64
+        pps = PPspec()
+        pspec = LogicalPipeSpec(id_wid=2, parent_pspec=pps)
         m.submodules.alu = alu = LogicalBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)
@@ -127,7 +132,7 @@ class TestRunner(FHDLTestCase):
         sim.add_clock(1e-6)
 
         def process():
-            for test in self.test_data:
+            for test in test_data:
                 print(test.name)
                 program = test.program
                 with self.subTest(test.name):
@@ -163,10 +168,4 @@ class TestRunner(FHDLTestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(exit=False)
-    suite = unittest.TestSuite()
-    suite.addTest(TestRunner(LogicalIlangCase().test_data))
-    suite.addTest(TestRunner(LogicalTestCase().test_data))
-
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
+    unittest.main()
