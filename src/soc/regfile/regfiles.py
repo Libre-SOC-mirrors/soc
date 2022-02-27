@@ -113,8 +113,8 @@ class IntRegs(RegFileMem): #class IntRegs(RegFileArray):
     * Array-based unary-indexed (not binary-indexed)
     * write-through capability (read on same cycle as write)
     """
-    def __init__(self, svp64_en=False, regreduce_en=False):
-        super().__init__(64, 32, fwd_bus_mode=False)
+    def __init__(self, svp64_en=False, regreduce_en=False, reg_wid=64):
+        super().__init__(reg_wid, 32, fwd_bus_mode=False)
         self.svp64_en = svp64_en
         self.regreduce_en = regreduce_en
         wr_spec, rd_spec = self.get_port_specs()
@@ -279,12 +279,19 @@ class RegFiles:
         regreduce_en = hasattr(pspec, "regreduce") and \
                       (pspec.regreduce == True)
 
+        # get Integer File register width
+        reg_wid = 64
+        if isinstance(pspec.XLEN, int):
+            reg_wid = pspec.XLEN
+
         self.rf = {} # register file dict
         # create regfiles here, Factory style
         for (name, kls) in RegFiles.regkls:
             kwargs = {'svp64_en': svp64_en, 'regreduce_en': regreduce_en}
             if name == 'state':
                 kwargs['resets'] = state_resets
+            if name == 'int':
+                kwargs['reg_wid'] = reg_wid
             rf = self.rf[name] = kls(**kwargs)
             # also add these as instances, self.state, self.fast, self.cr etc.
             setattr(self, name, rf)
@@ -322,7 +329,8 @@ class RegFiles:
 if __name__ == '__main__':
     m = Module()
     from soc.config.test.test_loadstore import TestMemPspec
-    pspec = TestMemPspec(regreduce_en=True)
+    pspec = TestMemPspec(regreduce_en=True,
+                         XLEN=32) # integer reg width = 32
     rf = RegFiles(pspec, make_hazard_vecs=True)
     rf.elaborate_into(m, None)
     vl = rtlil.convert(m)
