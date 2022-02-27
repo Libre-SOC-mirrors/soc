@@ -108,7 +108,10 @@ class ALUMainStage(PipeModBase):
 
                 # this is supposed to be inverted (b-a, not a-b)
                 comb += a_n.eq(~a) # sigh a gets inverted
-                comb += carry_32.eq(add_o[33] ^ a[32] ^ b[32])
+                if XLEN == 64:
+                    comb += carry_32.eq(add_o[33] ^ a[32] ^ b[32])
+                else:
+                    comb += carry_32.eq(add_o[XLEN+1])
                 comb += carry_64.eq(add_o[XLEN+1])
 
                 comb += zerolo.eq(~((a_n[0:32] ^ b[0:32]).bool()))
@@ -150,13 +153,21 @@ class ALUMainStage(PipeModBase):
                 # https://bugs.libre-soc.org/show_bug.cgi?id=319#c5
                 ca = Signal(2, reset_less=True)
                 comb += ca[0].eq(add_o[-1])                   # XER.CA
-                comb += ca[1].eq(add_o[33] ^ (a_i[32] ^ b_i[32])) # XER.CA32
+                if XLEN == 64:
+                    comb += ca[1].eq(add_o[33] ^ (a_i[32] ^ b_i[32])) # XER.CA32
+                else:
+                    comb += ca[1].eq(add_o[-1])                   # XER.CA32
                 comb += cry_o.data.eq(ca)
                 comb += cry_o.ok.eq(1)
                 # 32-bit (ov[1]) and 64-bit (ov[0]) overflow
                 ov = Signal(2, reset_less=True)
                 comb += ov[0].eq(calc_ov(a_i[-1], b_i[-1], ca[0], add_o[-2]))
-                comb += ov[1].eq(calc_ov(a_i[31], b_i[31], ca[1], add_o[32]))
+                if XLEN == 64:
+                    comb += ov[1].eq(calc_ov(a_i[31], b_i[31], ca[1],
+                                             add_o[32]))
+                else:
+                    comb += ov[1].eq(calc_ov(a_i[-1], b_i[-1], ca[0],
+                                            add_o[-2]))
                 comb += ov_o.data.eq(ov)
                 comb += ov_o.ok.eq(1)
 
