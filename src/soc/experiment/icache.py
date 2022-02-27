@@ -72,11 +72,13 @@ SIM            = 0
 LOG_LENGTH     = 0
 
 class ICacheConfig:
-    def __init__(self, LINE_SIZE     = 64,
+    def __init__(self, XLEN          = 64,
+                       LINE_SIZE     = 64,
                        NUM_LINES     = 64,  # Number of lines in a set
                        NUM_WAYS      = 2,  # Number of ways
                        TLB_SIZE      = 64,  # L1 ITLB number of entries
                        TLB_LG_PGSZ   = 12): # L1 ITLB log_2(page_size)
+        self.XLEN           = XLEN
         self.LINE_SIZE      = LINE_SIZE
         self.NUM_LINES      = NUM_LINES
         self.NUM_WAYS       = NUM_WAYS
@@ -91,7 +93,7 @@ class ICacheConfig:
         # (based on WB, so 64-bits)
         self.ROW_SIZE       = WB_DATA_BITS // 8
         # Number of real address bits that we store
-        self.REAL_ADDR_BITS = 56
+        self.REAL_ADDR_BITS = XLEN-8 # 56 for XLEN=64
 
         self.ROW_SIZE_BITS  = self.ROW_SIZE * 8
         # ROW_PER_LINE is the number of row (wishbone) transactions in a line
@@ -129,9 +131,10 @@ class ICacheConfig:
 
         # L1 ITLB
         self.TL_BITS        = log2_int(self.TLB_SIZE)
-        self.TLB_EA_TAG_BITS = 64 - (self.TLB_LG_PGSZ + self.TL_BITS)
-        self.TLB_PTE_BITS    = 64
+        self.TLB_EA_TAG_BITS = XLEN - (self.TLB_LG_PGSZ + self.TL_BITS)
+        self.TLB_PTE_BITS    = XLEN
 
+        print("self.XLEN            =", self.XLEN)
         print("self.BRAM_ROWS       =", self.BRAM_ROWS)
         print("self.INDEX_BITS      =", self.INDEX_BITS)
         print("self.INSN_BITS       =", self.INSN_BITS)
@@ -159,6 +162,7 @@ class ICacheConfig:
         print("self.TLB_PTE_BITS    =", self.TLB_PTE_BITS)
         print("self.TLB_SIZE        =", self.TLB_SIZE)
         print("self.WAY_BITS        =", self.WAY_BITS)
+        print()
 
         assert self.LINE_SIZE % self.ROW_SIZE == 0
         assert ispow2(self.LINE_SIZE), "self.LINE_SIZE not power of 2"
@@ -335,14 +339,18 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
         self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
                                  (pspec.microwatt_compat == True))
 
+        XLEN = pspec.XLEN
+
         if self.microwatt_compat:
             # reduce way sizes and num lines
-            ICacheConfig.__init__(self, NUM_LINES = 4,
+            ICacheConfig.__init__(self, LINE_SIZE=XLEN,
+                                        XLEN=XLEN,
+                                        NUM_LINES = 4,
                                         NUM_WAYS = 1,
                                         TLB_SIZE=4 # needs device-tree update
                                  )
         else:
-            ICacheConfig.__init__(self)
+            ICacheConfig.__init__(self, LINE_SIZE=XLEN, XLEN=XLEN)
 
     def use_fetch_interface(self):
         self.use_fetch_iface = True
@@ -1023,6 +1031,7 @@ def test_icache(mem):
     pspec = TestMemPspec(addr_wid=32,
                          mask_wid=8,
                          reg_wid=64,
+                         XLEN=32,
                          )
     dut    = ICache(pspec)
 
@@ -1057,6 +1066,7 @@ if __name__ == '__main__':
     from soc.config.test.test_loadstore import TestMemPspec
     pspec = TestMemPspec(addr_wid=64,
                          mask_wid=8,
+                         XLEN=32,
                          reg_wid=64,
                          )
     dut = ICache(pspec)
