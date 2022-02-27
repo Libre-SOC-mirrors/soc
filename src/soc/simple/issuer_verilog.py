@@ -59,6 +59,8 @@ if __name__ == '__main__':
     parser.add_argument("--disable-svp64", dest='svp64', action="store_false",
                         help="disable SVP64",
                         default=False)
+    parser.add_argument("--xlen", default=64, type=int,
+                        help="Set register width [default 64]")
     # create a module that's directly compatible as a drop-in replacement
     # in microwatt.v
     parser.add_argument("--microwatt-compat", dest='mwcompat',
@@ -111,6 +113,8 @@ if __name__ == '__main__':
                          imem_ifacetype=imem_ifacetype,
                          addr_wid=64,
                          mask_wid=8,
+                         # pipeline and integer register file width
+                         XLEN=args.xlen,
                          # must leave at 64
                          reg_wid=64,
                          # set to 32 for instruction-memory width=32
@@ -142,6 +146,7 @@ if __name__ == '__main__':
     print("use_pll", pspec.__dict__["use_pll"])
     print("debug", pspec.__dict__["debug"])
     print("SVP64", pspec.__dict__["svp64"])
+    print("XLEN", pspec.__dict__["XLEN"])
     print("Microwatt compatibility", pspec.__dict__["microwatt_compat"])
 
     if args.mwcompat:
