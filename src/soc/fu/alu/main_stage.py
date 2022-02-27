@@ -38,6 +38,7 @@ class ALUMainStage(PipeModBase):
         return ALUOutputData(self.pspec) # defines pipeline stage output format
 
     def elaborate(self, platform):
+        XLEN = self.pspec.XLEN
         m = Module()
         comb = m.d.comb
 
@@ -69,11 +70,11 @@ class ALUMainStage(PipeModBase):
             comb += b_i.eq(b)                     # into trap pipeline
         with m.Elif(is_32bit):
             with m.If(op.is_signed):
-                comb += a_i.eq(exts(a, 32, 64))
-                comb += b_i.eq(exts(b, 32, 64))
+                comb += a_i.eq(exts(a, 32, XLEN))
+                comb += b_i.eq(exts(b, 32, XLEN))
             with m.Else():
-                comb += a_i.eq(extz(a, 32, 64))
-                comb += b_i.eq(extz(b, 32, 64))
+                comb += a_i.eq(extz(a, 32, XLEN))
+                comb += b_i.eq(extz(b, 32, XLEN))
         with m.Else():
             comb += a_i.eq(a)
             comb += b_i.eq(b)
@@ -94,7 +95,7 @@ class ALUMainStage(PipeModBase):
             #### CMP, CMPL v3.0B p85-86
 
             with m.Case(MicrOp.OP_CMP):
-                a_n = Signal(64) # temporary - inverted a
+                a_n = Signal(XLEN) # temporary - inverted a
                 tval = Signal(5)
                 a_lt = Signal()
                 carry_32 = Signal()
@@ -108,17 +109,17 @@ class ALUMainStage(PipeModBase):
                 # this is supposed to be inverted (b-a, not a-b)
                 comb += a_n.eq(~a) # sigh a gets inverted
                 comb += carry_32.eq(add_o[33] ^ a[32] ^ b[32])
-                comb += carry_64.eq(add_o[65])
+                comb += carry_64.eq(add_o[XLEN+1])
 
                 comb += zerolo.eq(~((a_n[0:32] ^ b[0:32]).bool()))
-                comb += zerohi.eq(~((a_n[32:64] ^ b[32:64]).bool()))
+                comb += zerohi.eq(~((a_n[32:XLEN] ^ b[32:XLEN]).bool()))
 
                 with m.If(zerolo & (is_32bit | zerohi)):
                     # values are equal
                     comb += tval[2].eq(1)
                 with m.Else():
-                    comb += msb_a.eq(Mux(is_32bit, a_n[31], a_n[63]))
-                    comb += msb_b.eq(Mux(is_32bit, b[31], b[63]))
+                    comb += msb_a.eq(Mux(is_32bit, a_n[31], a_n[XLEN-1]))
+                    comb += msb_b.eq(Mux(is_32bit, b[31], b[XLEN-1]))
                     C0 = Const(0, 1)
                     with m.If(msb_a != msb_b):
                         # Subtraction might overflow, but
@@ -164,11 +165,11 @@ class ALUMainStage(PipeModBase):
 
             with m.Case(MicrOp.OP_EXTS):
                 with m.If(op.data_len == 1):
-                    comb += o.data.eq(exts(a, 8, 64))
+                    comb += o.data.eq(exts(a, 8, XLEN))
                 with m.If(op.data_len == 2):
-                    comb += o.data.eq(exts(a, 16, 64))
+                    comb += o.data.eq(exts(a, 16, XLEN))
                 with m.If(op.data_len == 4):
-                    comb += o.data.eq(exts(a, 32, 64))
+                    comb += o.data.eq(exts(a, 32, XLEN))
                 comb += o.ok.eq(1) # output register
 
             ###################

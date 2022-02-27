@@ -49,7 +49,7 @@ class CommonOutputStage(PipeModBase):
         # XXX ah.  right.  this needs to be done only if the *mode* is 32-bit
         # (an MSR bit)
         # see https://bugs.libre-soc.org/show_bug.cgi?id=424
-        target = Signal(64, reset_less=True)
+        target = Signal.like(o)
         #with m.If(op.is_32bit):
         #    comb += target.eq(o[:32])
         #with m.Else():
