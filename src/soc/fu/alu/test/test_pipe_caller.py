@@ -124,7 +124,10 @@ class TestRunner(unittest.TestCase):
             pdecode, opkls, fn_name)
         pdecode = pdecode2.dec
 
-        pspec = ALUPipeSpec(id_wid=2, parent_pspec=None)
+        class PPspec:
+            XLEN = 64
+        pps = PPspec()
+        pspec = ALUPipeSpec(id_wid=2, parent_pspec=pps)
         m.submodules.alu = alu = ALUBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)
