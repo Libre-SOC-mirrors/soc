@@ -34,6 +34,7 @@ class ShiftRotMainStage(PipeModBase):
         return ShiftRotOutputData(self.pspec)
 
     def elaborate(self, platform):
+        XLEN = self.pspec.XLEN
         m = Module()
         comb = m.d.comb
         op = self.i.ctx.op
@@ -42,13 +43,13 @@ class ShiftRotMainStage(PipeModBase):
         bitwise_lut = None
         grev = None
         if self.draft_bitmanip:
-            bitwise_lut = BitwiseLut(input_count=3, width=64)
+            bitwise_lut = BitwiseLut(input_count=3, width=XLEN)
             m.submodules.bitwise_lut = bitwise_lut
             comb += bitwise_lut.inputs[0].eq(self.i.rb)
             comb += bitwise_lut.inputs[1].eq(self.i.ra)
             comb += bitwise_lut.inputs[2].eq(self.i.rc)
             # 6 == log2(64) because we have 64-bit values
-            grev = GRev(log2_width=6)
+            grev = GRev(log2_width=XLEN.bit_length())
             m.submodules.grev = grev
             with m.If(op.is_32bit):
                 # 32-bit, so input is lower 32-bits zero-extended
@@ -74,7 +75,7 @@ class ShiftRotMainStage(PipeModBase):
         comb += mb_extra.eq(md_fields['mb'][0:-1][0])
 
         # set up microwatt rotator module
-        m.submodules.rotator = rotator = Rotator()
+        m.submodules.rotator = rotator = Rotator(XLEN)
         comb += [
             rotator.me.eq(me),
             rotator.mb.eq(mb),
