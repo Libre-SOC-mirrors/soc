@@ -11,6 +11,7 @@ class CommonOutputStage(PipeModBase):
         super().__init__(pspec, "output")
 
     def elaborate(self, platform):
+        XLEN = self.pspec.XLEN
         m = Module()
         comb = m.d.comb
         op = self.i.ctx.op
@@ -49,7 +50,7 @@ class CommonOutputStage(PipeModBase):
         # XXX ah.  right.  this needs to be done only if the *mode* is 32-bit
         # (an MSR bit)
         # see https://bugs.libre-soc.org/show_bug.cgi?id=424
-        target = Signal.like(o)
+        target = Signal(XLEN, reset_less=True)
         #with m.If(op.is_32bit):
         #    comb += target.eq(o[:32])
         #with m.Else():
