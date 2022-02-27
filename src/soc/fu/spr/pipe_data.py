@@ -42,5 +42,5 @@ class SPROutputData(FUBaseData):
 
 
 class SPRPipeSpec(CommonPipeSpec):
-    regspec = (SPRInputData.regspec, SPROutputData.regspec)
+    regspecklses = (SPRInputData, SPROutputData)
     opsubsetkls = CompSPROpSubset

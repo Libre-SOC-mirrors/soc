@@ -36,5 +36,5 @@ class TrapOutputData(FUBaseData):
 
 
 class TrapPipeSpec(CommonPipeSpec):
-    regspec = (TrapInputData.regspec, TrapOutputData.regspec)
+    regspecklses = (TrapInputData, TrapOutputData)
     opsubsetkls = CompTrapOpSubset

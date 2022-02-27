@@ -39,6 +39,7 @@ def get_regspec_bitwidth(regspec, srcdest, idx):
 class RegSpec:
     def __init__(self, rwid, n_src=None, n_dst=None, name=None):
         self._rwid = rwid
+        print ("RegSpec", rwid)
         if isinstance(rwid, int):
             # rwid: integer (covers all registers)
             self._n_src, self._n_dst = n_src, n_dst

@@ -27,5 +27,5 @@ class MulOutputData(FUBaseData):
 
 
 class MulPipeSpec(CommonPipeSpec):
-    regspec = (DivInputData.regspec, DivMulOutputData.regspec)
+    regspecklses = (DivInputData, DivMulOutputData)
     opsubsetkls = CompMULOpSubset

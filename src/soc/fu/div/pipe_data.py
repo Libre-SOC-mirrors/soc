@@ -134,7 +134,7 @@ class DivPipeSpec(CommonPipeSpec):
         self.div_pipe_kind = div_pipe_kind
         self.core_config = div_pipe_kind.config.core_config
 
-    regspec = (DivInputData.regspec, DivMulOutputData.regspec)
+    regspecklses = (DivInputData, DivMulOutputData)
     opsubsetkls = CompLogicalOpSubset
 
 

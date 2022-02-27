@@ -32,5 +32,5 @@ class LDSTOutputData(FUBaseData):
 
 
 class LDSTPipeSpec(CommonPipeSpec):
-    regspec = (LDSTInputData.regspec, LDSTOutputData.regspec)
+    regspecklses = (LDSTInputData, LDSTOutputData)
     opsubsetkls = CompLDSTOpSubset

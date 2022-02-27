@@ -120,7 +120,11 @@ class FunctionUnitBaseSingle(MultiCompUnit):
         # spec (NNNPipeSpec instance)
         pspec = speckls(id_wid=2, parent_pspec=parent_pspec)
         opsubset = pspec.opsubsetkls             # get the operand subset class
-        regspec = pspec.regspec                  # get the regspec
+        rsk = pspec.regspecklses        # get the regspec classes
+        regspec = []
+        for kls in rsk:
+            regspec.append(kls(pspec).regspec)
+        print ("regspecs", regspec)
         alu = pipekls(pspec)                     # create actual NNNBasePipe
         self.pspec = pspec
         super().__init__(regspec, alu, opsubset, name=alu_name)  # MultiCompUnit
@@ -160,10 +164,14 @@ class FunctionUnitBaseMulti(ReservationStations2):
 
         # spec (NNNPipeSpec instance)
         pspec = speckls(id_wid=id_wid, parent_pspec=parent_pspec)
-        opsubset = pspec.opsubsetkls             # get the operand subset class
-        regspec = pspec.regspec                  # get the regspec
-        alu = pipekls(pspec)                # create actual NNNBasePipe
         self.pspec = pspec
+        opsubset = pspec.opsubsetkls        # get the operand subset class
+        rsk = pspec.regspecklses        # get the regspec classes
+        regspec = []
+        for kls in rsk:
+            regspec.append(kls(pspec).regspec)
+        print ("regspecs", regspec)
+        alu = pipekls(pspec)                # create actual NNNBasePipe
         alu_name = self.fnunit.name.lower()
         super().__init__(alu, num_rows, alu_name)   # initialise fan-in/fan-out
         self.cu = []
@@ -284,7 +292,11 @@ class LDSTFunctionUnit(LDSTCompUnit):
         # spec (NNNPipeSpec instance)
         pspec = LDSTPipeSpec(id_wid=2, parent_pspec=parent_pspec)
         opsubset = pspec.opsubsetkls             # get the operand subset class
-        regspec = pspec.regspec                  # get the regspec
+        rsk = pspec.regspecklses        # get the regspec classes
+        regspec = []
+        for kls in rsk:
+            regspec.append(kls(pspec).regspec)
+        print ("regspecs", regspec)
         self.opsubsetkls = opsubset
         super().__init__(pi, regspec, awid, opsubset, name=alu_name)
 

@@ -30,5 +30,5 @@ class CROutputData(FUBaseData):
 
 
 class CRPipeSpec(CommonPipeSpec):
-    regspec = (CRInputData.regspec, CROutputData.regspec)
+    regspecklses = (CRInputData, CROutputData)
     opsubsetkls = CompCROpSubset

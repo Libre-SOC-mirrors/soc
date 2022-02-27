@@ -40,5 +40,5 @@ class LogicalOutputDataFinal(FUBaseData):
 
 
 class LogicalPipeSpec(CommonPipeSpec):
-    regspec = (LogicalInputData.regspec, LogicalOutputDataFinal.regspec)
+    regspecklses = (LogicalInputData, LogicalOutputDataFinal)
     opsubsetkls = CompLogicalOpSubset

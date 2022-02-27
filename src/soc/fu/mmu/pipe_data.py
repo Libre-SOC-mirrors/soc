@@ -37,5 +37,5 @@ class MMUOutputData(FUBaseData):
 
 
 class MMUPipeSpec(CommonPipeSpec):
-    regspec = (MMUInputData.regspec, MMUOutputData.regspec)
+    regspecklses = (MMUInputData, MMUOutputData)
     opsubsetkls = CompMMUOpSubset

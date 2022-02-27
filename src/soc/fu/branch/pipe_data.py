@@ -57,5 +57,5 @@ class BranchOutputData(FUBaseData):
 
 
 class BranchPipeSpec(CommonPipeSpec):
-    regspec = (BranchInputData.regspec, BranchOutputData.regspec)
+    regspecklses = (BranchInputData, BranchOutputData)
     opsubsetkls = CompBROpSubset

@@ -17,12 +17,14 @@ class FUBaseData:
     """
 
     def __init__(self, pspec, output, exc_kls=None):
+        self.pspec = pspec
         self.ctx = PipeContext(pspec)  # context for ReservationStation usage
         self.muxid = self.ctx.muxid
         self.data = []
         self.is_output = output
         # take regspec and create data attributes (in or out)
         # TODO: use widspec to create reduced bit mapping.
+        print (self.regspec)
         for i, (regfile, regname, widspec) in enumerate(self.regspec):
             wid = get_regspec_bitwidth([self.regspec], 0, i)
             if output:
@@ -41,6 +43,11 @@ class FUBaseData:
         yield from self.data
         if hasattr(self, "exception"):
             yield from self.exception.ports()
+
+    # convenience function to return 0:63 if XLEN=64, 0:31 if XLEN=32 etc.
+    @property
+    def intrange(self):
+        return "0:%d" % (self.pspec.XLEN-1)
 
     def eq(self, i):
         eqs = [self.ctx.eq(i.ctx)]

@@ -42,5 +42,5 @@ class ShiftRotOutputDataFinal(FUBaseData):
 
 
 class ShiftRotPipeSpec(CommonPipeSpec):
-    regspec = (ShiftRotInputData.regspec, ShiftRotOutputDataFinal.regspec)
+    regspecklses = (ShiftRotInputData, ShiftRotOutputDataFinal)
     opsubsetkls = CompSROpSubset
