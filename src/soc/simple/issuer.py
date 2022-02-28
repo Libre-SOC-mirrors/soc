@@ -436,10 +436,14 @@ class TestIssuerBase(Elaboratable):
             dbg_sync = ClockDomain(self.dbg_domain)
             m.domains += dbg_sync
 
+        # create a delay, but remember it is in the power-on-reset clock domain!
         ti_rst = Signal(reset_less=True)
         delay = Signal(range(4), reset=3)
+        stop_delay = Signal(range(16), reset=5)
         with m.If(delay != 0):
-            m.d.por += delay.eq(delay - 1)
+            m.d.por += delay.eq(delay - 1) # decrement... in POR domain!
+        with m.If(stop_delay != 0):
+            m.d.por += stop_delay.eq(stop_delay - 1) # likewise
         comb += cd_por.clk.eq(ClockSignal())
 
         # power-on reset delay
@@ -450,6 +454,9 @@ class TestIssuerBase(Elaboratable):
         else:
             with m.If(delay != 0 | dbg.core_rst_o):
                 comb += core_rst.eq(1)
+        with m.If(stop_delay != 0):
+            # run DMI core-stop as well but on an extra couple of cycles
+            comb += dbg.core_stopped_i.eq(1)
 
         # connect external reset signal to DMI Reset
         if self.dbg_domain != "sync":
@@ -814,6 +821,12 @@ class TestIssuerInternal(TestIssuerBase):
             comb += self.imem.i_in.virt_mode.eq(msr[MSR.IR]) # Instr. Redir (VM)
 
         with m.FSM(name='fetch_fsm'):
+
+            # allow fetch to not run at startup due to I-Cache reset not
+            # having time to settle.  power-on-reset holds dbg.core_stopped_i
+            with m.State("PRE_IDLE"):
+                with m.If(~dbg.core_stopped_i & ~dbg.core_stop_o):
+                    m.next = "IDLE"
 
             # waiting (zzz)
             with m.State("IDLE"):
