@@ -120,6 +120,12 @@ class FetchFSM(ControlBase):
 
         with m.FSM(name='fetch_fsm'):
 
+            # allow fetch to not run at startup due to I-Cache reset not
+            # having time to settle.  power-on-reset holds dbg.core_stopped_i
+            with m.State("PRE_IDLE"):
+                with m.If(~dbg.core_stopped_i & ~dbg.core_stop_o):
+                    m.next = "IDLE"
+
             # waiting (zzz)
             with m.State("IDLE"):
                 with m.If(~dbg.stopping_o & ~fetch_failed):
