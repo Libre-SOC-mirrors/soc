@@ -16,6 +16,37 @@ import os
 
 __all__ = ["SDRAM", "SDRAMConfig"]
 
+        """
+        class MT48LC16M16(SDRModule):
+            # geometry
+            nbanks = 4
+            nrows  = 8192
+            ncols  = 512
+            # timings
+            technology_timings = _TechnologyTimings(tREFI=64e6/8192,
+                                                    tWTR=(2, None),
+                                                    tCCD=(1, None),
+                                                    tRRD=(None, 15))
+            speedgrade_timings = {"default": _SpeedgradeTimings(tRP=20,
+                                                    tRCD=20,
+                                                    tWR=15,
+                                                    tRFC=(None, 66),
+                                                    tFAW=None,
+                                                    tRAS=44)}
+            # for MT48LC16M16-75 part
+            comb += self.cfg.sdr_en.eq(1)
+            comb += self.cfg.sdr_mode_reg.eq(0x033)
+            comb += self.cfg.req_depth.eq(3)    # max 
+            comb += self.cfg.sdr_tras_d.eq(44)  # Active to precharge delay
+            comb += self.cfg.sdr_trp_d.eq(20)   # Precharge to active delay
+            comb += self.cfg.sdr_trcd_d.eq(20)  # Active to R/W delay
+            comb += self.cfg.sdr_cas.eq(3)      # CAS latency
+            comb += self.cfg.sdr_trcar_d.eq(66) # tRFC auto-refresh period
+            comb += self.cfg.sdr_twr_d.eq(15) # clock + 7.5ns
+            comb += self.cfg.sdr_rfsh.eq(0x100)
+            comb += self.cfg.sdr_rfmax.eq(6)
+        """
+
 
 class SDRAMConfig(Record):
     def __init__(self, refresh_timer_sz, refresh_row_count, name=None):
