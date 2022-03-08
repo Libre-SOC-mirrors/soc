@@ -1589,20 +1589,14 @@ class DCache(Elaboratable, DCacheConfig):
                         pass
 
             with m.Case(State.RELOAD_WAIT_ACK):
-                ld_stbs_done = Signal()
-                # Requests are all sent if stb is 0
-                comb += ld_stbs_done.eq(~r1.wb.stb)
 
                 # If we are still sending requests, was one accepted?
                 with m.If((~bus.stall) & r1.wb.stb):
-                    # That was the last word?  We are done sending.
-                    # Clear stb and set ld_stbs_done so we can handle an
-                    # eventual last ack on the same cycle.
+                    # That was the last word?  We are done sending.  Clear stb 
                     # sigh - reconstruct wb adr with 3 extra 0s at front
                     wb_adr = Cat(Const(0, self.ROW_OFF_BITS), r1.wb.adr)
                     with m.If(self.is_last_row_addr(wb_adr, r1.end_row_ix)):
                         sync += r1.wb.stb.eq(0)
-                        comb += ld_stbs_done.eq(1)
 
                     # Calculate the next row address in the current cache line
                     rlen = self.LINE_OFF_BITS-self.ROW_OFF_BITS
@@ -1641,7 +1635,7 @@ class DCache(Elaboratable, DCacheConfig):
                         sync += r1.use_forward1.eq(1)
 
                     # Check for completion
-                    with m.If(ld_stbs_done & lastrow):
+                    with m.If(lastrow):
                         # Complete wishbone cycle
                         sync += r1.wb.cyc.eq(0)
 
