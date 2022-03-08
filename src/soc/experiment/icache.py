@@ -695,29 +695,20 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
         sync += r.state.eq(State.WAIT_ACK)
 
     def icache_miss_wait_ack(self, m, r, replace_way, inval_in,
-                             cache_valids, stbs_done):
+                             cache_valids):
         comb = m.d.comb
         sync = m.d.sync
 
         bus = self.bus
 
-        # Requests are all sent if stb is 0
-        stbs_zero = Signal()
-        comb += stbs_zero.eq(r.wb.stb == 0)
-        comb += stbs_done.eq(stbs_zero)
-
         # If we are still sending requests, was one accepted?
-        with m.If(~bus.stall & ~stbs_zero):
-            # That was the last word? We are done sending.
-            # Clear stb and set stbs_done so we can handle
-            # an eventual last ack on the same cycle.
+        with m.If(~bus.stall & r.wb.stb):
+            # That was the last word? We are done sending.  Clear stb
             with m.If(self.is_last_row_addr(r.req_adr, r.end_row_ix)):
                 sync += Display("IS_LAST_ROW_ADDR r.wb.addr:%x "
-                         "r.end_row_ix:%x r.wb.stb:%x stbs_zero:%x "
-                         "stbs_done:%x", r.wb.adr, r.end_row_ix,
-                         r.wb.stb, stbs_zero, stbs_done)
+                         "r.end_row_ix:%x r.wb.stb:%x",
+                         r.wb.adr, r.end_row_ix, r.wb.stb)
                 sync += r.wb.stb.eq(0)
-                comb += stbs_done.eq(1)
 
             # Calculate the next row address
             rarange = Signal(self.LINE_OFF_BITS - self.ROW_OFF_BITS)
@@ -725,19 +716,17 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
                                          self.LINE_OFF_BITS] + 1)
             sync += r.req_adr[self.ROW_OFF_BITS:self.LINE_OFF_BITS].eq(rarange)
             sync += Display("RARANGE r.req_adr:%x rarange:%x "
-                            "stbs_zero:%x stbs_done:%x",
-                            r.req_adr, rarange, stbs_zero, stbs_done)
+                            "r.wb.stb:%x",
+                            r.req_adr, rarange, r.wb.stb)
 
         # Incoming acks processing
         with m.If(bus.ack):
-            sync += Display("WB_IN_ACK data:%x stbs_zero:%x "
-                            "stbs_done:%x",
-                            bus.dat_r, stbs_zero, stbs_done)
+            sync += Display("WB_IN_ACK data:%x", bus.dat_r)
 
             sync += r.rows_valid[r.store_row % self.ROW_PER_LINE].eq(1)
 
             # Check for completion
-            with m.If(stbs_done & self.is_last_row(r.store_row, r.end_row_ix)):
+            with m.If(self.is_last_row(r.store_row, r.end_row_ix)):
                 # Complete wishbone cycle
                 sync += r.wb.cyc.eq(0)
                 # be nice, clear addr
@@ -764,8 +753,6 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
         stall_in, flush_in = self.stall_in, self.flush_in
         inval_in           = self.inval_in
 
-        stbs_done = Signal()
-
         comb += r.wb.sel.eq(-1)
         comb += r.wb.adr.eq(r.req_adr[3:])
 
@@ -789,7 +776,7 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
                                              cache_valids)
 
                 self.icache_miss_wait_ack(m, r, replace_way, inval_in,
-                                          cache_valids, stbs_done)
+                                          cache_valids)
 
         # TLB miss and protection fault processing
         with m.If(flush_in | m_in.tlbld):
