@@ -704,7 +704,7 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
         # If we are still sending requests, was one accepted?
         with m.If(~bus.stall & r.wb.stb):
             # That was the last word? We are done sending.  Clear stb
-            with m.If(self.is_last_row_addr(r.wb.adr, r.end_row_ix)):
+            with m.If(self.is_last_row_addr(r.req_adr, r.end_row_ix)):
                 sync += Display("IS_LAST_ROW_ADDR r.wb.addr:%x "
                          "r.end_row_ix:%x r.wb.stb:%x",
                          r.wb.adr, r.end_row_ix, r.wb.stb)
