@@ -792,7 +792,7 @@ class TestIssuerInternal(TestIssuerBase):
     easy understanding) come later.
     """
 
-    def fetch_fsm(self, m, dbg, core, pc, msr, svstate, nia, is_svp64_mode,
+    def fetch_fsm(self, m, dbg, core, nia, is_svp64_mode,
                         fetch_pc_o_ready, fetch_pc_i_valid,
                         fetch_insn_o_valid, fetch_insn_i_ready):
         """fetch FSM
@@ -806,6 +806,7 @@ class TestIssuerInternal(TestIssuerBase):
         pdecode2 = self.pdecode2
         cur_state = self.cur_state
         dec_opcode_i = pdecode2.dec.raw_opcode_in # raw opcode
+        pc, msr, svstate = cur_state.pc, cur_state.msr, cur_state.svstate
 
         # also note instruction fetch failed
         if hasattr(core, "icache"):
@@ -843,11 +844,6 @@ class TestIssuerInternal(TestIssuerBase):
                     comb += self.imem.a_pc_i.eq(pc)
                     comb += self.imem.a_i_valid.eq(1)
                     comb += self.imem.f_i_valid.eq(1)
-                    # transfer state to output
-                    sync += cur_state.pc.eq(pc)
-                    sync += cur_state.svstate.eq(svstate)  # and svstate
-                    sync += cur_state.msr.eq(msr)  # and msr
-
                     m.next = "INSN_READ"  # move to "wait for bus" phase
 
             # dummy pause to find out why simulation is not keeping up
@@ -1175,6 +1171,8 @@ class TestIssuerInternal(TestIssuerBase):
             fetch_failed = Const(0, 1)
             flush_needed = False
 
+        sync += fetch_pc_i_valid.eq(0)
+
         with m.FSM(name="issue_fsm"):
 
             # sync with the "fetch" phase which is reading the instruction
@@ -1186,7 +1184,10 @@ class TestIssuerInternal(TestIssuerBase):
                 # wait on "core stop" release, before next fetch
                 # need to do this here, in case we are in a VL==0 loop
                 with m.If(~dbg.core_stop_o & ~core_rst):
-                    comb += fetch_pc_i_valid.eq(1)  # tell fetch to start
+                    sync += fetch_pc_i_valid.eq(1)  # tell fetch to start
+                    sync += cur_state.pc.eq(dbg.state.pc)
+                    sync += cur_state.svstate.eq(dbg.state.svstate)
+                    sync += cur_state.msr.eq(dbg.state.msr)
                     with m.If(fetch_pc_o_ready):   # fetch acknowledged us
                         m.next = "INSN_WAIT"
                 with m.Else():
@@ -1583,8 +1584,7 @@ class TestIssuerInternal(TestIssuerBase):
         # Issue is where the VL for-loop # lives.  the ready/valid
         # signalling is used to communicate between the four.
 
-        self.fetch_fsm(m, dbg, core, dbg.state.pc, dbg.state.msr,
-                       dbg.state.svstate, nia, is_svp64_mode,
+        self.fetch_fsm(m, dbg, core, nia, is_svp64_mode,
                        fetch_pc_o_ready, fetch_pc_i_valid,
                        fetch_insn_o_valid, fetch_insn_i_ready)
 
