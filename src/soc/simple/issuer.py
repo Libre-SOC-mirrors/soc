@@ -815,6 +815,10 @@ class TestIssuerInternal(TestIssuerBase):
             fetch_failed = Const(0, 1)
             flush_needed = False
 
+        # create a register with pc+4 as a way to reduce combinatorial chains
+        pc4 = Signal.like(cur_state.pc)
+        sync += pc4.eq(cur_state.pc + 4)
+
         # set priv / virt mode on I-Cache, sigh
         if isinstance(self.imem, ICache):
             comb += self.imem.i_in.priv_mode.eq(~msr[MSR.PR])
@@ -898,7 +902,7 @@ class TestIssuerInternal(TestIssuerBase):
                                 m.next = "INSN_READY"
                             with m.Else():
                                 # fetch the rest of the instruction from memory
-                                comb += self.imem.a_pc_i.eq(cur_state.pc + 4)
+                                comb += self.imem.a_pc_i.eq(pc4)
                                 comb += self.imem.a_i_valid.eq(1)
                                 comb += self.imem.f_i_valid.eq(1)
                                 m.next = "INSN_READ2"
@@ -925,7 +929,7 @@ class TestIssuerInternal(TestIssuerBase):
                         # blech, icache returns actual instruction
                         insn = self.imem.f_instr_o
                     else:
-                        insn = get_insn(self.imem.f_instr_o, cur_state.pc+4)
+                        insn = get_insn(self.imem.f_instr_o, pc4)
                     sync += dec_opcode_i.eq(insn)
                     m.next = "INSN_READY"
                     # TODO: probably can start looking at pdecode2.rm_dec
