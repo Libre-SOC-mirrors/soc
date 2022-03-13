@@ -18,8 +18,10 @@ import unittest
 
 from nmigen import Elaboratable, Module, Memory, Signal
 from nmigen.back import rtlil
+from nmigen.sim import Simulator
 
 from nmutil.formaltest import FHDLTestCase
+from nmutil.gtkw import write_gtkw
 
 
 class SinglePortSRAM(Elaboratable):
@@ -105,6 +107,63 @@ class SinglePortSRAMTestCase(FHDLTestCase):
         """
         dut = SinglePortSRAM(10, 16, 2)
         create_ilang(dut, dut.ports(), "mem_blkram")
+
+    def test_sram_model(self):
+        """
+        Simulate some read/write/modify operations on the SRAM model
+        """
+        dut = SinglePortSRAM(7, 32, 4)
+        sim = Simulator(dut)
+        sim.add_clock(1e-6)
+
+        def process():
+            # 1) write 0x12_34_56_78 to address 0
+            yield dut.a.eq(0)
+            yield dut.d.eq(0x12_34_56_78)
+            yield dut.we.eq(0b1111)
+            yield
+            # 2) write 0x9A_BC_DE_F0 to address 1
+            yield dut.a.eq(1)
+            yield dut.d.eq(0x9A_BC_DE_F0)
+            yield dut.we.eq(0b1111)
+            yield
+            # ... and read value just written to address 0
+            self.assertEqual((yield dut.q), 0x12_34_56_78)
+            # 3) prepare to read from address 0
+            yield dut.d.eq(0)
+            yield dut.we.eq(0b0000)
+            yield dut.a.eq(0)
+            yield
+            # ... and read value just written to address 1
+            self.assertEqual((yield dut.q), 0x9A_BC_DE_F0)
+            # 4) prepare to read from address 1
+            yield dut.a.eq(1)
+            yield
+            # ... and read value from address 0
+            self.assertEqual((yield dut.q), 0x12_34_56_78)
+            # 5) write 0x9A and 0xDE to bytes 1 and 3, leaving
+            # bytes 0 and 2 unchanged
+            yield dut.a.eq(0)
+            yield dut.d.eq(0x9A_FF_DE_FF)
+            yield dut.we.eq(0b1010)
+            yield
+            # ... and read value from address 1
+            self.assertEqual((yield dut.q), 0x9A_BC_DE_F0)
+            # 6) nothing more to do
+            yield dut.d.eq(0)
+            yield dut.we.eq(0)
+            yield
+            # ... other than confirm that bytes 1 and 3 were modified
+            # correctly
+            self.assertEqual((yield dut.q), 0x9A_34_DE_78)
+
+        sim.add_sync_process(process)
+        traces = ['rdport.clk', 'a[6:0]', 'we[3:0]', 'd[31:0]', 'q[31:0]']
+        write_gtkw('test_sram_model.gtkw', 'test_sram_model.vcd',
+                   traces, module='top')
+        sim_writer = sim.write_vcd('test_sram_model.vcd')
+        with sim_writer:
+            sim.run()
 
 
 if __name__ == "__main__":
