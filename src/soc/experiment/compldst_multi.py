@@ -266,7 +266,7 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
 
         #####################
         # latches for the FSM.
-        m.submodules.opc_l = opc_l = SRLatch(sync=False, name="opc")
+        m.submodules.opc_l = opc_l = SRLatch(sync=True, name="opc")
         m.submodules.src_l = src_l = SRLatch(False, self.n_src, name="src")
         m.submodules.alu_l = alu_l = SRLatch(sync=False, name="alu")
         m.submodules.adr_l = adr_l = SRLatch(sync=False, name="adr")
@@ -372,8 +372,8 @@ class LDSTCompUnit(RegSpecAPI, Elaboratable):
         # opcode latch - inverted so that busy resets to 0
         # note this MUST be sync so as to avoid a combinatorial loop
         # between busy_o and issue_i on the reset latch (rst_l)
-        sync += opc_l.s.eq(issue_i)  # XXX NOTE: INVERTED FROM book!
-        sync += opc_l.r.eq(reset_o)  # XXX NOTE: INVERTED FROM book!
+        comb += opc_l.s.eq(issue_i)  # XXX NOTE: INVERTED FROM book!
+        comb += opc_l.r.eq(reset_o)  # XXX NOTE: INVERTED FROM book!
 
         # src operand latch
         sync += src_l.s.eq(Repl(issue_i, self.n_src) & ~self.rdmaskn)

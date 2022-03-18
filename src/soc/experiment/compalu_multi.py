@@ -258,7 +258,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         # src operand latch (not using go_wr_i) ANDed with rdmask
         rdmaskn = Signal(self.n_src)
         latchregister(m, self.rdmaskn, rdmaskn, self.issue_i, name="rdmask_l")
-        m.d.comb += src_l.s.eq(Repl(self.issue_i, self.n_src) & ~rdmaskn)
+        m.d.sync += src_l.s.eq(Repl(self.issue_i, self.n_src) & ~rdmaskn)
         m.d.sync += src_l.r.eq(reset_r)
 
         # dest operand latch (not using issue_i)
