@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # SPDX-License-Identifier: LGPLv3+
-# Copyright (C) 2020-2022 Raptor Engineering, LLC <support@raptorengineering.com>
+# Copyright (C) 2020-2022 Raptor Engineering LLC <support@raptorengineering.com>
 # Copyright (C) 2022 Luke Kenneth Casson Leighton <lkcl@lkcl.net>
 # Sponsored by NLnet and NGI POINTER under EU Grants 871528 and 957073
 # Part of the Libre-SOC Project.
@@ -21,8 +21,8 @@ __all__ = ["Tercel"]
 
 
 class Tercel(Elaboratable):
-    """Tercel SPI controller from Raptor Engineering, nmigen wrapper.  remember to call
-       Tercel.add_verilog_source
+    """Tercel SPI controller from Raptor Engineering, nmigen wrapper.
+    remember to call Tercel.add_verilog_source
     """
 
     def __init__(self, bus=None, cfg_bus=None, features=None, name=None,
@@ -94,7 +94,8 @@ class Tercel(Elaboratable):
 
         # Calculate SPI flash address
         spi_bus_adr = Signal(30)
-        self.comb += spi_bus_adr.eq(bus.adr - (adr_offset >> 2)) # wb address is in words, offset is in bytes
+        # wb address is in words, offset is in bytes
+        self.comb += spi_bus_adr.eq(bus.adr - (adr_offset >> 2))
 
         # create definition of external verilog Tercel code here, so that
         # nmigen understands I/O directions (defined by i_ and o_ prefixes)
@@ -145,6 +146,7 @@ class Tercel(Elaboratable):
             comb += self.dq_in.eq(self.pins.dq.i)
             comb += self.pins.dq.i_clk.eq(ClockSignal())
             comb += self.pins.cs_n.eq(self.cs_n_out)
+            # ECP5 needs special handling for the SPI clock, sigh.
             if lattice_ecp5_usrmclk:
                 self.specials += Instance("USRMCLK",
                     i_USRMCLKI  = self.spi_clk,
@@ -172,8 +174,10 @@ if __name__ == "__main__":
     create_ilang(tercel, [tercel.bus.cyc, tercel.bus.stb, tercel.bus.ack,
                         tercel.bus.dat_r, tercel.bus.dat_w, tercel.bus.adr,
                         tercel.bus.we, tercel.bus.sel,
-                        tercel.cfg_bus.cyc, tercel.cfg_bus.stb, tercel.cfg_bus.ack,
-                        tercel.cfg_bus.dat_r, tercel.cfg_bus.dat_w, tercel.cfg_bus.adr,
+                        tercel.cfg_bus.cyc, tercel.cfg_bus.stb,
+                        tercel.cfg_bus.ack,
+                        tercel.cfg_bus.dat_r, tercel.cfg_bus.dat_w,
+                        tercel.cfg_bus.adr,
                         tercel.cfg_bus.we, tercel.cfg_bus.sel,
                         tercel.dq_out, tercel.dq_direction, tercel.dq_in,
                         tercel.cs_n_out, tercel.spi_clk
