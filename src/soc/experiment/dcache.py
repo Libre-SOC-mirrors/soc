@@ -847,7 +847,7 @@ class DCache(Elaboratable, DCacheConfig):
             return
 
         # suite of PLRUs with a selection and output mechanism
-        tlb_plrus = PLRUs(self.TLB_SET_SIZE, self.TLB_WAY_BITS)
+        tlb_plrus = PLRUs("d_tlb", self.TLB_SET_SIZE, self.TLB_WAY_BITS)
         m.submodules.tlb_plrus = tlb_plrus
         comb += tlb_plrus.way.eq(r1.tlb_hit.way)
         comb += tlb_plrus.valid.eq(r1.tlb_hit.valid)
@@ -953,7 +953,8 @@ class DCache(Elaboratable, DCacheConfig):
             return
 
         # suite of PLRUs with a selection and output mechanism
-        m.submodules.plrus = plrus = PLRUs(self.NUM_LINES, self.WAY_BITS)
+        m.submodules.plrus = plrus = PLRUs("dtag", self.NUM_LINES,
+                                                   self.WAY_BITS)
         comb += plrus.way.eq(r1.hit_way)
         comb += plrus.valid.eq(r1.cache_hit)
         comb += plrus.index.eq(r1.hit_index)

@@ -55,7 +55,8 @@ class PLRU(Elaboratable):
 
 
 class PLRUs(Elaboratable):
-    def __init__(self, n_plrus, n_bits):
+    def __init__(self, cachetype, n_plrus, n_bits):
+        self.cachetype = cachetype
         self.n_plrus = n_plrus
         self.n_bits = n_bits
         self.valid = Signal()
@@ -83,7 +84,8 @@ class PLRUs(Elaboratable):
 
         for i in range(self.n_plrus):
             # PLRU interface
-            m.submodules["plru_%d" % i] = plru = PLRU(self.n_bits)
+            name = "%s_plru_%d" % (self.cachetype, i)
+            m.submodules[name] = plru = PLRU(self.n_bits)
 
             comb += plru.acc_en.eq(te.o[i])
             comb += plru.acc_i.eq(self.way)
@@ -105,7 +107,7 @@ if __name__ == '__main__':
         f.write(vl)
 
 
-    dut = PLRUs(4, 2)
+    dut = PLRUs("testing", 4, 2)
     vl = rtlil.convert(dut, ports=dut.ports())
     with open("test_plrus.il", "w") as f:
         f.write(vl)

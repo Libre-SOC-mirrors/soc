@@ -419,7 +419,8 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
             return
 
 
-        m.submodules.plrus = plru = PLRUs(self.NUM_LINES, self.WAY_BITS)
+        m.submodules.plrus = plru = PLRUs("itag", self.NUM_LINES,
+                                                  self.WAY_BITS)
         comb += plru.way.eq(r.hit_way)
         comb += plru.valid.eq(r.hit_valid)
         comb += plru.index.eq(self.get_index(r.hit_nia))
