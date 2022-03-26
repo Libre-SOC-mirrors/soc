@@ -19,6 +19,7 @@ import unittest
 from nmigen import Elaboratable, Module, Memory, Signal
 from nmigen.back import rtlil
 from nmigen.sim import Simulator
+from nmigen.asserts import Assert, Past, AnyConst
 
 from nmutil.formaltest import FHDLTestCase
 from nmutil.gtkw import write_gtkw
@@ -164,6 +165,44 @@ class SinglePortSRAMTestCase(FHDLTestCase):
         sim_writer = sim.write_vcd('test_sram_model.vcd')
         with sim_writer:
             sim.run()
+
+    def test_model_sram_proof(self):
+        """
+        Formal proof of the single port SRAM model
+        """
+        m = Module()
+        # 128 x 32-bit, 8-bit granularity
+        m.submodules.dut = dut = SinglePortSRAM(7, 32, 4)
+        gran = len(dut.d) // len(dut.we)  # granularity
+        # choose a single random memory location to test
+        a_const = AnyConst(dut.a.shape())
+        # choose a single byte lane to test (one-hot encoding)
+        we_mask = Signal.like(dut.we)
+        # ... by first creating a random bit pattern
+        we_const = AnyConst(dut.we.shape())
+        # ... and zeroing all but the first non-zero bit
+        m.d.comb += we_mask.eq(we_const & (-we_const))
+        # holding data register
+        d_reg = Signal(gran)
+        # for some reason, simulated formal memory is not zeroed at reset
+        # ... so, remember whether we wrote it, at least once.
+        wrote = Signal()
+        # if our memory location and byte lane is being written
+        # ... capture the data in our holding register
+        with m.If(dut.a == a_const):
+            for i in range(len(dut.we)):
+                with m.If(we_mask[i] & dut.we[i]):
+                    m.d.sync += d_reg.eq(dut.d[i*gran:i*gran+gran])
+                    m.d.sync += wrote.eq(1)
+        # if our memory location is being read
+        # ... and the holding register has valid data
+        # ... then its value must match the memory output, on the given lane
+        with m.If((Past(dut.a) == a_const) & wrote):
+            for i in range(len(dut.we)):
+                with m.If(we_mask[i]):
+                    m.d.sync += Assert(d_reg == dut.q[i*gran:i*gran+gran])
+
+        self.assertFormal(m, mode="bmc", depth=10)
 
 
 if __name__ == "__main__":
