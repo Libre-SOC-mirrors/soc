@@ -33,6 +33,8 @@ class SinglePortSRAM(Elaboratable):
     :param addr_width: width of the address bus
     :param data_width: width of the data bus
     :param we_width: number of write enable lines
+
+    .. note:: The debug read port is meant only to assist in formal proofs!
     """
     def __init__(self, addr_width, data_width, we_width):
         self.addr_width = addr_width
@@ -46,6 +48,10 @@ class SinglePortSRAM(Elaboratable):
         """ read/write address"""
         self.we = Signal(we_width)
         """write enable"""
+        self.dbg_a = Signal(addr_width)
+        """debug read port address"""
+        self.dbg_q = Signal(data_width)
+        """debug read port data"""
 
     def elaborate(self, _):
         m = Module()
@@ -70,6 +76,11 @@ class SinglePortSRAM(Elaboratable):
         # read and write data
         m.d.comb += wrport.data.eq(self.d)
         m.d.comb += self.q.eq(rdport.data)
+        # the debug port is an asynchronous read port, allowing direct access
+        # to a given memory location by the formal engine
+        m.submodules.dbgport = dbgport = mem.read_port(domain="comb")
+        m.d.comb += dbgport.addr.eq(self.dbg_a)
+        m.d.comb += self.dbg_q.eq(dbgport.data)
         return m
 
     def ports(self):
@@ -202,7 +213,21 @@ class SinglePortSRAMTestCase(FHDLTestCase):
                 with m.If(we_mask[i]):
                     m.d.sync += Assert(d_reg == dut.q[i*gran:i*gran+gran])
 
-        self.assertFormal(m, mode="bmc", depth=10)
+        # the following is needed for induction, where an unreachable state
+        # (memory and holding register differ) is turned into an illegal one
+        # first, get the value stored in our memory location, using its debug
+        # port
+        stored = Signal.like(dut.q)
+        m.d.comb += dut.dbg_a.eq(a_const)
+        m.d.comb += stored.eq(dut.dbg_q)
+        # now, ensure that the value stored in memory is always in sync
+        # with the holding register
+        with m.If(wrote):
+            for i in range(len(dut.we)):
+                with m.If(we_mask[i]):
+                    m.d.sync += Assert(d_reg == stored[i*gran:i*gran+gran])
+
+        self.assertFormal(m, mode="prove", depth=2)
 
 
 if __name__ == "__main__":
