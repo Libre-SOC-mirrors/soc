@@ -15,6 +15,7 @@ from nmigen_soc.wishbone.bus import Interface
 from nmigen_soc.memory import MemoryMap
 from nmigen.utils import log2_int
 from nmigen.cli import rtlil, verilog
+from nmutil.byterev import byte_reverse
 import os
 
 __all__ = ["Tercel"]
@@ -107,6 +108,16 @@ class Tercel(Elaboratable):
         # wb address is in words, offset is in bytes
         comb += spi_bus_adr.eq(bus.adr - (self.adr_offset >> 2))
 
+        # urrr.... byte-reverse the config bus and data bus read/write
+        cdat_w = Signal.like(cfg_bus.dat_w)
+        cdat_r = Signal.like(cfg_bus.dat_r)
+        dat_w = Signal.like(bus.dat_w)
+        dat_r = Signal.like(bus.dat_r)
+        comb += cdat_w.eq(byte_reverse(m, "rv_cdat_w", cfg_bus.dat_w, 4))
+        comb += cfg_bus.dat_r.eq(byte_reverse(m, "rv_cdat_r", cdat_r, 4))
+        comb += dat_w.eq(byte_reverse(m, "rv_dat_w", bus.dat_w, 4))
+        comb += bus.dat_r.eq(byte_reverse(m, "rv_dat_r", dat_r, 4))
+
         # create definition of external verilog Tercel code here, so that
         # nmigen understands I/O directions (defined by i_ and o_ prefixes)
         idx, bus = self.idx, self.bus
@@ -120,9 +131,9 @@ class Tercel(Elaboratable):
 
                             # SPI region Wishbone bus signals
                             i_wishbone_adr=spi_bus_adr,
-                            i_wishbone_dat_w=bus.dat_w,
+                            i_wishbone_dat_w=dat_w,
                             i_wishbone_sel=bus.sel,
-                            o_wishbone_dat_r=bus.dat_r,
+                            o_wishbone_dat_r=dat_r,
                             i_wishbone_we=bus.we,
                             i_wishbone_stb=bus.stb,
                             i_wishbone_cyc=bus.cyc,
@@ -130,9 +141,9 @@ class Tercel(Elaboratable):
 
                             # Configuration region Wishbone bus signals
                             i_cfg_wishbone_adr=cfg_bus.adr,
-                            i_cfg_wishbone_dat_w=cfg_bus.dat_w,
+                            i_cfg_wishbone_dat_w=cdat_w,
                             i_cfg_wishbone_sel=cfg_bus.sel,
-                            o_cfg_wishbone_dat_r=cfg_bus.dat_r,
+                            o_cfg_wishbone_dat_r=cdat_r,
                             i_cfg_wishbone_we=cfg_bus.we,
                             i_cfg_wishbone_stb=cfg_bus.stb,
                             i_cfg_wishbone_cyc=cfg_bus.cyc,
