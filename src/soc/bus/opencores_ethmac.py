@@ -91,7 +91,18 @@ class EthMAC(Elaboratable):
     @classmethod
     def add_verilog_source(cls, verilog_src_dir, platform):
         # add each of the verilog sources, needed for when doing platform.build
-        for fname in ['eth_clockgen.v', 'eth_cop.v', 'eth_crc.v', 'eth_fifo.v', 'eth_maccontrol.v', 'ethmac_defines.v', 'eth_macstatus.v', 'ethmac.v', 'eth_miim.v', 'eth_outputcontrol.v', 'eth_random.v', 'eth_receivecontrol.v', 'eth_registers.v', 'eth_register.v', 'eth_rxaddrcheck.v', 'eth_rxcounters.v', 'eth_rxethmac.v', 'eth_rxstatem.v', 'eth_shiftreg.v', 'eth_spram_256x32.v', 'eth_top.v', 'eth_transmitcontrol.v', 'eth_txcounters.v', 'eth_txethmac.v', 'eth_txstatem.v', 'eth_wishbone.v', 'timescale.v']:
+        for fname in ['eth_clockgen.v', 'eth_cop.v', 'eth_crc.v',
+                    'eth_fifo.v', 'eth_maccontrol.v', 'ethmac_defines.v',
+                    'eth_macstatus.v', 'ethmac.v', 'eth_miim.v',
+                    'eth_outputcontrol.v', 'eth_random.v',
+                    'eth_receivecontrol.v', 'eth_registers.v',
+                    'eth_register.v', 'eth_rxaddrcheck.v',
+                    'eth_rxcounters.v', 'eth_rxethmac.v',
+                    'eth_rxstatem.v', 'eth_shiftreg.v',
+                    'eth_spram_256x32.v', 'eth_top.v',
+                    'eth_transmitcontrol.v', 'eth_txcounters.v',
+                    'eth_txethmac.v', 'eth_txstatem.v', 'eth_wishbone.v',
+                    'timescale.v']:
             # prepend the src directory to each filename, add its contents
             fullname = os.path.join(verilog_src_dir, fname)
             with open(fullname) as f:
@@ -194,8 +205,9 @@ def create_verilog(dut, ports, test_name):
 
 if __name__ == "__main__":
     ethmac = EthMAC(name="eth_0")
-    create_ilang(ethmac, [ethmac.master_bus.cyc, ethmac.master_bus.stb, ethmac.master_bus.ack,
-                        ethmac.master_bus.dat_r, ethmac.master_bus.dat_w, ethmac.master_bus.adr,
+    create_ilang(ethmac, [ethmac.master_bus.cyc, ethmac.master_bus.stb,
+                        ethmac.master_bus.ack, ethmac.master_bus.dat_r,
+                        ethmac.master_bus.dat_w, ethmac.master_bus.adr,
                         ethmac.master_bus.we, ethmac.master_bus.sel,
                         ethmac.slave_bus.cyc, ethmac.slave_bus.stb,
                         ethmac.slave_bus.ack,
