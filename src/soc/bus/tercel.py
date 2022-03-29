@@ -83,6 +83,7 @@ class Tercel(Elaboratable):
         self.dq_in = Signal(4)
         self.cs_n_out = Signal()      # Slave select
         self.spi_clk = Signal()       # Clock
+        self.dbg_port = Signal(8)     # debug info
 
         # pins resource
         self.pins = pins
@@ -118,31 +119,34 @@ class Tercel(Elaboratable):
                             i_peripheral_reset=ResetSignal(),
 
                             # SPI region Wishbone bus signals
-                            i_wishbone_adr_i=spi_bus_adr,
-                            i_wishbone_dat_i=bus.dat_w,
-                            i_wishbone_sel_i=bus.sel,
-                            o_wishbone_dat_o=bus.dat_r,
-                            i_wishbone_we_i=bus.we,
-                            i_wishbone_stb_i=bus.stb,
-                            i_wishbone_cyc_i=bus.cyc,
-                            o_wishbone_ack_o=bus.ack,
+                            i_wishbone_adr=spi_bus_adr,
+                            i_wishbone_dat=bus.dat_w,
+                            i_wishbone_sel=bus.sel,
+                            o_wishbone_dat=bus.dat_r,
+                            i_wishbone_we=bus.we,
+                            i_wishbone_stb=bus.stb,
+                            i_wishbone_cyc=bus.cyc,
+                            o_wishbone_ack=bus.ack,
 
                             # Configuration region Wishbone bus signals
-                            i_cfg_wishbone_adr_i=cfg_bus.adr,
-                            i_cfg_wishbone_dat_i=cfg_bus.dat_w,
-                            i_cfg_wishbone_sel_i=cfg_bus.sel,
-                            o_cfg_wishbone_dat_o=cfg_bus.dat_r,
-                            i_cfg_wishbone_we_i=cfg_bus.we,
-                            i_cfg_wishbone_stb_i=cfg_bus.stb,
-                            i_cfg_wishbone_cyc_i=cfg_bus.cyc,
-                            o_cfg_wishbone_ack_o=cfg_bus.ack,
+                            i_cfg_wishbone_adr=cfg_bus.adr,
+                            i_cfg_wishbone_dat=cfg_bus.dat_w,
+                            i_cfg_wishbone_sel=cfg_bus.sel,
+                            o_cfg_wishbone_dat=cfg_bus.dat_r,
+                            i_cfg_wishbone_we=cfg_bus.we,
+                            i_cfg_wishbone_stb=cfg_bus.stb,
+                            i_cfg_wishbone_cyc=cfg_bus.cyc,
+                            o_cfg_wishbone_ack=cfg_bus.ack,
 
                             # QSPI signals
                             o_spi_d_out=self.dq_out,
                             o_spi_d_direction=self.dq_direction,
                             i_spi_d_in=self.dq_in,
                             o_spi_ss_n=self.cs_n_out,
-                            o_spi_clock=self.spi_clk
+                            o_spi_clock=self.spi_clk,
+
+                            # debug port
+                            o_debug_port=self.dbg_port
                             );
 
         m.submodules['tercel_%d' % self.idx] = tercel
@@ -167,6 +171,19 @@ class Tercel(Elaboratable):
 
         return m
 
+    def ports(self):
+        return [self.bus.cyc, self.bus.stb, self.bus.ack,
+                        self.bus.dat_r, self.bus.dat_w, self.bus.adr,
+                        self.bus.we, self.bus.sel,
+                        self.cfg_bus.cyc, self.cfg_bus.stb,
+                        self.cfg_bus.ack,
+                        self.cfg_bus.dat_r, self.cfg_bus.dat_w,
+                        self.cfg_bus.adr,
+                        self.cfg_bus.we, self.cfg_bus.sel,
+                        self.dq_out, self.dq_direction, self.dq_in,
+                        self.cs_n_out, self.spi_clk
+                       ]
+
 
 def create_ilang(dut, ports, test_name):
     vl = rtlil.convert(dut, name=test_name, ports=ports)
@@ -181,15 +198,5 @@ def create_verilog(dut, ports, test_name):
 
 if __name__ == "__main__":
     tercel = Tercel(name="spi_0", data_width=32, clk_freq=100e6)
-    create_ilang(tercel, [tercel.bus.cyc, tercel.bus.stb, tercel.bus.ack,
-                        tercel.bus.dat_r, tercel.bus.dat_w, tercel.bus.adr,
-                        tercel.bus.we, tercel.bus.sel,
-                        tercel.cfg_bus.cyc, tercel.cfg_bus.stb,
-                        tercel.cfg_bus.ack,
-                        tercel.cfg_bus.dat_r, tercel.cfg_bus.dat_w,
-                        tercel.cfg_bus.adr,
-                        tercel.cfg_bus.we, tercel.cfg_bus.sel,
-                        tercel.dq_out, tercel.dq_direction, tercel.dq_in,
-                        tercel.cs_n_out, tercel.spi_clk
-                       ], "spi_0")
+    create_ilang(tercel, tercel.ports(), "spi_0")
 
