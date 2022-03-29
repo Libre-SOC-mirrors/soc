@@ -45,7 +45,7 @@ class Tercel(Elaboratable):
         # TODO, sort this out.
         assert clk_freq is not None
         clk_freq = round(clk_freq)
-        self.clk_freq = Const(clk_freq, clk_freq.bit_length())
+        self.clk_freq = Const(clk_freq, 32) #clk_freq.bit_length())
 
         # set up the wishbone busses
         if features is None:
