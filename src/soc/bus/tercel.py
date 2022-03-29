@@ -95,7 +95,7 @@ class Tercel(Elaboratable):
         # Calculate SPI flash address
         spi_bus_adr = Signal(30)
         # wb address is in words, offset is in bytes
-        self.comb += spi_bus_adr.eq(bus.adr - (adr_offset >> 2))
+        comb += spi_bus_adr.eq(bus.adr - (adr_offset >> 2))
 
         # create definition of external verilog Tercel code here, so that
         # nmigen understands I/O directions (defined by i_ and o_ prefixes)
@@ -153,7 +153,7 @@ class Tercel(Elaboratable):
                     i_USRMCLKTS = 0
                 )
             else:
-                self.comb += pads.clk.eq(self.spi_clk)
+                comb += pads.clk.eq(self.spi_clk)
 
         return m
 
