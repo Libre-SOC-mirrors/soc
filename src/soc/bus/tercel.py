@@ -9,7 +9,7 @@
 # this is a wrapper around the opencores verilog tercel module
 
 from nmigen import (Elaboratable, Cat, Module, Signal, ClockSignal, Instance,
-                    ResetSignal)
+                    ResetSignal, Const)
 
 from nmigen_soc.wishbone.bus import Interface
 from nmigen_soc.memory import MemoryMap
@@ -28,7 +28,8 @@ class Tercel(Elaboratable):
     def __init__(self, bus=None, cfg_bus=None, features=None, name=None,
                        data_width=32, spi_region_addr_width=28, pins=None,
                        clk_freq=None,
-                       lattice_ecp5_usrmclk=False):
+                       lattice_ecp5_usrmclk=False,
+                       adr_offset=0): # address offset (bytes)
         if name is not None:
             # convention: give the name in the format "name_number"
             self.idx = int(name.split("_")[-1])
@@ -38,6 +39,13 @@ class Tercel(Elaboratable):
         self.granularity = 8
         self.data_width = data_width
         self.dsize = log2_int(self.data_width//self.granularity)
+        self.adr_offset = adr_offset
+        self.lattice_ecp5_usrmclk = lattice_ecp5_usrmclk
+
+        # TODO, sort this out.
+        assert clk_freq is not None
+        clk_freq = round(clk_freq)
+        self.clk_freq = Const(clk_freq, clk_freq.bit_length())
 
         # set up the wishbone busses
         if features is None:
@@ -91,18 +99,19 @@ class Tercel(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         comb = m.d.comb
+        pins, bus, cfg_bus = self.pins, self.bus, self.cfg_bus
 
         # Calculate SPI flash address
         spi_bus_adr = Signal(30)
         # wb address is in words, offset is in bytes
-        comb += spi_bus_adr.eq(bus.adr - (adr_offset >> 2))
+        comb += spi_bus_adr.eq(bus.adr - (self.adr_offset >> 2))
 
         # create definition of external verilog Tercel code here, so that
         # nmigen understands I/O directions (defined by i_ and o_ prefixes)
         idx, bus = self.idx, self.bus
         tercel = Instance("tercel_core",
                             # System parameters
-                            i_sys_clk_freq = clk_freq,
+                            i_sys_clk_freq = self.clk_freq,
 
                             # Clock/reset (use DomainRenamer if needed)
                             i_peripheral_clock=ClockSignal(),
@@ -136,24 +145,25 @@ class Tercel(Elaboratable):
                             o_spi_clock=self.spi_clk
                             );
 
-        m.submodules['tercel_%d' % self.idx] = uart
+        m.submodules['tercel_%d' % self.idx] = tercel
 
-        if self.pins is not None:
-            comb += self.pins.dq.o.eq(self.dq_out)
-            comb += self.pins.dq.oe.eq(self.dq_direction)
-            comb += self.pins.dq.oe.eq(self.dq_direction)
-            comb += self.pins.dq.o_clk.eq(ClockSignal())
-            comb += self.dq_in.eq(self.pins.dq.i)
-            comb += self.pins.dq.i_clk.eq(ClockSignal())
-            comb += self.pins.cs_n.eq(self.cs_n_out)
+        if pins is not None:
+            comb += pins.dq.o.eq(self.dq_out)
+            comb += pins.dq.oe.eq(self.dq_direction)
+            comb += pins.dq.oe.eq(self.dq_direction)
+            comb += pins.dq.o_clk.eq(ClockSignal())
+            comb += self.dq_in.eq(pins.dq.i)
+            comb += pins.dq.i_clk.eq(ClockSignal())
+            # XXX invert handled by SPIFlashResource
+            comb += pins.cs.eq(~self.cs_n_out)
             # ECP5 needs special handling for the SPI clock, sigh.
-            if lattice_ecp5_usrmclk:
+            if self.lattice_ecp5_usrmclk:
                 self.specials += Instance("USRMCLK",
                     i_USRMCLKI  = self.spi_clk,
                     i_USRMCLKTS = 0
                 )
             else:
-                comb += pads.clk.eq(self.spi_clk)
+                comb += pins.clk.eq(self.spi_clk)
 
         return m
 
@@ -170,7 +180,7 @@ def create_verilog(dut, ports, test_name):
 
 
 if __name__ == "__main__":
-    tercel = Tercel(name="spi_0", data_width=32)
+    tercel = Tercel(name="spi_0", data_width=32, clk_freq=100e6)
     create_ilang(tercel, [tercel.bus.cyc, tercel.bus.stb, tercel.bus.ack,
                         tercel.bus.dat_r, tercel.bus.dat_w, tercel.bus.adr,
                         tercel.bus.we, tercel.bus.sel,
