@@ -120,9 +120,9 @@ class Tercel(Elaboratable):
 
                             # SPI region Wishbone bus signals
                             i_wishbone_adr=spi_bus_adr,
-                            i_wishbone_dat=bus.dat_w,
+                            i_wishbone_dat_w=bus.dat_w,
                             i_wishbone_sel=bus.sel,
-                            o_wishbone_dat=bus.dat_r,
+                            o_wishbone_dat_r=bus.dat_r,
                             i_wishbone_we=bus.we,
                             i_wishbone_stb=bus.stb,
                             i_wishbone_cyc=bus.cyc,
@@ -130,9 +130,9 @@ class Tercel(Elaboratable):
 
                             # Configuration region Wishbone bus signals
                             i_cfg_wishbone_adr=cfg_bus.adr,
-                            i_cfg_wishbone_dat=cfg_bus.dat_w,
+                            i_cfg_wishbone_dat_w=cfg_bus.dat_w,
                             i_cfg_wishbone_sel=cfg_bus.sel,
-                            o_cfg_wishbone_dat=cfg_bus.dat_r,
+                            o_cfg_wishbone_dat_r=cfg_bus.dat_r,
                             i_cfg_wishbone_we=cfg_bus.we,
                             i_cfg_wishbone_stb=cfg_bus.stb,
                             i_cfg_wishbone_cyc=cfg_bus.cyc,
