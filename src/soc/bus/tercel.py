@@ -162,7 +162,7 @@ class Tercel(Elaboratable):
             comb += pins.cs.eq(~self.cs_n_out)
             # ECP5 needs special handling for the SPI clock, sigh.
             if self.lattice_ecp5_usrmclk:
-                self.specials += Instance("USRMCLK",
+                m.submodules += Instance("USRMCLK",
                     i_USRMCLKI  = self.spi_clk,
                     i_USRMCLKTS = 0
                 )
