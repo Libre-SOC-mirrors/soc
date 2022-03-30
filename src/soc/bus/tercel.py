@@ -50,7 +50,8 @@ class Tercel(Elaboratable):
 
         # set up the wishbone busses
         if features is None:
-            features = frozenset({'err'})
+            #features = frozenset({'err'}) # sigh
+            features = frozenset()
         if bus is None:
             bus = Interface(addr_width=spi_region_addr_width,
                             data_width=data_width,
@@ -138,7 +139,7 @@ class Tercel(Elaboratable):
                             i_wishbone_stb=bus.stb,
                             i_wishbone_cyc=bus.cyc,
                             o_wishbone_ack=bus.ack,
-                            o_wishbone_err=bus.err,
+                            #o_wishbone_err=bus.err,
 
                             # Configuration region Wishbone bus signals
                             i_cfg_wishbone_adr=cfg_bus.adr,
@@ -149,7 +150,7 @@ class Tercel(Elaboratable):
                             i_cfg_wishbone_stb=cfg_bus.stb,
                             i_cfg_wishbone_cyc=cfg_bus.cyc,
                             o_cfg_wishbone_ack=cfg_bus.ack,
-                            o_cfg_wishbone_err=cfg_bus.err,
+                            #o_cfg_wishbone_err=cfg_bus.err,
 
                             # QSPI signals
                             o_spi_d_out=self.dq_out,
