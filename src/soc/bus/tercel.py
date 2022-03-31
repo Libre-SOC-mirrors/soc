@@ -168,12 +168,11 @@ class Tercel(Elaboratable):
         if pins is not None:
             comb += pins.dq.o.eq(self.dq_out)
             comb += pins.dq.oe.eq(self.dq_direction)
-            comb += pins.dq.oe.eq(self.dq_direction)
             comb += pins.dq.o_clk.eq(ClockSignal())
             comb += self.dq_in.eq(pins.dq.i)
             comb += pins.dq.i_clk.eq(ClockSignal())
             # XXX invert handled by SPIFlashResource
-            comb += pins.cs.eq(~self.cs_n_out)
+            comb += pins.cs_n.eq(self.cs_n_out)
             # ECP5 needs special handling for the SPI clock, sigh.
             if self.lattice_ecp5_usrmclk:
                 m.submodules += Instance("USRMCLK",
