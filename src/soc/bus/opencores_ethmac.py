@@ -113,25 +113,25 @@ class EthMAC(Elaboratable):
         comb = m.d.comb
 
         # Calculate arbiter bus address
-        spi_bus_adr = Signal(30)
+        wb_master_bus_adr = Signal(32)
         # arbiter address is in words, ethernet master address is in bytes
-        self.comb += wb_master_bus_adr.eq(self.master_bus.adr >> 2)
+        comb += self.master_bus.adr.eq(wb_master_bus_adr >> 2)
 
         # create definition of external verilog EthMAC code here, so that
         # nmigen understands I/O directions (defined by i_ and o_ prefixes)
-        idx, bus = self.idx, self.bus
-        ethmac = Instance("ethmac",
+        idx = self.idx
+        ethmac = Instance("eth_top",
                             # Clock/reset (use DomainRenamer if needed)
                             i_wb_clk_i=ClockSignal(),
                             i_wb_rst_i=ResetSignal(),
 
                             # Master Wishbone bus signals
                             o_m_wb_adr_o=wb_master_bus_adr,
-                            i_m_wb_dat_i=self.master_bus.dat_w,
+                            i_m_wb_dat_i=self.master_bus.dat_r,
                             o_m_wb_sel_o=self.master_bus.sel,
-                            o_m_wb_dat_o=self.master_bus.dat_r,
-                            i_cfg_wishbone_we_i=self.master_bus.we,
-                            i_cfg_wishbone_stb_i=self.master_bus.stb,
+                            o_m_wb_dat_o=self.master_bus.dat_w,
+                            o_m_wb_we_o=self.master_bus.we,
+                            o_m_wb_stb_o=self.master_bus.stb,
                             o_m_wb_cyc_o=self.master_bus.cyc,
                             i_m_wb_ack_i=self.master_bus.ack,
 
@@ -145,7 +145,7 @@ class EthMAC(Elaboratable):
                             i_wb_cyc_i=self.slave_bus.cyc,
                             o_wb_ack_o=self.slave_bus.ack,
 
-                            int_o=self.irq.stb,
+                            o_int_o=self.irq,
 
                             # RMII TX
                             i_mtx_clk_pad_i=self.mtx_clk,
