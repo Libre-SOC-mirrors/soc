@@ -161,9 +161,12 @@ class NonProductionCore(ControlBase):
 
         # alternative reset values for STATE regs
         self.msr_at_reset = 0x0
+        self.pc_at_reset = 0x0
         if hasattr(pspec, "msr_reset") and isinstance(pspec.msr_reset, int):
             self.msr_at_reset = pspec.msr_reset
-        state_resets = [0x0,               # PC at reset
+        if hasattr(pspec, "pc_reset") and isinstance(pspec.pc_reset, int):
+            self.pc_at_reset = pspec.pc_reset
+        state_resets = [self.pc_at_reset,  # PC at reset
                         self.msr_at_reset, # MSR at reset
                         0x0,               # SVSTATE at reset
                         0x0,               # DEC at reset

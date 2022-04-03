@@ -59,6 +59,8 @@ if __name__ == '__main__':
     parser.add_argument("--disable-svp64", dest='svp64', action="store_false",
                         help="disable SVP64",
                         default=False)
+    parser.add_argument("--pc-reset", default=0,
+                        help="Set PC at reset (default 0)")
     parser.add_argument("--xlen", default=64, type=int,
                         help="Set register width [default 64]")
     # create a module that's directly compatible as a drop-in replacement
@@ -106,8 +108,14 @@ if __name__ == '__main__':
         ldst_ifacetype = 'bare_wb'
         imem_ifacetype = 'bare_wb'
 
-    # default MSR (TODO, provide option to set default PC as well)
+    # default MSR
     msr_reset = (1<<MSR.LE) | (1<<MSR.SF) # 64-bit, little-endian default
+
+    # default PC
+    if args.pc_reset.startswith("0x"):
+        pc_reset = int(args.pc_reset, 16)
+    else:
+        pc_reset = int(args.pc_reset)
 
     pspec = TestMemPspec(ldst_ifacetype=ldst_ifacetype,
                          imem_ifacetype=imem_ifacetype,
@@ -133,7 +141,8 @@ if __name__ == '__main__':
                          microwatt_compat=args.mwcompat, # microwatt compatible
                          allow_overlap=args.allow_overlap, # allow overlap
                          units=units,
-                         msr_reset=msr_reset)
+                         msr_reset=msr_reset,
+                         pc_reset=pc_reset)
     #if args.mwcompat:
     #    pspec.core_domain = 'sync'
 
@@ -147,6 +156,8 @@ if __name__ == '__main__':
     print("debug", pspec.__dict__["debug"])
     print("SVP64", pspec.__dict__["svp64"])
     print("XLEN", pspec.__dict__["XLEN"])
+    print("MSR@reset", hex(pspec.__dict__["msr_reset"]))
+    print("PC@reset", hex(pspec.__dict__["pc_reset"]))
     print("Microwatt compatibility", pspec.__dict__["microwatt_compat"])
 
     if args.mwcompat:
