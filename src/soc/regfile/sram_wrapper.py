@@ -40,18 +40,12 @@ class SinglePortSRAM(Elaboratable):
         self.addr_width = addr_width
         self.data_width = data_width
         self.we_width = we_width
-        self.d = Signal(data_width)
-        """ write data"""
-        self.q = Signal(data_width)
-        """read data"""
-        self.a = Signal(addr_width)
-        """ read/write address"""
-        self.we = Signal(we_width)
-        """write enable"""
-        self.dbg_a = Signal(addr_width)
-        """debug read port address"""
-        self.dbg_q = Signal(data_width)
-        """debug read port data"""
+        self.d = Signal(data_width); """ write data"""
+        self.q = Signal(data_width); """read data"""
+        self.a = Signal(addr_width); """ read/write address"""
+        self.we = Signal(we_width); """write enable"""
+        self.dbg_a = Signal(addr_width); """debug read port address"""
+        self.dbg_q = Signal(data_width); """debug read port data"""
 
     def elaborate(self, _):
         m = Module()
@@ -254,24 +248,15 @@ class PhasedDualPortRegfile(Elaboratable):
         self.we_width = we_width
         self.write_phase = write_phase
         self.transparent = transparent
-        self.wr_addr_i = Signal(addr_width)
-        """write port address"""
-        self.wr_data_i = Signal(data_width)
-        """write port data"""
-        self.wr_we_i = Signal(we_width)
-        """write port enable"""
-        self.rd_addr_i = Signal(addr_width)
-        """read port address"""
-        self.rd_data_o = Signal(data_width)
-        """read port data"""
-        self.phase = Signal()
-        """even/odd cycle indicator"""
-        self.dbg_a = Signal(addr_width)
-        """debug read port address"""
-        self.dbg_q1 = Signal(data_width)
-        """debug read port data (first memory)"""
-        self.dbg_q2 = Signal(data_width)
-        """debug read port data (second memory)"""
+        self.wr_addr_i = Signal(addr_width); """write port address"""
+        self.wr_data_i = Signal(data_width); """write port data"""
+        self.wr_we_i = Signal(we_width); """write port enable"""
+        self.rd_addr_i = Signal(addr_width); """read port address"""
+        self.rd_data_o = Signal(data_width); """read port data"""
+        self.phase = Signal(); """even/odd cycle indicator"""
+        self.dbg_a = Signal(addr_width); """debug read port address"""
+        self.dbg_q1 = Signal(data_width); """debug read port data (1st mem)"""
+        self.dbg_q2 = Signal(data_width); """debug read port data (2nd mem)"""
 
     def elaborate(self, _):
         m = Module()
