@@ -448,13 +448,13 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
         with self.subTest("writes happen on phase 1 (transparent reads)"):
             self.do_test_phased_dual_port_regfile(1, True)
 
-    def do_test_phased_dual_port_regfile_proof(self, write_phase):
+    def do_test_phased_dual_port_regfile_proof(self, write_phase, transparent):
         """
         Formal proof of the pseudo 1W/1R regfile
         """
         m = Module()
         # 128 x 32-bit, 8-bit granularity
-        dut = PhasedDualPortRegfile(7, 32, 4, write_phase, True)
+        dut = PhasedDualPortRegfile(7, 32, 4, write_phase, transparent)
         m.submodules.dut = dut
         gran = dut.data_width // dut.we_width  # granularity
         # choose a single random memory location to test
@@ -484,11 +484,31 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
         # if our memory location is being read,
         # and the holding register has valid data,
         # then its value must match the memory output, on the given lane
-        with m.If((Past(dut.rd_addr_i) == a_const) & wrote):
-            for i in range(dut.we_width):
-                with m.If(we_mask[i]):
-                    m.d.sync += Assert(
-                        d_reg == dut.rd_data_o[i * gran:i * gran + gran])
+        with m.If(Past(dut.rd_addr_i) == a_const):
+            if transparent:
+                with m.If(wrote):
+                    for i in range(dut.we_width):
+                        rd_lane = dut.rd_data_o.word_select(i, gran)
+                        with m.If(we_mask[i]):
+                            m.d.sync += Assert(d_reg == rd_lane)
+            else:
+                # with a non-transparent read port, the read value depends
+                # on whether there is a simultaneous write, or not
+                with m.If((Past(dut.wr_addr_i) == a_const)
+                          & Past(dut.phase) == dut.write_phase):
+                    # simultaneous write -> check against last written value
+                    with m.If(Past(wrote)):
+                        for i in range(dut.we_width):
+                            rd_lane = dut.rd_data_o.word_select(i, gran)
+                            with m.If(we_mask[i]):
+                                m.d.sync += Assert(Past(d_reg) == rd_lane)
+                with m.Else():
+                    # otherwise, check against current written value
+                    with m.If(wrote):
+                        for i in range(dut.we_width):
+                            rd_lane = dut.rd_data_o.word_select(i, gran)
+                            with m.If(we_mask[i]):
+                                m.d.sync += Assert(d_reg == rd_lane)
 
         # the following is needed for induction, where an unreachable state
         # (memory and holding register differ) is turned into an illegal one
@@ -518,9 +538,14 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
     def test_phased_dual_port_regfile_proof(self):
         """test both types (odd and even write ports) of phased write memory"""
         with self.subTest("writes happen on phase 0"):
-            self.do_test_phased_dual_port_regfile_proof(0)
+            self.do_test_phased_dual_port_regfile_proof(0, False)
         with self.subTest("writes happen on phase 1"):
-            self.do_test_phased_dual_port_regfile_proof(1)
+            self.do_test_phased_dual_port_regfile_proof(1, False)
+        # test again, with transparent read ports
+        with self.subTest("writes happen on phase 0 (transparent reads)"):
+            self.do_test_phased_dual_port_regfile_proof(0, True)
+        with self.subTest("writes happen on phase 1 (transparent reads)"):
+            self.do_test_phased_dual_port_regfile_proof(1, True)
 
 
 if __name__ == "__main__":
