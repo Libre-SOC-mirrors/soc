@@ -489,7 +489,30 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
                     m.d.sync += Assert(
                         d_reg == dut.rd_data_o[i * gran:i * gran + gran])
 
-        self.assertFormal(m, mode="bmc", depth=10)
+        # the following is needed for induction, where an unreachable state
+        # (memory and holding register differ) is turned into an illegal one
+        # first, get the values stored in our memory location, using its
+        # debug port
+        stored1 = Signal(dut.data_width)
+        stored2 = Signal(dut.data_width)
+        m.d.comb += dut.dbg_a.eq(a_const)
+        m.d.comb += stored1.eq(dut.dbg_q1)
+        m.d.comb += stored2.eq(dut.dbg_q2)
+        # now, ensure that the value stored in the first memory is always
+        # in sync with the holding register
+        with m.If(wrote):
+            for i in range(dut.we_width):
+                with m.If(we_mask[i]):
+                    m.d.comb += Assert(
+                        d_reg == stored1[i * gran:i * gran + gran])
+        # same for the second memory, but one cycle later
+        with m.If(Past(wrote)):
+            for i in range(dut.we_width):
+                with m.If(we_mask[i]):
+                    m.d.comb += Assert(
+                        Past(d_reg) == stored2[i * gran:i * gran + gran])
+
+        self.assertFormal(m, mode="prove", depth=2)
 
 
 if __name__ == "__main__":
