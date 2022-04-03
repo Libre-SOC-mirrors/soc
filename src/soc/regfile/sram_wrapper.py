@@ -243,6 +243,8 @@ class PhasedDualPortRegfile(Elaboratable):
                         accept data
     :param transparent: whether a simultaneous read and write returns the
                         new value (True) or the old value (False)
+
+    .. note:: The debug read port is meant only to assist in formal proofs!
     """
 
     def __init__(self, addr_width, data_width, we_width, write_phase,
@@ -264,6 +266,12 @@ class PhasedDualPortRegfile(Elaboratable):
         """read port data"""
         self.phase = Signal()
         """even/odd cycle indicator"""
+        self.dbg_a = Signal(addr_width)
+        """debug read port address"""
+        self.dbg_q1 = Signal(data_width)
+        """debug read port data (first memory)"""
+        self.dbg_q2 = Signal(data_width)
+        """debug read port data (second memory)"""
 
     def elaborate(self, _):
         m = Module()
@@ -315,6 +323,13 @@ class PhasedDualPortRegfile(Elaboratable):
                 # always output the read data from the second memory,
                 # if not transparent
                 m.d.comb += self.rd_data_o.eq(mem2.q)
+        # our debug port allow the formal engine to inspect the content of
+        # a fixed, arbitrary address, on our memory blocks.
+        # wire it to their debug ports.
+        m.d.comb += mem1.dbg_a.eq(self.dbg_a)
+        m.d.comb += mem2.dbg_a.eq(self.dbg_a)
+        m.d.comb += self.dbg_q1.eq(mem1.dbg_q)
+        m.d.comb += self.dbg_q2.eq(mem2.dbg_q)
 
         return m
 
