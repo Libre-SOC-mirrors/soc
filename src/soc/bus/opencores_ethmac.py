@@ -111,6 +111,7 @@ class EthMAC(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         comb = m.d.comb
+        idx = self.idx
 
         # Calculate arbiter bus address
         wb_master_bus_adr = Signal(32)
@@ -119,7 +120,6 @@ class EthMAC(Elaboratable):
 
         # create definition of external verilog EthMAC code here, so that
         # nmigen understands I/O directions (defined by i_ and o_ prefixes)
-        idx = self.idx
         ethmac = Instance("eth_top",
                             # Clock/reset (use DomainRenamer if needed)
                             i_wb_clk_i=ClockSignal(),
