@@ -59,7 +59,7 @@ if __name__ == '__main__':
     parser.add_argument("--disable-svp64", dest='svp64', action="store_false",
                         help="disable SVP64",
                         default=False)
-    parser.add_argument("--pc-reset", default=0,
+    parser.add_argument("--pc-reset", default="0",
                         help="Set PC at reset (default 0)")
     parser.add_argument("--xlen", default=64, type=int,
                         help="Set register width [default 64]")
