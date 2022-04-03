@@ -448,13 +448,14 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
         with self.subTest("writes happen on phase 1 (transparent reads)"):
             self.do_test_phased_dual_port_regfile(1, True)
 
-    def test_phased_dual_port_regfile_proof(self):
+    def do_test_phased_dual_port_regfile_proof(self, write_phase):
         """
         Formal proof of the pseudo 1W/1R regfile
         """
         m = Module()
         # 128 x 32-bit, 8-bit granularity
-        m.submodules.dut = dut = PhasedDualPortRegfile(7, 32, 4, 0, True)
+        dut = PhasedDualPortRegfile(7, 32, 4, write_phase, True)
+        m.submodules.dut = dut
         gran = dut.data_width // dut.we_width  # granularity
         # choose a single random memory location to test
         a_const = AnyConst(dut.addr_width)
@@ -513,6 +514,13 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
                         Past(d_reg) == stored2[i * gran:i * gran + gran])
 
         self.assertFormal(m, mode="prove", depth=2)
+
+    def test_phased_dual_port_regfile_proof(self):
+        """test both types (odd and even write ports) of phased write memory"""
+        with self.subTest("writes happen on phase 0"):
+            self.do_test_phased_dual_port_regfile_proof(0)
+        with self.subTest("writes happen on phase 1"):
+            self.do_test_phased_dual_port_regfile_proof(1)
 
 
 if __name__ == "__main__":
