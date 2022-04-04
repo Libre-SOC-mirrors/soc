@@ -13,6 +13,7 @@ from nmigen import (Elaboratable, Cat, Module, Signal, ClockSignal, Instance,
 from nmigen_soc.wishbone.bus import Interface
 from nmigen.cli import rtlil, verilog
 import os
+import tempfile
 
 __all__ = ["UART16550"]
 
@@ -63,6 +64,13 @@ class UART16550(Elaboratable):
 
     @classmethod
     def add_verilog_source(cls, verilog_src_dir, platform):
+        # create a temp file containing "`define DATA_BUS_WIDTH_8"
+        t = tempfile.NamedTemporaryFile(delete=False, suffix=".v")
+        t.write("`define DATA_BUS_WIDTH_8\n".encode())
+        t.flush()
+        t.seek(0)
+        platform.add_file(t.name, t)
+
         # add each of the verilog sources, needed for when doing platform.build
         for fname in ['raminfr.v', 'uart_defines.v', 'uart_rfifo.v',
                       'uart_top.v', 'timescale.v', 'uart_receiver.v',
