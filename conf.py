@@ -47,7 +47,7 @@ extensions = [
     'sphinx.ext.coverage',
     'recommonmark',
     #'symbolator_sphinx',
-    'sphinxcontrib_verilog_diagrams',
+    #'sphinxcontrib_verilog_diagrams', # XXX now spinxcontrib-hdl-diagrams
     'sphinx_rtd_theme',
     #'sphinx_tabs.tabs',
 ]
