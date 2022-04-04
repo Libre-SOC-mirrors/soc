@@ -166,11 +166,13 @@ class Tercel(Elaboratable):
         m.submodules['tercel_%d' % self.idx] = tercel
 
         if pins is not None:
-            comb += pins.dq.o.eq(self.dq_out)
-            comb += pins.dq.oe.eq(self.dq_direction)
-            comb += pins.dq.o_clk.eq(ClockSignal())
-            comb += self.dq_in.eq(pins.dq.i)
-            comb += pins.dq.i_clk.eq(ClockSignal())
+            for i in range(4):
+                pad = getattr(pins, "dq%d" % i)
+                comb += pad.o.eq(self.dq_out[i])
+                comb += pad.oe.eq(self.dq_direction[i])
+                comb += pad.o_clk.eq(ClockSignal())
+                comb += self.dq_in[i].eq(pad.i)
+                comb += pad.i_clk.eq(ClockSignal())
             # XXX invert handled by SPIFlashResource
             comb += pins.cs_n.eq(self.cs_n_out)
             # ECP5 needs special handling for the SPI clock, sigh.
