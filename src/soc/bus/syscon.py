@@ -87,7 +87,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
 
         # Reg Info, defines what peripherals and characteristics are present
         comb += self._reg_info_r.r_data[0].eq(self.has_uart) # has UART0
-        comb += self._reg_info_r.r_data[1].eq(has_dram       # has DDR DRAM
+        comb += self._reg_info_r.r_data[1].eq(has_dram)      # has DDR DRAM
         comb += self._reg_info_r.r_data[3].eq(has_spi)       # has SPI Flash
         comb += self._reg_info_r.r_data[5].eq(1)             # Large SYSCON
 
