@@ -21,12 +21,14 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
     """
 
     def __init__(self, *, sys_clk_freq=100e6,
+                          spi_offset=None,
                           has_uart=True,
                           uart_is_16550=True
                           ):
         super().__init__(name="syscon")
         self.sys_clk_freq = sys_clk_freq
         self.has_uart = has_uart
+        self.spi_offset = spi_offset
         self.uart_is_16550 = uart_is_16550
 
         # System control ports
@@ -71,6 +73,9 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
         # system clock rate (hz)
         comb += self._clk_info_r.r_data.eq(int(self.sys_clk_freq)) # in hz
 
+        # detect peripherals
+        has_spi = self.spi_offset is not None
+
         # uart peripheral clock rate, currently assumed to be system clock
         # 0 ..31  : UART clock freq (in HZ)
         #     32  : UART is 16550 (otherwise pp)
@@ -79,6 +84,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
 
         # Reg Info, defines what peripherals and characteristics are present
         comb += self._reg_info_r.r_data[0].eq(self.has_uart) # has UART0
+        comb += self._reg_info_r.r_data[3].eq(has_spi)       # has SPI Flash
         comb += self._reg_info_r.r_data[5].eq(1)             # Large SYSCON
 
         # system control
@@ -86,6 +92,9 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
         with m.If(self._ctrl_info_r.w_stb):
             sync += sysctrl.eq(self._ctrl_info_r.w_data)
         comb += self._ctrl_info_r.r_data.eq(sysctrl)
+
+        # SPI Flash Address
+        comb += self._spiflash_info_r.r_data.eq(self.spi_offset or 0)
 
         return m
 
