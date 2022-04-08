@@ -22,6 +22,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
 
     def __init__(self, *, sys_clk_freq=100e6,
                           spi_offset=None,
+                          dram_addr=None,
                           has_uart=True,
                           uart_is_16550=True
                           ):
@@ -29,6 +30,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
         self.sys_clk_freq = sys_clk_freq
         self.has_uart = has_uart
         self.spi_offset = spi_offset
+        self.dram_addr = dram_addr
         self.uart_is_16550 = uart_is_16550
 
         # System control ports
@@ -75,6 +77,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
 
         # detect peripherals
         has_spi = self.spi_offset is not None
+        has_dram = self.dram_addr is not None
 
         # uart peripheral clock rate, currently assumed to be system clock
         # 0 ..31  : UART clock freq (in HZ)
@@ -84,6 +87,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
 
         # Reg Info, defines what peripherals and characteristics are present
         comb += self._reg_info_r.r_data[0].eq(self.has_uart) # has UART0
+        comb += self._reg_info_r.r_data[1].eq(has_dram       # has DDR DRAM
         comb += self._reg_info_r.r_data[3].eq(has_spi)       # has SPI Flash
         comb += self._reg_info_r.r_data[5].eq(1)             # Large SYSCON
 
@@ -117,7 +121,7 @@ if __name__ == "__main__":
             m = Module()
             arbiter = wishbone.Arbiter(addr_width=30, data_width=32,
                                        granularity=8)
-            decoder = wishbone.Decoder(addr_width=30, data_width=32, 
+            decoder = wishbone.Decoder(addr_width=30, data_width=32,
                                        granularity=8)
             m.submodules.syscon = syscon = MicrowattSYSCON()
             m.submodules.decoder = decoder
