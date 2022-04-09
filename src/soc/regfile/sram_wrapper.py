@@ -16,7 +16,7 @@ https://bugs.libre-soc.org/show_bug.cgi?id=502
 
 import unittest
 
-from nmigen import Elaboratable, Module, Memory, Signal
+from nmigen import Elaboratable, Module, Memory, Signal, Repl, Mux
 from nmigen.back import rtlil
 from nmigen.sim import Simulator
 from nmigen.asserts import Assert, Assume, Past, AnyConst
@@ -531,6 +531,192 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
             self.do_test_phased_dual_port_regfile_proof(0, True)
         with self.subTest("writes happen on phase 1 (transparent reads)"):
             self.do_test_phased_dual_port_regfile_proof(1, True)
+
+
+class DualPortRegfile(Elaboratable):
+    """
+    Builds, from a pair of phased 1W/1R blocks, a true 1W/1R RAM, where both
+    read and write ports work every cycle.
+    It employs a Last Value Table, that tracks to which memory each address was
+    last written.
+
+    :param addr_width: width of the address bus
+    :param data_width: width of the data bus
+    :param we_width: number of write enable lines
+    """
+
+    def __init__(self, addr_width, data_width, we_width):
+        self.addr_width = addr_width
+        self.data_width = data_width
+        self.we_width = we_width
+        self.wr_addr_i = Signal(addr_width); """write port address"""
+        self.wr_data_i = Signal(data_width); """write port data"""
+        self.wr_we_i = Signal(we_width); """write port enable"""
+        self.rd_addr_i = Signal(addr_width); """read port address"""
+        self.rd_data_o = Signal(data_width); """read port data"""
+
+    def elaborate(self, _):
+        m = Module()
+        # depth and granularity
+        depth = 1 << self.addr_width
+        gran = self.data_width // self.we_width
+        # instantiate the two phased 1R/1W memory blocks
+        mem0 = PhasedDualPortRegfile(
+            self.addr_width, self.data_width, self.we_width, 0, False)
+        mem1 = PhasedDualPortRegfile(
+            self.addr_width, self.data_width, self.we_width, 1, False)
+        m.submodules.mem0 = mem0
+        m.submodules.mem1 = mem1
+        # instantiate the backing memory (FFRAM or LUTRAM)
+        # for the Last Value Table
+        # it should have the same number and port types of the desired
+        # memory, but just one bit per write lane
+        lvt_mem = Memory(width=self.we_width, depth=depth)
+        lvt_wr = lvt_mem.write_port(granularity=1)
+        lvt_rd = lvt_mem.read_port(transparent=False)
+        m.submodules.lvt_wr = lvt_wr
+        m.submodules.lvt_rd = lvt_rd
+        # generate and wire the phases for the phased memories
+        phase = Signal()
+        m.d.sync += phase.eq(~phase)
+        m.d.comb += [
+            mem0.phase.eq(phase),
+            mem1.phase.eq(phase),
+        ]
+        m.d.comb += [
+            # wire the write ports, directly
+            mem0.wr_addr_i.eq(self.wr_addr_i),
+            mem1.wr_addr_i.eq(self.wr_addr_i),
+            mem0.wr_we_i.eq(self.wr_we_i),
+            mem1.wr_we_i.eq(self.wr_we_i),
+            mem0.wr_data_i.eq(self.wr_data_i),
+            mem1.wr_data_i.eq(self.wr_data_i),
+            # also wire the read addresses
+            mem0.rd_addr_i.eq(self.rd_addr_i),
+            mem1.rd_addr_i.eq(self.rd_addr_i),
+            # wire read and write ports to the LVT
+            lvt_wr.addr.eq(self.wr_addr_i),
+            lvt_wr.en.eq(self.wr_we_i),
+            lvt_rd.addr.eq(self.rd_addr_i),
+            # the data for the LVT is the phase on which the value was
+            # written
+            lvt_wr.data.eq(Repl(phase, self.we_width)),
+        ]
+        for i in range(self.we_width):
+            # select the right memory to assign to the output read port,
+            # in this byte lane, according to the LVT contents
+            m.d.comb += self.rd_data_o.word_select(i, gran).eq(
+                Mux(
+                    lvt_rd.data[i],
+                    mem1.rd_data_o.word_select(i, gran),
+                    mem0.rd_data_o.word_select(i, gran)))
+        return m
+
+
+class DualPortRegfileTestCase(FHDLTestCase):
+
+    def test_dual_port_regfile(self):
+        """
+        Simulate some read/write/modify operations on the dual port register
+        file
+        """
+        dut = DualPortRegfile(7, 32, 4)
+        sim = Simulator(dut)
+        sim.add_clock(1e-6)
+
+        expected = None
+        last_expected = None
+
+        # compare read data with previously written data
+        # and start a new read
+        def read(rd_addr_i, next_expected=None):
+            nonlocal expected, last_expected
+            if expected is not None:
+                self.assertEqual((yield dut.rd_data_o), expected)
+            yield dut.rd_addr_i.eq(rd_addr_i)
+            # account for the read latency
+            expected = last_expected
+            last_expected = next_expected
+
+        # start a write
+        def write(wr_addr_i, wr_we_i, wr_data_i):
+            yield dut.wr_addr_i.eq(wr_addr_i)
+            yield dut.wr_we_i.eq(wr_we_i)
+            yield dut.wr_data_i.eq(wr_data_i)
+
+        def process():
+            # write a pair of values, one for each memory
+            yield from read(0)
+            yield from write(0x42, 0b1111, 0x87654321)
+            yield
+            yield from read(0x42, 0x87654321)
+            yield from write(0x43, 0b1111, 0x0FEDCBA9)
+            yield
+            # skip a beat
+            yield from read(0x43, 0x0FEDCBA9)
+            yield from write(0, 0, 0)
+            yield
+            # write again, but now they switch memories
+            yield from read(0)
+            yield from write(0x42, 0b1111, 0x12345678)
+            yield
+            yield from read(0x42, 0x12345678)
+            yield from write(0x43, 0b1111, 0x9ABCDEF0)
+            yield
+            yield from read(0x43, 0x9ABCDEF0)
+            yield from write(0, 0, 0)
+            yield
+            # test partial writes
+            yield from read(0)
+            yield from write(0x42, 0b1001, 0x78FFFF12)
+            yield
+            yield from read(0)
+            yield from write(0x43, 0b0110, 0xFFDEABFF)
+            yield
+            yield from read(0x42, 0x78345612)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0x43, 0x9ADEABF0)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0)
+            yield from write(0, 0, 0)
+            yield
+            # test non-transparent reads
+            yield from read(0x42, 0x78345612)
+            yield from write(0x42, 0b1111, 0x55AA9966)
+            yield
+            yield from read(0x42, 0x55AA9966)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0)
+            yield from write(0, 0, 0)
+
+        sim.add_sync_process(process)
+        debug_file = 'test_dual_port_regfile'
+        traces = ['clk', 'phase',
+                  {'comment': 'write port'},
+                  'wr_addr_i[6:0]', 'wr_we_i[3:0]', 'wr_data_i[31:0]',
+                  {'comment': 'read port'},
+                  'rd_addr_i[6:0]', 'rd_data_o[31:0]',
+                  {'comment': 'LVT write port'},
+                  'phase', 'lvt_mem_w_addr[6:0]', 'lvt_mem_w_en[3:0]',
+                  'lvt_mem_w_data[3:0]',
+                  {'comment': 'LVT read port'},
+                  'lvt_mem_r_addr[6:0]', 'lvt_mem_r_data[3:0]',
+                  {'comment': 'backing memory'},
+                  'mem0.rd_data_o[31:0]',
+                  'mem1.rd_data_o[31:0]',
+                  ]
+        write_gtkw(debug_file + '.gtkw',
+                   debug_file + '.vcd',
+                   traces, module='top', zoom=-22)
+        sim_writer = sim.write_vcd(debug_file + '.vcd')
+        with sim_writer:
+            sim.run()
 
 
 if __name__ == "__main__":
