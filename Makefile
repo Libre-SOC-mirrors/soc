@@ -69,6 +69,12 @@ microwatt_external_core_spi:
             --pc-reset 0x10000000 \
             external_core_top.v
 
+microwatt_external_core_bram:
+	python3 src/soc/simple/issuer_verilog.py --microwatt-compat \
+            --enable-mmu \
+            --pc-reset 0xFFF00000 \
+            external_core_top.v
+
 # build the litex libresoc SoC without 4k SRAMs
 ls180_verilog_build: ls180_verilog
 	make -C soc/soc/litex/florent ls180

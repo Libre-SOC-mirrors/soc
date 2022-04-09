@@ -159,7 +159,9 @@ class NonProductionCore(ControlBase):
             # urr store I-Cache in core so it is easier to get at
             self.icache = lsi.icache
 
-        # alternative reset values for STATE regs
+        # alternative reset values for STATE regs. these probably shouldn't
+        # be set, here, instead have them done by Issuer. which they are.
+        # as well. because core.state overrides them. sigh.
         self.msr_at_reset = 0x0
         self.pc_at_reset = 0x0
         if hasattr(pspec, "msr_reset") and isinstance(pspec.msr_reset, int):

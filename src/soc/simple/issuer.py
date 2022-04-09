@@ -615,6 +615,9 @@ class TestIssuerBase(Elaboratable):
         # reset current state if core reset requested
         with m.If(core_rst):
             m.d.sync += self.cur_state.eq(0)
+            # and, sigh, set configured values, which are also done in regfile
+            m.d.sync += self.cur_state.pc.eq(self.core.pc_at_reset)
+            m.d.sync += self.cur_state.msr.eq(self.core.msr_at_reset)
 
         # check halted condition: requested PC to execute matches DMI stop addr
         # and immediately stop. address of 0xffff_ffff_ffff_ffff can never
