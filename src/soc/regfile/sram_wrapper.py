@@ -543,12 +543,15 @@ class DualPortRegfile(Elaboratable):
     :param addr_width: width of the address bus
     :param data_width: width of the data bus
     :param we_width: number of write enable lines
+    :param transparent: whether a simultaneous read and write returns the
+                        new value (True) or the old value (False)
     """
 
-    def __init__(self, addr_width, data_width, we_width):
+    def __init__(self, addr_width, data_width, we_width, transparent=True):
         self.addr_width = addr_width
         self.data_width = data_width
         self.we_width = we_width
+        self.transparent = transparent
         self.wr_addr_i = Signal(addr_width); """write port address"""
         self.wr_data_i = Signal(data_width); """write port data"""
         self.wr_we_i = Signal(we_width); """write port enable"""
@@ -562,9 +565,11 @@ class DualPortRegfile(Elaboratable):
         gran = self.data_width // self.we_width
         # instantiate the two phased 1R/1W memory blocks
         mem0 = PhasedDualPortRegfile(
-            self.addr_width, self.data_width, self.we_width, 0, False)
+            self.addr_width, self.data_width, self.we_width, 0,
+            self.transparent)
         mem1 = PhasedDualPortRegfile(
-            self.addr_width, self.data_width, self.we_width, 1, False)
+            self.addr_width, self.data_width, self.we_width, 1,
+            self.transparent)
         m.submodules.mem0 = mem0
         m.submodules.mem1 = mem1
         # instantiate the backing memory (FFRAM or LUTRAM)
@@ -573,7 +578,7 @@ class DualPortRegfile(Elaboratable):
         # memory, but just one bit per write lane
         lvt_mem = Memory(width=self.we_width, depth=depth)
         lvt_wr = lvt_mem.write_port(granularity=1)
-        lvt_rd = lvt_mem.read_port(transparent=False)
+        lvt_rd = lvt_mem.read_port(transparent=self.transparent)
         m.submodules.lvt_wr = lvt_wr
         m.submodules.lvt_rd = lvt_rd
         # generate and wire the phases for the phased memories
@@ -615,12 +620,12 @@ class DualPortRegfile(Elaboratable):
 
 class DualPortRegfileTestCase(FHDLTestCase):
 
-    def test_dual_port_regfile(self):
+    def do_test_dual_port_regfile(self, transparent):
         """
         Simulate some read/write/modify operations on the dual port register
         file
         """
-        dut = DualPortRegfile(7, 32, 4)
+        dut = DualPortRegfile(7, 32, 4, transparent)
         sim = Simulator(dut)
         sim.add_clock(1e-6)
 
@@ -682,10 +687,15 @@ class DualPortRegfileTestCase(FHDLTestCase):
             yield from read(0)
             yield from write(0, 0, 0)
             yield
-            # test non-transparent reads
-            yield from read(0x42, 0x78345612)
+            if transparent:
+                # returns the value just written
+                yield from read(0x42, 0x55AA9966)
+            else:
+                # returns the old value
+                yield from read(0x42, 0x78345612)
             yield from write(0x42, 0b1111, 0x55AA9966)
             yield
+            # after a cycle, always returns the new value
             yield from read(0x42, 0x55AA9966)
             yield from write(0, 0, 0)
             yield
@@ -697,6 +707,8 @@ class DualPortRegfileTestCase(FHDLTestCase):
 
         sim.add_sync_process(process)
         debug_file = 'test_dual_port_regfile'
+        if transparent:
+            debug_file += '_transparent'
         traces = ['clk', 'phase',
                   {'comment': 'write port'},
                   'wr_addr_i[6:0]', 'wr_we_i[3:0]', 'wr_data_i[31:0]',
@@ -717,6 +729,12 @@ class DualPortRegfileTestCase(FHDLTestCase):
         sim_writer = sim.write_vcd(debug_file + '.vcd')
         with sim_writer:
             sim.run()
+
+    def test_dual_port_regfile(self):
+        with self.subTest("non-transparent reads"):
+            self.do_test_dual_port_regfile(False)
+        with self.subTest("transparent reads"):
+            self.do_test_dual_port_regfile(True)
 
 
 if __name__ == "__main__":
