@@ -736,6 +736,48 @@ class DualPortRegfileTestCase(FHDLTestCase):
         with self.subTest("transparent reads"):
             self.do_test_dual_port_regfile(True)
 
+    def test_dual_port_regfile_proof(self):
+        """
+        Formal proof of the 1W/1R regfile
+        """
+        m = Module()
+        # 128 x 32-bit, 8-bit granularity
+        dut = DualPortRegfile(7, 32, 4, True)
+        m.submodules.dut = dut
+        gran = dut.data_width // dut.we_width  # granularity
+        # choose a single random memory location to test
+        a_const = AnyConst(dut.addr_width)
+        # choose a single byte lane to test (one-hot encoding)
+        we_mask = Signal(dut.we_width)
+        # ... by first creating a random bit pattern
+        we_const = AnyConst(dut.we_width)
+        # ... and zeroing all but the first non-zero bit
+        m.d.comb += we_mask.eq(we_const & (-we_const))
+        # holding data register
+        d_reg = Signal(gran)
+        # for some reason, simulated formal memory is not zeroed at reset
+        # ... so, remember whether we wrote it, at least once.
+        wrote = Signal()
+        # if our memory location and byte lane is being written,
+        # capture the data in our holding register
+        with m.If((dut.wr_addr_i == a_const)):
+            for i in range(dut.we_width):
+                with m.If(we_mask[i] & dut.wr_we_i[i]):
+                    m.d.sync += d_reg.eq(
+                        dut.wr_data_i[i * gran:i * gran + gran])
+                    m.d.sync += wrote.eq(1)
+        # if our memory location is being read,
+        # and the holding register has valid data,
+        # then its value must match the memory output, on the given lane
+        with m.If(Past(dut.rd_addr_i) == a_const):
+            with m.If(wrote):
+                for i in range(dut.we_width):
+                    rd_lane = dut.rd_data_o.word_select(i, gran)
+                    with m.If(we_mask[i]):
+                        m.d.sync += Assert(d_reg == rd_lane)
+
+        self.assertFormal(m, mode="bmc", depth=10)
+
 
 if __name__ == "__main__":
     unittest.main()
