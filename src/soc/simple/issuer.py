@@ -170,6 +170,10 @@ class TestIssuerBase(Elaboratable):
                                  (pspec.microwatt_compat == True))
         self.alt_reset = Signal(reset_less=True) # not connected yet (microwatt)
 
+        if self.microwatt_compat:
+            self.microwatt_old = False
+            self.microwatt_debug = True # set to False when using an FPGA
+
         # test is SVP64 is to be enabled
         self.svp64_en = hasattr(pspec, "svp64") and (pspec.svp64 == True)
 
@@ -321,7 +325,8 @@ class TestIssuerBase(Elaboratable):
             self.srcmask = Signal(64)
             self.dstmask = Signal(64)
 
-        # sigh, the wishbone addresses are not wishbone-compliant in microwatt
+        # sigh, the wishbone addresses are not wishbone-compliant
+        # in old versions of microwatt, tplaten_3d_game is a new one
         if self.microwatt_compat:
             self.ibus_adr = Signal(32, name='wishbone_insn_out.adr')
             self.dbus_adr = Signal(32, name='wishbone_data_out.adr')
@@ -380,17 +385,22 @@ class TestIssuerBase(Elaboratable):
             if self.dbg_domain != 'sync':
                 comb += dbgclk.eq(ClockSignal())
 
+        # if using old version of microwatt
         # drop the first 3 bits of the incoming wishbone addresses
-        # this can go if using later versions of microwatt (not now)
         if self.microwatt_compat:
             ibus = self.imem.ibus
             dbus = self.core.l0.cmpi.wb_bus()
-            comb += self.ibus_adr.eq(Cat(Const(0, 3), ibus.adr))
-            comb += self.dbus_adr.eq(Cat(Const(0, 3), dbus.adr))
-            # microwatt verilator debug purposes
-            pi = self.core.l0.cmpi.pi.pi
-            comb += self.ldst_req.eq(pi.addr_ok_o)
-            comb += self.ldst_addr.eq(pi.addr)
+            if self.microwatt_old:
+                comb += self.ibus_adr.eq(Cat(Const(0, 3), ibus.adr))
+                comb += self.dbus_adr.eq(Cat(Const(0, 3), dbus.adr))
+            else:
+                comb += self.ibus_adr.eq(ibus.adr)
+                comb += self.dbus_adr.eq(dbus.adr)
+            if self.microwatt_debug:
+                # microwatt verilator debug purposes
+                pi = self.core.l0.cmpi.pi.pi
+                comb += self.ldst_req.eq(pi.addr_ok_o)
+                comb += self.ldst_addr.eq(pi.addr)
 
         cur_state = self.cur_state
 
