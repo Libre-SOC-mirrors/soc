@@ -135,16 +135,6 @@ class WBAsyncBridge(Elaboratable):
                             i_wbs_rty_i=slave_rty
                             );
 
-        # Synthesize STALL signal for master port
-        if hasattr(self.master_bus, "stall"):
-            comb += self.master_bus.stall.eq(self.master_bus.cyc & ~self.master_bus.ack)
-
-        # Convert incoming slave STALL signal to a format that the async bridge understands...
-        if hasattr(self.slave_bus, "stall"):
-            comb += slave_ack.eq(self.slave_bus.ack & ~self.slave_bus.stall)
-        else:
-            comb += slave_ack.eq(self.slave_bus.ack)
-
         # Wire unused signals to 0
         comb += slave_err.eq(0)
         comb += slave_rty.eq(0)
@@ -154,13 +144,19 @@ class WBAsyncBridge(Elaboratable):
         return m
 
     def ports(self):
-        return [self.master_bus.adr, self.master_bus.dat_w, self.master_bus.dat_r,
-                        self.master_bus.we, self.master_bus.sel, self.master_bus.stb,
-                        self.master_bus.cyc, self.master_bus.ack, self.master_bus.err,
+        return [self.master_bus.adr, self.master_bus.dat_w,
+                        self.master_bus.dat_r,
+                        self.master_bus.we, self.master_bus.sel,
+                        self.master_bus.stb,
+                        self.master_bus.cyc, self.master_bus.ack,
+                        self.master_bus.err,
                         self.master_bus.rty,
-                        self.slave_bus.adr, self.slave_bus.dat_w, self.slave_bus.dat_r,
-                        self.slave_bus.we, self.slave_bus.sel, self.slave_bus.stb,
-                        self.slave_bus.cyc, self.slave_bus.ack, self.slave_bus.err,
+                        self.slave_bus.adr, self.slave_bus.dat_w,
+                        self.slave_bus.dat_r,
+                        self.slave_bus.we, self.slave_bus.sel,
+                        self.slave_bus.stb,
+                        self.slave_bus.cyc, self.slave_bus.ack,
+                        self.slave_bus.err,
                         self.slave_bus.rty
                        ]
 
