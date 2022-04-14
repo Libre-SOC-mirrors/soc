@@ -75,9 +75,10 @@ def bswap(v):
 
 class XICS_ICP(Elaboratable):
 
-    def __init__(self):
-        class Spec: pass
-        spec = Spec()
+    def __init__(self, spec=None):
+        if spec is None:
+            class Spec: pass
+            spec = Spec()
         spec.addr_wid = 30
         spec.mask_wid = 4
         spec.reg_wid = 32
@@ -226,12 +227,13 @@ class Xive(RecordObject):
 
 
 class XICS_ICS(Elaboratable):
-    def __init__(self, SRC_NUM=16, PRIO_BITS=8):
+    def __init__(self, spec=None, SRC_NUM=16, PRIO_BITS=8):
         self.SRC_NUM = SRC_NUM
         self.PRIO_BITS = PRIO_BITS
         self.pri_masked = (1<<self.PRIO_BITS)-1
-        class Spec: pass
-        spec = Spec()
+        if spec is None:
+            class Spec: pass
+            spec = Spec()
         spec.addr_wid = 30
         spec.mask_wid = 4
         spec.reg_wid = 32
