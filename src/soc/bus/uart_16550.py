@@ -24,7 +24,7 @@ class UART16550(Elaboratable):
     """
 
     def __init__(self, bus=None, features=None, name=None, data_width=32,
-                       pins=None):
+                       pins=None, irq=None):
         if name is not None:
             # convention: give the name in the format "name_number"
             self.idx = int(name.split("_")[-1])
@@ -47,7 +47,9 @@ class UART16550(Elaboratable):
                         "bus width must be %d" % data_width
 
         # IRQ for data buffer receive/xmit
-        self.irq = Signal() 
+        if irq is None:
+            irq = Signal()
+        self.irq = irq
 
         # 9-pin UART signals (if anyone still remembers those...)
         self.tx_o = Signal() # transmit

@@ -13,7 +13,6 @@ from nmigen import (Elaboratable, Cat, Module, Signal, ClockSignal, Instance,
 
 from nmigen_soc.wishbone.bus import Interface
 from nmigen_soc.memory import MemoryMap
-from lambdasoc.periph.event import IRQLine
 from nmigen.utils import log2_int
 from nmigen.cli import rtlil, verilog
 import os
@@ -55,7 +54,7 @@ class EthMAC(Elaboratable):
         self.master_bus = master_bus
         self.slave_bus = slave_bus
         if irq is None:
-            irq = IRQLine()
+            irq = Signal()
         self.irq = irq
 
         slave_mmap = MemoryMap(addr_width=12+self.dsize,
