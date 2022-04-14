@@ -23,6 +23,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
 
     def __init__(self, *, sys_clk_freq=100e6,
                           core_clk_freq=100e6,
+                          mem_clk_freq=100e6,
                           spi_offset=None,
                           dram_addr=None,
                           has_uart=True,
@@ -31,6 +32,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
         super().__init__(name="syscon")
         self.sys_clk_freq = sys_clk_freq
         self.core_clk_freq = core_clk_freq
+        self.mem_clk_freq = mem_clk_freq
         self.has_uart = has_uart
         self.spi_offset = spi_offset
         self.dram_addr = dram_addr
@@ -58,6 +60,7 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
         self._uart1_info_r    = bank.csr(64, "r") # UART1 info (baud etc.)
         self._bram_bootaddr_r = bank.csr(64, "r") # BRAM boot address
         self._core_clk_info_r = bank.csr(64, "r") # core clock frequency
+        self._mem_clk_info_r  = bank.csr(64, "r") # memory clock frequency
 
         # bridge the above-created CSRs over wishbone.  ordering and size
         # above mattered, the bridge automatically packs them together
@@ -81,6 +84,9 @@ class MicrowattSYSCON(Peripheral, Elaboratable):
 
         # core clock rate (hz)
         comb += self._core_clk_info_r.r_data.eq(int(self.core_clk_freq)) # in hz
+
+        # memory clock rate (hz)
+        comb += self._mem_clk_info_r.r_data.eq(int(self.mem_clk_freq)) # in hz
 
         # detect peripherals
         has_spi = self.spi_offset is not None
