@@ -25,7 +25,8 @@ class WBAsyncBridge(Elaboratable):
     remember to call WBAsyncBridge.add_verilog_source
     """
 
-    def __init__(self, master_bus=None, slave_bus=None, features=None, name=None,
+    def __init__(self, master_bus=None, slave_bus=None, master_features=None,
+                       slave_features=None, name=None,
                        address_width=30, data_width=32, granularity=8,
                        master_clock_domain=None, slave_clock_domain=None):
         if name is not None:
@@ -54,18 +55,20 @@ class WBAsyncBridge(Elaboratable):
             self.wb_srst = ResetSignal(slave_clock_domain)
 
         # set up the wishbone busses
-        if features is None:
-            features = frozenset()
+        if master_features is None:
+            master_features = frozenset()
+        if slave_features is None:
+            slave_features = frozenset()
         if master_bus is None:
             master_bus = Interface(addr_width=self.address_width,
                             data_width=self.data_width,
-                            features=features,
+                            features=master_features,
                             granularity=self.granularity,
                             name=name+"_wb_%d_master" % self.idx)
         if slave_bus is None:
             slave_bus = Interface(addr_width=self.address_width,
                             data_width=self.data_width,
-                            features=features,
+                            features=slave_features,
                             granularity=self.granularity,
                             name=name+"_wb_%d_slave" % self.idx)
         self.master_bus = master_bus
@@ -133,10 +136,14 @@ class WBAsyncBridge(Elaboratable):
                             );
 
         # Synthesize STALL signal for master port
-        comb += self.master_bus.stall.eq(self.master_bus.cyc & ~self.master_bus.ack)
+        if hasattr(self.master_bus, "stall"):
+            comb += self.master_bus.stall.eq(self.master_bus.cyc & ~self.master_bus.ack)
 
         # Convert incoming slave STALL signal to a format that the async bridge understands...
-        comb += slave_ack.eq(self.slave_bus.ack & ~self.slave_bus.stall)
+        if hasattr(self.slave_bus, "stall"):
+            comb += slave_ack.eq(self.slave_bus.ack & ~self.slave_bus.stall)
+        else:
+            comb += slave_ack.eq(self.slave_bus.ack)
 
         # Wire unused signals to 0
         comb += slave_err.eq(0)
