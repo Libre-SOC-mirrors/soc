@@ -40,18 +40,23 @@ class SinglePortSRAM(Elaboratable):
         self.addr_width = addr_width
         self.data_width = data_width
         self.we_width = we_width
+        # interface signals
         self.d = Signal(data_width); """ write data"""
         self.q = Signal(data_width); """read data"""
         self.a = Signal(addr_width); """ read/write address"""
         self.we = Signal(we_width); """write enable"""
-        self.dbg_a = Signal(addr_width); """debug read port address"""
-        self.dbg_q = Signal(data_width); """debug read port data"""
+        # debug signals, only used in formal proofs
+        self.dbg_addr = Signal(addr_width); """debug: address under test"""
+        self.dbg_we_mask = Signal(we_width); """debug: write lane under test"""
+        gran = self.data_width // self.we_width
+        self.dbg_data = Signal(gran); """debug: data to keep in sync"""
+        self.dbg_wrote = Signal(); """debug: data is valid"""
 
-    def elaborate(self, _):
+    def elaborate(self, platform):
         m = Module()
         # backing memory
         depth = 1 << self.addr_width
-        granularity = self.data_width // self.we_width
+        gran = self.data_width // self.we_width
         mem = Memory(width=self.data_width, depth=depth)
         # create read and write ports
         # By connecting the same address to both ports, they behave, in fact,
@@ -61,7 +66,7 @@ class SinglePortSRAM(Elaboratable):
         # Note that nmigen memories have a one cycle delay, for reads,
         # by default
         m.submodules.rdport = rdport = mem.read_port(transparent=True)
-        m.submodules.wrport = wrport = mem.write_port(granularity=granularity)
+        m.submodules.wrport = wrport = mem.write_port(granularity=gran)
         # duplicate the address to both ports
         m.d.comb += wrport.addr.eq(self.a)
         m.d.comb += rdport.addr.eq(self.a)
@@ -70,11 +75,26 @@ class SinglePortSRAM(Elaboratable):
         # read and write data
         m.d.comb += wrport.data.eq(self.d)
         m.d.comb += self.q.eq(rdport.data)
-        # the debug port is an asynchronous read port, allowing direct access
-        # to a given memory location by the formal engine
-        m.submodules.dbgport = dbgport = mem.read_port(domain="comb")
-        m.d.comb += dbgport.addr.eq(self.dbg_a)
-        m.d.comb += self.dbg_q.eq(dbgport.data)
+
+        # the following is needed for induction, where an unreachable state
+        # (memory and holding register differ) is turned into an illegal one
+        if platform == "formal":
+            # the debug port is an asynchronous read port, allowing direct
+            # access to a given memory location by the formal engine
+            m.submodules.dbgport = dbgport = mem.read_port(domain="comb")
+            # first, get the value stored in our memory location,
+            # using its debug port
+            stored = Signal(self.data_width)
+            m.d.comb += dbgport.addr.eq(self.dbg_addr)
+            m.d.comb += stored.eq(dbgport.data)
+            # now, ensure that the value stored in memory is always in sync
+            # with the holding register
+            with m.If(self.dbg_wrote):
+                for i in range(self.we_width):
+                    with m.If(self.dbg_we_mask[i]):
+                        m.d.sync += Assert(self.dbg_data ==
+                                           stored.word_select(i, gran))
+
         return m
 
     def ports(self):
@@ -207,19 +227,14 @@ class SinglePortSRAMTestCase(FHDLTestCase):
                 with m.If(we_mask[i]):
                     m.d.sync += Assert(d_reg == dut.q[i*gran:i*gran+gran])
 
-        # the following is needed for induction, where an unreachable state
-        # (memory and holding register differ) is turned into an illegal one
-        # first, get the value stored in our memory location, using its debug
-        # port
-        stored = Signal.like(dut.q)
-        m.d.comb += dut.dbg_a.eq(a_const)
-        m.d.comb += stored.eq(dut.dbg_q)
-        # now, ensure that the value stored in memory is always in sync
-        # with the holding register
-        with m.If(wrote):
-            for i in range(len(dut.we)):
-                with m.If(we_mask[i]):
-                    m.d.sync += Assert(d_reg == stored[i*gran:i*gran+gran])
+        # pass our state to the device under test, so it can ensure that
+        # its state is in sync with ours, for induction
+        m.d.comb += [
+            dut.dbg_addr.eq(a_const),
+            dut.dbg_we_mask.eq(we_mask),
+            dut.dbg_data.eq(d_reg),
+            dut.dbg_wrote.eq(wrote),
+        ]
 
         self.assertFormal(m, mode="prove", depth=2)
 
@@ -265,7 +280,6 @@ class PhasedDualPortRegfile(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         # granularity
-        gran = self.data_width // self.we_width
         # instantiate the two 1RW memory blocks
         mem1 = SinglePortSRAM(self.addr_width, self.data_width, self.we_width)
         mem2 = SinglePortSRAM(self.addr_width, self.data_width, self.we_width)
@@ -316,30 +330,21 @@ class PhasedDualPortRegfile(Elaboratable):
                 m.d.comb += self.rd_data_o.eq(mem2.q)
 
         if platform == "formal":
-            # the following is needed for induction, where an unreachable
-            # state (memory and holding register differ) is turned into an
-            # illegal one
-            # first, get the values stored in our memory location, using its
-            # debug port
-            m.d.comb += mem1.dbg_a.eq(self.dbg_addr)
-            m.d.comb += mem2.dbg_a.eq(self.dbg_addr)
-            stored1 = Signal(self.data_width)
-            stored2 = Signal(self.data_width)
-            m.d.comb += stored1.eq(mem1.dbg_q)
-            m.d.comb += stored2.eq(mem2.dbg_q)
-            # now, ensure that the value stored in the first memory is always
-            # in sync with the holding register
-            with m.If(self.dbg_wrote):
-                for i in range(self.we_width):
-                    with m.If(self.dbg_we_mask[i]):
-                        m.d.comb += Assert(
-                            self.dbg_data == stored1.word_select(i, gran))
-            # same for the second memory, but one cycle later
-            with m.If(Past(self.dbg_wrote)):
-                for i in range(self.we_width):
-                    with m.If(self.dbg_we_mask[i]):
-                        m.d.comb += Assert(
-                            Past(self.dbg_data) == stored2.word_select(i, gran))
+            # pass our state to the device under test, so it can ensure that
+            # its state is in sync with ours, for induction
+            m.d.comb += [
+                # pass the address and write lane under test to both memories
+                mem1.dbg_addr.eq(self.dbg_addr),
+                mem2.dbg_addr.eq(self.dbg_addr),
+                mem1.dbg_we_mask.eq(self.dbg_we_mask),
+                mem2.dbg_we_mask.eq(self.dbg_we_mask),
+                # the second memory copies its state from the first memory,
+                # after a cycle, so it has a one cycle delay
+                mem1.dbg_data.eq(self.dbg_data),
+                mem2.dbg_data.eq(Past(self.dbg_data)),
+                mem1.dbg_wrote.eq(self.dbg_wrote),
+                mem2.dbg_wrote.eq(Past(self.dbg_wrote)),
+            ]
 
         return m
 
@@ -531,7 +536,7 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
             dut.dbg_wrote.eq(wrote),
         ]
 
-        self.assertFormal(m, mode="prove", depth=2)
+        self.assertFormal(m, mode="prove", depth=3)
 
     def test_phased_dual_port_regfile_proof(self):
         """test both types (odd and even write ports) of phased write memory"""
