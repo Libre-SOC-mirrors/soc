@@ -258,8 +258,9 @@ class PhasedDualPortRegfile(Elaboratable):
         # debug signals, only used in formal proofs
         self.dbg_addr = Signal(addr_width); """debug: address under test"""
         self.dbg_we_mask = Signal(we_width); """debug: write lane under test"""
-        self.dbg_data = Signal(data_width); """debug: data to keep in sync"""
-        self.dbg_wrote = Signal(addr_width); """debug: data is valid"""
+        gran = self.data_width // self.we_width
+        self.dbg_data = Signal(gran); """debug: data to keep in sync"""
+        self.dbg_wrote = Signal(); """debug: data is valid"""
 
     def elaborate(self, platform):
         m = Module()
