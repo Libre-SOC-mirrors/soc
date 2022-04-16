@@ -664,6 +664,20 @@ class DualPortRegfile(Elaboratable):
             ]
             # sync phase to upstream
             m.d.comb += Assert(self.dbg_phase == phase)
+            # this debug port for the LVT is an asynchronous read port,
+            # allowing direct access to a given memory location
+            # by the formal engine
+            m.submodules.dbgport = dbgport = lvt_mem.read_port(domain='comb')
+            # first, get the value stored in our memory location,
+            stored = Signal(self.we_width)
+            m.d.comb += dbgport.addr.eq(self.dbg_addr)
+            m.d.comb += stored.eq(dbgport.data)
+            # now, ensure that the value stored in memory is always in sync
+            # with the expected value (which memory the value was written to)
+            with m.If(self.dbg_wrote):
+                for i in range(self.we_width):
+                    with m.If(self.dbg_we_mask[i]):
+                        m.d.comb += Assert(stored[i] == self.dbg_wrote_phase)
         return m
 
 
@@ -840,7 +854,7 @@ class DualPortRegfileTestCase(FHDLTestCase):
             dut.dbg_phase.eq(phase),
         ]
 
-        self.assertFormal(m, mode="bmc", depth=10)
+        self.assertFormal(m, mode="prove", depth=3)
 
 
 if __name__ == "__main__":
