@@ -168,7 +168,7 @@ class NonProductionCore(ControlBase):
             self.msr_at_reset = pspec.msr_reset
         if hasattr(pspec, "pc_reset") and isinstance(pspec.pc_reset, int):
             self.pc_at_reset = pspec.pc_reset
-        state_resets = [self.pc_at_reset>>1,  # PC at reset
+        state_resets = [self.pc_at_reset,  # PC at reset
                         self.msr_at_reset, # MSR at reset
                         0x0,               # SVSTATE at reset
                         0x0,               # DEC at reset
