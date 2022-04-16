@@ -340,6 +340,16 @@ class PhasedDualPortRegfile(Elaboratable):
 
         return m
 
+    def ports(self):
+        return [
+            self.wr_addr_i,
+            self.wr_data_i,
+            self.wr_we_i,
+            self.rd_addr_i,
+            self.rd_data_o,
+            self.phase
+        ]
+
 
 class PhasedDualPortRegfileTestCase(FHDLTestCase):
 
@@ -659,6 +669,15 @@ class DualPortRegfile(Elaboratable):
                 m.d.comb += Assert(stored.bit_select(self.dbg_lane, 1)
                                    == self.dbg_wrote_phase)
         return m
+
+    def ports(self):
+        return [
+            self.wr_addr_i,
+            self.wr_data_i,
+            self.wr_we_i,
+            self.rd_addr_i,
+            self.rd_data_o
+        ]
 
 
 class DualPortRegfileTestCase(FHDLTestCase):
