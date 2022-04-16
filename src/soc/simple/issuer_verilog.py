@@ -69,6 +69,15 @@ if __name__ == '__main__':
                         action="store_true",
                         help="generate microwatt-compatible interface",
                         default=False)
+    parser.add_argument("--old-microwatt-compat", dest='old_mwcompat',
+                        action="store_true",
+                        help="generate old microwatt-compatible interface",
+                        default=True)
+    parser.add_argument("--microwatt-debug", dest='mwdebug',
+                        action="store_true",
+                        help="generate old microwatt-compatible interface",
+                        default=False)
+
     # allow overlaps in TestIssuer
     parser.add_argument("--allow-overlap", dest='allow_overlap',
                         action="store_true",
@@ -139,6 +148,8 @@ if __name__ == '__main__':
                          svp64=args.svp64,      # enable SVP64
                          microwatt_mmu=args.mmu,         # enable MMU
                          microwatt_compat=args.mwcompat, # microwatt compatible
+                         microwatt_old=args.old_mwcompat, # old microwatt api
+                         microwatt_debug=args.mwdebug, # microwatt debug signals
                          allow_overlap=args.allow_overlap, # allow overlap
                          units=units,
                          msr_reset=msr_reset,
@@ -159,6 +170,8 @@ if __name__ == '__main__':
     print("MSR@reset", hex(pspec.__dict__["msr_reset"]))
     print("PC@reset", hex(pspec.__dict__["pc_reset"]))
     print("Microwatt compatibility", pspec.__dict__["microwatt_compat"])
+    print("Old Microwatt compatibility", pspec.__dict__["microwatt_old"])
+    print("Microwatt debug", pspec.__dict__["microwatt_debug"])
 
     if args.mwcompat:
         dut = TestIssuerInternal(pspec)
