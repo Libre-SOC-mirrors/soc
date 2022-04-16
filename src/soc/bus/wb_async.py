@@ -91,7 +91,6 @@ class WBAsyncBridge(Elaboratable):
         m = Module()
         comb = m.d.comb
         master_bus, slave_bus = self.master_bus, self.slave_bus
-        slave_ack = Signal()
         slave_err = Signal()
         slave_rty = Signal()
 
@@ -134,7 +133,7 @@ class WBAsyncBridge(Elaboratable):
                             o_wbs_sel_o=self.slave_bus.sel,
                             o_wbs_stb_o=self.slave_bus.stb,
                             o_wbs_cyc_o=self.slave_bus.cyc,
-                            i_wbs_ack_i=slave_ack,
+                            i_wbs_ack_i=self.slave_bus.ack,
                             i_wbs_err_i=slave_err,
                             i_wbs_rty_i=slave_rty
                             );
