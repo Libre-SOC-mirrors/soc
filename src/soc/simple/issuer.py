@@ -171,8 +171,16 @@ class TestIssuerBase(Elaboratable):
         self.alt_reset = Signal(reset_less=True) # not connected yet (microwatt)
 
         if self.microwatt_compat:
-            self.microwatt_old = True # PLEASE DO NOT ALTER THIS
-            self.microwatt_debug = True # set to False when using an FPGA
+
+            if hasattr(pspec, "microwatt_old"):
+                self.microwatt_old = pspec.microwatt_old
+            else:
+                self.microwatt_old = True # PLEASE DO NOT ALTER THIS
+
+            if hasattr(pspec, "microwatt_debug"):
+                self.microwatt_debug = pspec.microwatt_debug
+            else:
+                self.microwatt_debug = True # set to False when using an FPGA
 
         # test is SVP64 is to be enabled
         self.svp64_en = hasattr(pspec, "svp64") and (pspec.svp64 == True)
