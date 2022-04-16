@@ -47,7 +47,8 @@ class SinglePortSRAM(Elaboratable):
         self.we = Signal(we_width); """write enable"""
         # debug signals, only used in formal proofs
         self.dbg_addr = Signal(addr_width); """debug: address under test"""
-        self.dbg_we_mask = Signal(we_width); """debug: write lane under test"""
+        lanes = range(we_width)
+        self.dbg_lane = Signal(lanes); """debug: write lane under test"""
         gran = self.data_width // self.we_width
         self.dbg_data = Signal(gran); """debug: data to keep in sync"""
         self.dbg_wrote = Signal(); """debug: data is valid"""
@@ -90,10 +91,8 @@ class SinglePortSRAM(Elaboratable):
             # now, ensure that the value stored in memory is always in sync
             # with the holding register
             with m.If(self.dbg_wrote):
-                for i in range(self.we_width):
-                    with m.If(self.dbg_we_mask[i]):
-                        m.d.sync += Assert(self.dbg_data ==
-                                           stored.word_select(i, gran))
+                m.d.sync += Assert(self.dbg_data ==
+                                   stored.word_select(self.dbg_lane, gran))
 
         return m
 
@@ -201,12 +200,8 @@ class SinglePortSRAMTestCase(FHDLTestCase):
         gran = len(dut.d) // len(dut.we)  # granularity
         # choose a single random memory location to test
         a_const = AnyConst(dut.a.shape())
-        # choose a single byte lane to test (one-hot encoding)
-        we_mask = Signal.like(dut.we)
-        # ... by first creating a random bit pattern
-        we_const = AnyConst(dut.we.shape())
-        # ... and zeroing all but the first non-zero bit
-        m.d.comb += we_mask.eq(we_const & (-we_const))
+        # choose a single byte lane to test
+        lane = AnyConst(range(dut.we_width))
         # holding data register
         d_reg = Signal(gran)
         # for some reason, simulated formal memory is not zeroed at reset
@@ -214,24 +209,20 @@ class SinglePortSRAMTestCase(FHDLTestCase):
         wrote = Signal()
         # if our memory location and byte lane is being written
         # ... capture the data in our holding register
-        with m.If(dut.a == a_const):
-            for i in range(len(dut.we)):
-                with m.If(we_mask[i] & dut.we[i]):
-                    m.d.sync += d_reg.eq(dut.d[i*gran:i*gran+gran])
-                    m.d.sync += wrote.eq(1)
+        with m.If((dut.a == a_const) & dut.we.bit_select(lane, 1)):
+            m.d.sync += d_reg.eq(dut.d.word_select(lane, gran))
+            m.d.sync += wrote.eq(1)
         # if our memory location is being read
         # ... and the holding register has valid data
         # ... then its value must match the memory output, on the given lane
         with m.If((Past(dut.a) == a_const) & wrote):
-            for i in range(len(dut.we)):
-                with m.If(we_mask[i]):
-                    m.d.sync += Assert(d_reg == dut.q[i*gran:i*gran+gran])
+            m.d.sync += Assert(d_reg == dut.q.word_select(lane, gran))
 
         # pass our state to the device under test, so it can ensure that
         # its state is in sync with ours, for induction
         m.d.comb += [
             dut.dbg_addr.eq(a_const),
-            dut.dbg_we_mask.eq(we_mask),
+            dut.dbg_lane.eq(lane),
             dut.dbg_data.eq(d_reg),
             dut.dbg_wrote.eq(wrote),
         ]
@@ -272,7 +263,8 @@ class PhasedDualPortRegfile(Elaboratable):
         self.phase = Signal(); """even/odd cycle indicator"""
         # debug signals, only used in formal proofs
         self.dbg_addr = Signal(addr_width); """debug: address under test"""
-        self.dbg_we_mask = Signal(we_width); """debug: write lane under test"""
+        lanes = range(we_width)
+        self.dbg_lane = Signal(lanes); """debug: write lane under test"""
         gran = self.data_width // self.we_width
         self.dbg_data = Signal(gran); """debug: data to keep in sync"""
         self.dbg_wrote = Signal(); """debug: data is valid"""
@@ -336,8 +328,8 @@ class PhasedDualPortRegfile(Elaboratable):
                 # pass the address and write lane under test to both memories
                 mem1.dbg_addr.eq(self.dbg_addr),
                 mem2.dbg_addr.eq(self.dbg_addr),
-                mem1.dbg_we_mask.eq(self.dbg_we_mask),
-                mem2.dbg_we_mask.eq(self.dbg_we_mask),
+                mem1.dbg_lane.eq(self.dbg_lane),
+                mem2.dbg_lane.eq(self.dbg_lane),
                 # the second memory copies its state from the first memory,
                 # after a cycle, so it has a one cycle delay
                 mem1.dbg_data.eq(self.dbg_data),
@@ -474,12 +466,8 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
         gran = dut.data_width // dut.we_width  # granularity
         # choose a single random memory location to test
         a_const = AnyConst(dut.addr_width)
-        # choose a single byte lane to test (one-hot encoding)
-        we_mask = Signal(dut.we_width)
-        # ... by first creating a random bit pattern
-        we_const = AnyConst(dut.we_width)
-        # ... and zeroing all but the first non-zero bit
-        m.d.comb += we_mask.eq(we_const & (-we_const))
+        # choose a single byte lane to test
+        lane = AnyConst(range(dut.we_width))
         # drive alternating phases
         m.d.comb += Assume(dut.phase != Past(dut.phase))
         # holding data register
@@ -490,22 +478,18 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
         # if our memory location and byte lane is being written,
         # capture the data in our holding register
         with m.If((dut.wr_addr_i == a_const)
+                  & dut.wr_we_i.bit_select(lane, 1)
                   & (dut.phase == dut.write_phase)):
-            for i in range(dut.we_width):
-                with m.If(we_mask[i] & dut.wr_we_i[i]):
-                    m.d.sync += d_reg.eq(
-                        dut.wr_data_i[i * gran:i * gran + gran])
-                    m.d.sync += wrote.eq(1)
+            m.d.sync += d_reg.eq(dut.wr_data_i.word_select(lane, gran))
+            m.d.sync += wrote.eq(1)
         # if our memory location is being read,
         # and the holding register has valid data,
         # then its value must match the memory output, on the given lane
         with m.If(Past(dut.rd_addr_i) == a_const):
             if transparent:
                 with m.If(wrote):
-                    for i in range(dut.we_width):
-                        rd_lane = dut.rd_data_o.word_select(i, gran)
-                        with m.If(we_mask[i]):
-                            m.d.sync += Assert(d_reg == rd_lane)
+                    rd_lane = dut.rd_data_o.word_select(lane, gran)
+                    m.d.sync += Assert(d_reg == rd_lane)
             else:
                 # with a non-transparent read port, the read value depends
                 # on whether there is a simultaneous write, or not
@@ -513,24 +497,20 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
                           & Past(dut.phase) == dut.write_phase):
                     # simultaneous write -> check against last written value
                     with m.If(Past(wrote)):
-                        for i in range(dut.we_width):
-                            rd_lane = dut.rd_data_o.word_select(i, gran)
-                            with m.If(we_mask[i]):
-                                m.d.sync += Assert(Past(d_reg) == rd_lane)
+                        rd_lane = dut.rd_data_o.word_select(lane, gran)
+                        m.d.sync += Assert(Past(d_reg) == rd_lane)
                 with m.Else():
                     # otherwise, check against current written value
                     with m.If(wrote):
-                        for i in range(dut.we_width):
-                            rd_lane = dut.rd_data_o.word_select(i, gran)
-                            with m.If(we_mask[i]):
-                                m.d.sync += Assert(d_reg == rd_lane)
+                        rd_lane = dut.rd_data_o.word_select(lane, gran)
+                        m.d.sync += Assert(d_reg == rd_lane)
 
         # pass our state to the device under test, so it can ensure that
         # its state is in sync with ours, for induction
         m.d.comb += [
             # address and mask under test
             dut.dbg_addr.eq(a_const),
-            dut.dbg_we_mask.eq(we_mask),
+            dut.dbg_lane.eq(lane),
             # state of our holding register
             dut.dbg_data.eq(d_reg),
             dut.dbg_wrote.eq(wrote),
@@ -579,7 +559,8 @@ class DualPortRegfile(Elaboratable):
         # debug signals, only used in formal proofs
         # address and write lane under test
         self.dbg_addr = Signal(addr_width); """debug: address under test"""
-        self.dbg_we_mask = Signal(we_width); """debug: write lane under test"""
+        lanes = range(we_width)
+        self.dbg_lane = Signal(lanes); """debug: write lane under test"""
         # upstream state, to keep in sync with ours
         gran = self.data_width // self.we_width
         self.dbg_data = Signal(gran); """debug: data to keep in sync"""
@@ -652,8 +633,8 @@ class DualPortRegfile(Elaboratable):
                 # address and write lane under test
                 mem0.dbg_addr.eq(self.dbg_addr),
                 mem1.dbg_addr.eq(self.dbg_addr),
-                mem0.dbg_we_mask.eq(self.dbg_we_mask),
-                mem1.dbg_we_mask.eq(self.dbg_we_mask),
+                mem0.dbg_lane.eq(self.dbg_lane),
+                mem1.dbg_lane.eq(self.dbg_lane),
                 # upstream state
                 mem0.dbg_data.eq(self.dbg_data),
                 mem1.dbg_data.eq(self.dbg_data),
@@ -675,9 +656,8 @@ class DualPortRegfile(Elaboratable):
             # now, ensure that the value stored in memory is always in sync
             # with the expected value (which memory the value was written to)
             with m.If(self.dbg_wrote):
-                for i in range(self.we_width):
-                    with m.If(self.dbg_we_mask[i]):
-                        m.d.comb += Assert(stored[i] == self.dbg_wrote_phase)
+                m.d.comb += Assert(stored.bit_select(self.dbg_lane, 1)
+                                   == self.dbg_wrote_phase)
         return m
 
 
@@ -810,12 +790,8 @@ class DualPortRegfileTestCase(FHDLTestCase):
         gran = dut.data_width // dut.we_width  # granularity
         # choose a single random memory location to test
         a_const = AnyConst(dut.addr_width)
-        # choose a single byte lane to test (one-hot encoding)
-        we_mask = Signal(dut.we_width)
-        # ... by first creating a random bit pattern
-        we_const = AnyConst(dut.we_width)
-        # ... and zeroing all but the first non-zero bit
-        m.d.comb += we_mask.eq(we_const & (-we_const))
+        # choose a single byte lane to test
+        lane = AnyConst(range(dut.we_width))
         # holding data register
         d_reg = Signal(gran)
         # keep track of the phase, so we can remember which memory
@@ -829,25 +805,22 @@ class DualPortRegfileTestCase(FHDLTestCase):
         wrote_phase = Signal()
         # if our memory location and byte lane is being written,
         # capture the data in our holding register
-        with m.If((dut.wr_addr_i == a_const)):
-            for i in range(dut.we_width):
-                with m.If(we_mask[i] & dut.wr_we_i[i]):
-                    m.d.sync += d_reg.eq(dut.wr_data_i.word_select(i, gran))
-                    m.d.sync += wrote.eq(1)
-                    m.d.sync += wrote_phase.eq(phase)
+        with m.If((dut.wr_addr_i == a_const)
+                  & dut.wr_we_i.bit_select(lane, 1)):
+            m.d.sync += d_reg.eq(dut.wr_data_i.word_select(lane, gran))
+            m.d.sync += wrote.eq(1)
+            m.d.sync += wrote_phase.eq(phase)
         # if our memory location is being read,
         # and the holding register has valid data,
         # then its value must match the memory output, on the given lane
         with m.If(Past(dut.rd_addr_i) == a_const):
             with m.If(wrote):
-                for i in range(dut.we_width):
-                    rd_lane = dut.rd_data_o.word_select(i, gran)
-                    with m.If(we_mask[i]):
-                        m.d.sync += Assert(d_reg == rd_lane)
+                rd_lane = dut.rd_data_o.word_select(lane, gran)
+                m.d.sync += Assert(d_reg == rd_lane)
 
         m.d.comb += [
             dut.dbg_addr.eq(a_const),
-            dut.dbg_we_mask.eq(we_mask),
+            dut.dbg_lane.eq(lane),
             dut.dbg_data.eq(d_reg),
             dut.dbg_wrote.eq(wrote),
             dut.dbg_wrote_phase.eq(wrote_phase),
