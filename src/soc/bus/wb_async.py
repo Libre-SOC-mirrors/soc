@@ -102,7 +102,11 @@ class WBAsyncBridge(Elaboratable):
                             # Parameters
                             p_ADDR_WIDTH=self.address_width,
                             p_DATA_WIDTH=self.data_width,
-                            p_SELECT_WIDTH=self.granularity,
+                            # width of select is the data width
+                            # *divided* by the data granularity.
+                            # data_width=32-bit, data granularity=8-bit,
+                            # select_width ==> 32/8 ==> 4
+                            p_SELECT_WIDTH=self.data_width//self.granularity,
 
                             # Clocks/resets
                             i_wbm_clk=self.wb_mclk,
