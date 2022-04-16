@@ -1152,6 +1152,7 @@ class TestIssuerInternal(TestIssuerBase):
         pdecode2 = self.pdecode2
         cur_state = self.cur_state
         new_svstate = self.new_svstate
+        main_rst_delay = Signal(reset_less=True)
 
         # temporaries
         dec_opcode_i = pdecode2.dec.raw_opcode_in  # raw opcode
@@ -1166,6 +1167,9 @@ class TestIssuerInternal(TestIssuerBase):
         next_dststep = Signal.like(cur_dststep)
         comb += next_srcstep.eq(cur_state.svstate.srcstep+1)
         comb += next_dststep.eq(cur_state.svstate.dststep+1)
+
+        # reset release delay
+        sync += main_rst_delay.eq(ResetSignal())
 
         # note if an exception happened.  in a pipelined or OoO design
         # this needs to be accompanied by "shadowing" (or stalling)
@@ -1195,7 +1199,7 @@ class TestIssuerInternal(TestIssuerBase):
                 sync += pdecode2.instr_fault.eq(0)
                 # wait on "core stop" release, before next fetch
                 # need to do this here, in case we are in a VL==0 loop
-                with m.If(~dbg.core_stop_o & ~core_rst):
+                with m.If(~dbg.core_stop_o & ~core_rst & ~main_rst_delay):
                     sync += fetch_pc_i_valid.eq(1)  # tell fetch to start
                     sync += cur_state.pc.eq(dbg.state.pc)
                     sync += cur_state.svstate.eq(dbg.state.svstate)
