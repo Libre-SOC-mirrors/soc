@@ -82,11 +82,10 @@ class ExternalCore(Elaboratable):
         # nmigen understands I/O directions (defined by i_ and o_ prefixes)
         ibus, dbus, dmi = self.ibus, self.dbus, self.dmi
 
-        # sigh, microwatt wishbone address is borked, it contains the 3 LSBs
         ibus_adr = Signal(32)
         dbus_adr = Signal(32)
-        m.d.comb += ibus.adr.eq(ibus_adr[3:])
-        m.d.comb += dbus.adr.eq(dbus_adr[3:])
+        m.d.comb += ibus.adr.eq(ibus_adr)
+        m.d.comb += dbus.adr.eq(dbus_adr)
 
         kwargs = {
             # clock/reset signals
