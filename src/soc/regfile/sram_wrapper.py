@@ -802,13 +802,13 @@ class DualPortRegfileTestCase(FHDLTestCase):
         with self.subTest("transparent reads"):
             self.do_test_dual_port_regfile(True)
 
-    def test_dual_port_regfile_proof(self):
+    def do_test_dual_port_regfile_proof(self, transparent=True):
         """
         Formal proof of the 1W/1R regfile
         """
         m = Module()
         # 128 x 32-bit, 8-bit granularity
-        dut = DualPortRegfile(7, 32, 4, True)
+        dut = DualPortRegfile(7, 32, 4, transparent)
         m.submodules.dut = dut
         gran = dut.data_width // dut.we_width  # granularity
         # choose a single random memory location to test
@@ -837,9 +837,23 @@ class DualPortRegfileTestCase(FHDLTestCase):
         # and the holding register has valid data,
         # then its value must match the memory output, on the given lane
         with m.If(Past(dut.rd_addr_i) == a_const):
-            with m.If(wrote):
-                rd_lane = dut.rd_data_o.word_select(lane, gran)
-                m.d.sync += Assert(d_reg == rd_lane)
+            if transparent:
+                with m.If(wrote):
+                    rd_lane = dut.rd_data_o.word_select(lane, gran)
+                    m.d.sync += Assert(d_reg == rd_lane)
+            else:
+                # with a non-transparent read port, the read value depends
+                # on whether there is a simultaneous write, or not
+                with m.If(Past(dut.wr_addr_i) == a_const):
+                    # simultaneous write -> check against last written value
+                    with m.If(wrote & Past(wrote)):
+                        rd_lane = dut.rd_data_o.word_select(lane, gran)
+                        m.d.sync += Assert(Past(d_reg) == rd_lane)
+                with m.Else():
+                    # otherwise, check against current written value
+                    with m.If(wrote):
+                        rd_lane = dut.rd_data_o.word_select(lane, gran)
+                        m.d.sync += Assert(d_reg == rd_lane)
 
         m.d.comb += [
             dut.dbg_addr.eq(a_const),
@@ -851,6 +865,15 @@ class DualPortRegfileTestCase(FHDLTestCase):
         ]
 
         self.assertFormal(m, mode="prove", depth=3)
+
+    def test_dual_port_regfile_proof(self):
+        """
+        Formal check of 1W/1R regfile (transparent and not)
+        """
+        with self.subTest("transparent reads"):
+            self.do_test_dual_port_regfile_proof(True)
+        with self.subTest("non-transparent reads"):
+            self.do_test_dual_port_regfile_proof(False)
 
 
 if __name__ == "__main__":
