@@ -599,6 +599,10 @@ class DualPortRegfile(Elaboratable):
         lvt_mem = Memory(width=self.we_width, depth=depth)
         lvt_wr = lvt_mem.write_port(granularity=1)
         lvt_rd = lvt_mem.read_port(transparent=self.transparent)
+        if not self.transparent:
+            # for some reason, formal proofs don't recognize the default
+            # reset value for this signal
+            m.d.comb += lvt_rd.en.eq(1)
         m.submodules.lvt_wr = lvt_wr
         m.submodules.lvt_rd = lvt_rd
         # generate and wire the phases for the phased memories
