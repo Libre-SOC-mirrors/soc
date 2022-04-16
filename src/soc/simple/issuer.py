@@ -457,13 +457,12 @@ class TestIssuerBase(Elaboratable):
         comb += cd_por.clk.eq(ClockSignal())
 
         # power-on reset delay
-        core_rst = ResetSignal(self.core_domain)
         if self.core_domain != "sync":
             comb += ti_rst.eq(delay != 0 | dbg.core_rst_o | ResetSignal())
-            comb += core_rst.eq(ti_rst)
+            comb += self.core_rst.eq(ti_rst)
         else:
             with m.If(delay != 0 | dbg.core_rst_o):
-                comb += core_rst.eq(1)
+                comb += self.core_rst.eq(1)
         with m.If(stop_delay != 0):
             # run DMI core-stop as well but on an extra couple of cycles
             comb += dbg.core_stopped_i.eq(1)
