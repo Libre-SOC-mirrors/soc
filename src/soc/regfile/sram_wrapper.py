@@ -570,13 +570,24 @@ class DualPortRegfile(Elaboratable):
         self.data_width = data_width
         self.we_width = we_width
         self.transparent = transparent
+        # interface signals
         self.wr_addr_i = Signal(addr_width); """write port address"""
         self.wr_data_i = Signal(data_width); """write port data"""
         self.wr_we_i = Signal(we_width); """write port enable"""
         self.rd_addr_i = Signal(addr_width); """read port address"""
         self.rd_data_o = Signal(data_width); """read port data"""
+        # debug signals, only used in formal proofs
+        # address and write lane under test
+        self.dbg_addr = Signal(addr_width); """debug: address under test"""
+        self.dbg_we_mask = Signal(we_width); """debug: write lane under test"""
+        # upstream state, to keep in sync with ours
+        gran = self.data_width // self.we_width
+        self.dbg_data = Signal(gran); """debug: data to keep in sync"""
+        self.dbg_wrote = Signal(); """debug: data is valid"""
+        self.dbg_wrote_phase = Signal(); """debug: the phase data was written"""
+        self.dbg_phase = Signal(); """debug: current phase"""
 
-    def elaborate(self, _):
+    def elaborate(self, platform):
         m = Module()
         # depth and granularity
         depth = 1 << self.addr_width
@@ -633,11 +644,26 @@ class DualPortRegfile(Elaboratable):
                     lvt_rd.data[i],
                     mem1.rd_data_o.word_select(i, gran),
                     mem0.rd_data_o.word_select(i, gran)))
-        # TODO create debug port and pass state downstream
-        m.d.comb += [
-            mem0.dbg_wrote.eq(0),
-            mem1.dbg_wrote.eq(0),
-        ]
+
+        if platform == "formal":
+            # pass upstream state to the memories, so they can ensure that
+            # their state are in sync with upstream, for induction
+            m.d.comb += [
+                # address and write lane under test
+                mem0.dbg_addr.eq(self.dbg_addr),
+                mem1.dbg_addr.eq(self.dbg_addr),
+                mem0.dbg_we_mask.eq(self.dbg_we_mask),
+                mem1.dbg_we_mask.eq(self.dbg_we_mask),
+                # upstream state
+                mem0.dbg_data.eq(self.dbg_data),
+                mem1.dbg_data.eq(self.dbg_data),
+                # the memory, on which the write ends up, depends on which
+                # phase it was written
+                mem0.dbg_wrote.eq(self.dbg_wrote & ~self.dbg_wrote_phase),
+                mem1.dbg_wrote.eq(self.dbg_wrote & self.dbg_wrote_phase),
+            ]
+            # sync phase to upstream
+            m.d.comb += Assert(self.dbg_phase == phase)
         return m
 
 
@@ -778,17 +804,23 @@ class DualPortRegfileTestCase(FHDLTestCase):
         m.d.comb += we_mask.eq(we_const & (-we_const))
         # holding data register
         d_reg = Signal(gran)
+        # keep track of the phase, so we can remember which memory
+        # we wrote to
+        phase = Signal()
+        m.d.sync += phase.eq(~phase)
         # for some reason, simulated formal memory is not zeroed at reset
         # ... so, remember whether we wrote it, at least once.
         wrote = Signal()
+        # ... and on which phase it was written
+        wrote_phase = Signal()
         # if our memory location and byte lane is being written,
         # capture the data in our holding register
         with m.If((dut.wr_addr_i == a_const)):
             for i in range(dut.we_width):
                 with m.If(we_mask[i] & dut.wr_we_i[i]):
-                    m.d.sync += d_reg.eq(
-                        dut.wr_data_i[i * gran:i * gran + gran])
+                    m.d.sync += d_reg.eq(dut.wr_data_i.word_select(i, gran))
                     m.d.sync += wrote.eq(1)
+                    m.d.sync += wrote_phase.eq(phase)
         # if our memory location is being read,
         # and the holding register has valid data,
         # then its value must match the memory output, on the given lane
@@ -798,6 +830,15 @@ class DualPortRegfileTestCase(FHDLTestCase):
                     rd_lane = dut.rd_data_o.word_select(i, gran)
                     with m.If(we_mask[i]):
                         m.d.sync += Assert(d_reg == rd_lane)
+
+        m.d.comb += [
+            dut.dbg_addr.eq(a_const),
+            dut.dbg_we_mask.eq(we_mask),
+            dut.dbg_data.eq(d_reg),
+            dut.dbg_wrote.eq(wrote),
+            dut.dbg_wrote_phase.eq(wrote_phase),
+            dut.dbg_phase.eq(phase),
+        ]
 
         self.assertFormal(m, mode="bmc", depth=10)
 
