@@ -72,7 +72,7 @@ microwatt_external_core_spi:
 microwatt_external_core_bram:
 	python3 src/soc/simple/issuer_verilog.py --microwatt-compat \
             --enable-mmu \
-            --pc-reset 0xFFF00000 \
+            --pc-reset 0xFF000000 \
             external_core_top.v
 
 # build the litex libresoc SoC without 4k SRAMs

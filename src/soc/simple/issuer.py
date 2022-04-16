@@ -171,7 +171,7 @@ class TestIssuerBase(Elaboratable):
         self.alt_reset = Signal(reset_less=True) # not connected yet (microwatt)
 
         if self.microwatt_compat:
-            self.microwatt_old = False
+            self.microwatt_old = True # PLEASE DO NOT ALTER THIS
             self.microwatt_debug = True # set to False when using an FPGA
 
         # test is SVP64 is to be enabled
@@ -626,6 +626,7 @@ class TestIssuerBase(Elaboratable):
         with m.If(core_rst):
             m.d.sync += self.cur_state.eq(0)
             # and, sigh, set configured values, which are also done in regfile
+            # XXX ??? what the hell is the shift for??
             m.d.sync += self.cur_state.pc.eq(self.core.pc_at_reset)
             m.d.sync += self.cur_state.msr.eq(self.core.msr_at_reset)
 
@@ -805,7 +806,7 @@ class TestIssuerInternal(TestIssuerBase):
     easy understanding) come later.
     """
 
-    def fetch_fsm(self, m, dbg, core, nia, is_svp64_mode,
+    def fetch_fsm(self, m, dbg, core, core_rst, nia, is_svp64_mode,
                         fetch_pc_o_ready, fetch_pc_i_valid,
                         fetch_insn_o_valid, fetch_insn_i_ready):
         """fetch FSM
@@ -839,7 +840,7 @@ class TestIssuerInternal(TestIssuerBase):
             # allow fetch to not run at startup due to I-Cache reset not
             # having time to settle.  power-on-reset holds dbg.core_stopped_i
             with m.State("PRE_IDLE"):
-                with m.If(~dbg.core_stopped_i & ~dbg.core_stop_o):
+                with m.If(~dbg.core_stopped_i & ~dbg.core_stop_o & ~core_rst):
                     m.next = "IDLE"
 
             # waiting (zzz)
@@ -1187,6 +1188,10 @@ class TestIssuerInternal(TestIssuerBase):
         sync += fetch_pc_i_valid.eq(0)
 
         with m.FSM(name="issue_fsm"):
+
+            with m.State("PRE_IDLE"):
+                with m.If(~dbg.core_stop_o & ~core_rst):
+                    m.next = "ISSUE_START"
 
             # sync with the "fetch" phase which is reading the instruction
             # at this point, there is no instruction running, that
@@ -1597,7 +1602,7 @@ class TestIssuerInternal(TestIssuerBase):
         # Issue is where the VL for-loop # lives.  the ready/valid
         # signalling is used to communicate between the four.
 
-        self.fetch_fsm(m, dbg, core, nia, is_svp64_mode,
+        self.fetch_fsm(m, dbg, core, core_rst, nia, is_svp64_mode,
                        fetch_pc_o_ready, fetch_pc_i_valid,
                        fetch_insn_o_valid, fetch_insn_i_ready)
 
@@ -1619,9 +1624,10 @@ class TestIssuerInternal(TestIssuerBase):
                          exec_insn_i_valid, exec_insn_o_ready,
                          exec_pc_o_valid, exec_pc_i_ready)
 
-        # whatever was done above, over-ride it if core reset is held
+        # whatever was done above, over-ride it if core reset is held.
+        # set NIA to pc_at_reset
         with m.If(core_rst):
-            sync += nia.eq(0)
+            sync += nia.eq(self.core.pc_at_reset)
 
         return m
 
