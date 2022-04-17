@@ -893,13 +893,18 @@ class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
     :param we_width: number of write enable lines
     :param write_phase: indicates on which phase the write port will
                         accept data
+    :param transparent: whether a simultaneous read and write returns the
+                        new value (True) or the old value (False) on the full
+                        read port
     """
 
-    def __init__(self, addr_width, data_width, we_width, write_phase):
+    def __init__(self, addr_width, data_width, we_width, write_phase,
+                 transparent=True):
         self.addr_width = addr_width
         self.data_width = data_width
         self.we_width = we_width
         self.write_phase = write_phase
+        self.transparent = transparent
         # interface signals
         self.wr_addr_i = Signal(addr_width); """phased write port address"""
         self.wr_data_i = Signal(data_width); """phased write port data"""
@@ -928,7 +933,8 @@ class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
         # holding registers for the write port of the other memories
         last_wr_addr = Signal(self.addr_width)
         last_wr_we = Signal(self.we_width)
-        # do the phased read and write addresses coincide?
+        # do read and write addresses coincide?
+        same_read_write = Signal()
         same_phased_read_write = Signal()
         with m.If(self.phase == self.write_phase):
             # write phase, start a write on the first memory
@@ -944,9 +950,11 @@ class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
             # output previously read data from the first memory
             m.d.comb += self.rd_data_o.eq(mem1.q)
             # remember whether we are reading from the same location as we
-            # are writing, on the phased read port
+            # are writing
             m.d.sync += same_phased_read_write.eq(
                 self.rdp_addr_i == self.wr_addr_i)
+            if self.transparent:
+                m.d.sync += same_read_write.eq(self.rd_addr_i == self.wr_addr_i)
         with m.Else():
             # read phase, write last written data on the other memories
             m.d.comb += [
@@ -958,7 +966,19 @@ class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
             # start a read on the first memory
             m.d.comb += mem1.a.eq(self.rd_addr_i)
             # output the read data from the second memory
-            m.d.comb += self.rd_data_o.eq(mem2.q)
+            if self.transparent:
+                with m.If(same_read_write):
+                    # when transparent, and read and write addresses coincide,
+                    # output the data just written
+                    m.d.comb += self.rd_data_o.eq(mem1.q)
+                with m.Else():
+                    # otherwise, output previously read data
+                    # from the second memory
+                    m.d.comb += self.rd_data_o.eq(mem2.q)
+            else:
+                # always output the read data from the second memory,
+                # if not transparent
+                m.d.comb += self.rd_data_o.eq(mem2.q)
             with m.If(same_phased_read_write):
                 # if read and write addresses coincide,
                 # output the data just written
@@ -973,11 +993,12 @@ class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
 
 class PhasedReadPhasedWriteFullReadSRAMTestCase(FHDLTestCase):
 
-    def do_test_case(self, write_phase):
+    def do_test_case(self, write_phase, transparent):
         """
         Simulate some read/write/modify operations
         """
-        dut = PhasedReadPhasedWriteFullReadSRAM(7, 32, 4, write_phase)
+        dut = PhasedReadPhasedWriteFullReadSRAM(7, 32, 4, write_phase,
+                                                transparent)
         sim = Simulator(dut)
         sim.add_clock(1e-6)
 
@@ -1060,12 +1081,17 @@ class PhasedReadPhasedWriteFullReadSRAMTestCase(FHDLTestCase):
             yield from skip_write()
             yield
             # try reading and writing at the same time
-            yield from read(0x42, 0x12563478)
-            # transparent port, should return the value just written
+            if transparent:
+                # transparent port, return the value just written
+                yield from read(0x42, 0x55AA9966)
+            else:
+                # ... otherwise, return the old value
+                yield from read(0x42, 0x12563478)
+            # transparent port, always return the value just written
             yield from phased_read(0x42, 0x55AA9966)
             yield from write(0x42, 0b1111, 0x55AA9966)
             yield
-            # after a cycle, returns the new value
+            # after a cycle, always returns the new value
             yield from read(0x42, 0x55AA9966)
             yield from skip_write()
             yield
@@ -1078,6 +1104,8 @@ class PhasedReadPhasedWriteFullReadSRAMTestCase(FHDLTestCase):
 
         sim.add_sync_process(process)
         debug_file = 'test_phased_read_write_sram_' + str(write_phase)
+        if transparent:
+            debug_file += '_transparent'
         traces = ['clk', 'phase',
                   {'comment': 'phased write port'},
                   'wr_addr_i[6:0]', 'wr_we_i[3:0]', 'wr_data_i[31:0]',
@@ -1095,9 +1123,13 @@ class PhasedReadPhasedWriteFullReadSRAMTestCase(FHDLTestCase):
     def test_case(self):
         """test both types (odd and even write ports) of phased memory"""
         with self.subTest("writes happen on phase 0"):
-            self.do_test_case(0)
+            self.do_test_case(0, True)
         with self.subTest("writes happen on phase 1"):
-            self.do_test_case(1)
+            self.do_test_case(1, True)
+        with self.subTest("writes happen on phase 0 (non-transparent reads)"):
+            self.do_test_case(0, False)
+        with self.subTest("writes happen on phase 1 (non-transparent reads)"):
+            self.do_test_case(1, False)
 
 
 if __name__ == "__main__":
