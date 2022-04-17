@@ -1244,5 +1244,192 @@ class PhasedReadPhasedWriteFullReadSRAMTestCase(FHDLTestCase):
             self.do_test_formal(1, True)
 
 
+class DualPortXorRegfile(Elaboratable):
+    """
+    Builds, from a pair of phased 1W/2R blocks, a true 1W/1R RAM, where both
+    write and (non-transparent) read ports work every cycle.
+
+    It employs a XOR trick, as follows:
+
+    1) Like before, there are two memories, each reading on every cycle, and
+       writing on alternate cycles
+    2) Instead of a MUX, the read port is a direct XOR of the two memories.
+    3) Writes happens in two cycles:
+
+        First, read the current value of the *other* memory, at the write
+        location.
+
+        Then, on *this* memory, write that read value, XORed with the desired
+        value.
+
+    This recovers the desired value when read:
+    (other XOR desired) XOR other = desired
+
+    :param addr_width: width of the address bus
+    :param data_width: width of the data bus
+    :param we_width: number of write enable lines
+    """
+
+    def __init__(self, addr_width, data_width, we_width):
+        self.addr_width = addr_width
+        self.data_width = data_width
+        self.we_width = we_width
+        # interface signals
+        self.wr_addr_i = Signal(addr_width); """write port address"""
+        self.wr_data_i = Signal(data_width); """write port data"""
+        self.wr_we_i = Signal(we_width); """write port enable"""
+        self.rd_addr_i = Signal(addr_width); """read port address"""
+        self.rd_data_o = Signal(data_width); """read port data"""
+
+    def elaborate(self, platform):
+        m = Module()
+        # instantiate the two phased 1W/2R memory blocks
+        mem0 = PhasedReadPhasedWriteFullReadSRAM(
+            self.addr_width, self.data_width, self.we_width, 0, True)
+        mem1 = PhasedReadPhasedWriteFullReadSRAM(
+            self.addr_width, self.data_width, self.we_width, 1, True)
+        m.submodules.mem0 = mem0
+        m.submodules.mem1 = mem1
+        # generate and wire the phases for the phased memories
+        phase = Signal()
+        m.d.sync += phase.eq(~phase)
+        m.d.comb += [
+            mem0.phase.eq(phase),
+            mem1.phase.eq(phase),
+        ]
+        # wire read address to memories, and XOR their output
+        m.d.comb += [
+            mem0.rd_addr_i.eq(self.rd_addr_i),
+            mem1.rd_addr_i.eq(self.rd_addr_i),
+            self.rd_data_o.eq(mem0.rd_data_o ^ mem1.rd_data_o),
+        ]
+        # write path
+        # 1) read the memory location which is about to be written
+        m.d.comb += [
+            mem0.rdp_addr_i.eq(self.wr_addr_i),
+            mem1.rdp_addr_i.eq(self.wr_addr_i),
+        ]
+        # store the write information for the next cycle
+        last_addr = Signal(self.addr_width)
+        last_we = Signal(self.we_width)
+        last_data = Signal(self.data_width)
+        m.d.sync += [
+            last_addr.eq(self.wr_addr_i),
+            last_we.eq(self.wr_we_i),
+            last_data.eq(self.wr_data_i),
+        ]
+        # 2) write the XOR of the other memory data, and the desired value
+        m.d.comb += [
+            mem0.wr_addr_i.eq(last_addr),
+            mem1.wr_addr_i.eq(last_addr),
+            mem0.wr_we_i.eq(last_we),
+            mem1.wr_we_i.eq(last_we),
+            mem0.wr_data_i.eq(last_data ^ mem1.rdp_data_o),
+            mem1.wr_data_i.eq(last_data ^ mem0.rdp_data_o),
+        ]
+        return m
+
+
+class DualPortXorRegfileTestCase(FHDLTestCase):
+
+    def test_case(self):
+        """
+        Simulate some read/write/modify operations on the dual port register
+        file
+        """
+        dut = DualPortXorRegfile(7, 32, 4)
+        sim = Simulator(dut)
+        sim.add_clock(1e-6)
+
+        expected = None
+        last_expected = None
+
+        # compare read data with previously written data
+        # and start a new read
+        def read(rd_addr_i, next_expected=None):
+            nonlocal expected, last_expected
+            if expected is not None:
+                self.assertEqual((yield dut.rd_data_o), expected)
+            yield dut.rd_addr_i.eq(rd_addr_i)
+            # account for the read latency
+            expected = last_expected
+            last_expected = next_expected
+
+        # start a write
+        def write(wr_addr_i, wr_we_i, wr_data_i):
+            yield dut.wr_addr_i.eq(wr_addr_i)
+            yield dut.wr_we_i.eq(wr_we_i)
+            yield dut.wr_data_i.eq(wr_data_i)
+
+        def process():
+            # write a pair of values, one for each memory
+            yield from read(0)
+            yield from write(0x42, 0b1111, 0x87654321)
+            yield
+            yield from read(0x42, 0x87654321)
+            yield from write(0x43, 0b1111, 0x0FEDCBA9)
+            yield
+            # skip a beat
+            yield from read(0x43, 0x0FEDCBA9)
+            yield from write(0, 0, 0)
+            yield
+            # write again, but now they switch memories
+            yield from read(0)
+            yield from write(0x42, 0b1111, 0x12345678)
+            yield
+            yield from read(0x42, 0x12345678)
+            yield from write(0x43, 0b1111, 0x9ABCDEF0)
+            yield
+            yield from read(0x43, 0x9ABCDEF0)
+            yield from write(0, 0, 0)
+            yield
+            # test partial writes
+            yield from read(0)
+            yield from write(0x42, 0b1001, 0x78FFFF12)
+            yield
+            yield from read(0)
+            yield from write(0x43, 0b0110, 0xFFDEABFF)
+            yield
+            yield from read(0x42, 0x78345612)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0x43, 0x9ADEABF0)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0)
+            yield from write(0, 0, 0)
+            yield
+            # test simultaneous read and write
+            # non-transparent read: returns the old value
+            yield from read(0x42, 0x78345612)
+            yield from write(0x42, 0b1111, 0x55AA9966)
+            yield
+            # after a cycle, returns the new value
+            yield from read(0x42, 0x55AA9966)
+            yield from write(0, 0, 0)
+            yield
+            # settle down
+            yield from read(0)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0)
+            yield from write(0, 0, 0)
+
+        sim.add_sync_process(process)
+        debug_file = 'test_dual_port_xor_regfile'
+        traces = ['clk', 'phase',
+                  {'comment': 'write port'},
+                  'wr_addr_i[6:0]', 'wr_we_i[3:0]', 'wr_data_i[31:0]',
+                  {'comment': 'read port'},
+                  'rd_addr_i[6:0]', 'rd_data_o[31:0]',
+                  ]
+        write_gtkw(debug_file + '.gtkw',
+                   debug_file + '.vcd',
+                   traces, module='top', zoom=-22)
+        sim_writer = sim.write_vcd(debug_file + '.vcd')
+        with sim_writer:
+            sim.run()
+
+
 if __name__ == "__main__":
     unittest.main()
