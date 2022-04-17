@@ -876,5 +876,229 @@ class DualPortRegfileTestCase(FHDLTestCase):
             self.do_test_dual_port_regfile_proof(False)
 
 
+class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
+    """
+    Builds, from three 1RW blocks, a pseudo 1W/2R SRAM, with:
+
+    * one full read port, which works every cycle,
+    * one write port, which is only available on either even or odd cycles,
+    * an extra transparent read port, available only on the same cycles as the
+      write port
+
+    This type of SRAM is useful for a XOR-based 6x1RW implementation of
+    a 1R/1W register file.
+
+    :param addr_width: width of the address bus
+    :param data_width: width of the data bus
+    :param we_width: number of write enable lines
+    :param write_phase: indicates on which phase the write port will
+                        accept data
+    """
+
+    def __init__(self, addr_width, data_width, we_width, write_phase):
+        self.addr_width = addr_width
+        self.data_width = data_width
+        self.we_width = we_width
+        self.write_phase = write_phase
+        # interface signals
+        self.wr_addr_i = Signal(addr_width); """phased write port address"""
+        self.wr_data_i = Signal(data_width); """phased write port data"""
+        self.wr_we_i = Signal(we_width); """phased write port enable"""
+        self.rd_addr_i = Signal(addr_width); """full read port address"""
+        self.rd_data_o = Signal(data_width); """full read port data"""
+        self.rdp_addr_i = Signal(addr_width); """phased read port address"""
+        self.rdp_data_o = Signal(data_width); """phased read port data"""
+        self.phase = Signal(); """even/odd cycle indicator"""
+
+    def elaborate(self, platform):
+        m = Module()
+        # instantiate the 1RW memory blocks
+        mem1 = SinglePortSRAM(self.addr_width, self.data_width, self.we_width)
+        mem2 = SinglePortSRAM(self.addr_width, self.data_width, self.we_width)
+        mem3 = SinglePortSRAM(self.addr_width, self.data_width, self.we_width)
+        m.submodules.mem1 = mem1
+        m.submodules.mem2 = mem2
+        m.submodules.mem3 = mem3
+        # wire input write data to first memory, and its output to the others
+        m.d.comb += [
+            mem1.d.eq(self.wr_data_i),
+            mem2.d.eq(mem1.q),
+            mem3.d.eq(mem1.q)
+        ]
+        # holding registers for the write port of the other memories
+        last_wr_addr = Signal(self.addr_width)
+        last_wr_we = Signal(self.we_width)
+        # do the phased read and write addresses coincide?
+        same_phased_read_write = Signal()
+        with m.If(self.phase == self.write_phase):
+            # write phase, start a write on the first memory
+            m.d.comb += mem1.a.eq(self.wr_addr_i)
+            m.d.comb += mem1.we.eq(self.wr_we_i)
+            # save write address and write select for repeating the write
+            # on the other memories, one cycle later
+            m.d.sync += last_wr_we.eq(self.wr_we_i)
+            m.d.sync += last_wr_addr.eq(self.wr_addr_i)
+            # start a read on the other memories
+            m.d.comb += mem2.a.eq(self.rd_addr_i)
+            m.d.comb += mem3.a.eq(self.rdp_addr_i)
+            # output previously read data from the first memory
+            m.d.comb += self.rd_data_o.eq(mem1.q)
+            # remember whether we are reading from the same location as we
+            # are writing, on the phased read port
+            m.d.sync += same_phased_read_write.eq(
+                self.rdp_addr_i == self.wr_addr_i)
+        with m.Else():
+            # read phase, write last written data on the other memories
+            m.d.comb += [
+                mem2.a.eq(last_wr_addr),
+                mem2.we.eq(last_wr_we),
+                mem3.a.eq(last_wr_addr),
+                mem3.we.eq(last_wr_we),
+            ]
+            # start a read on the first memory
+            m.d.comb += mem1.a.eq(self.rd_addr_i)
+            # output the read data from the second memory
+            m.d.comb += self.rd_data_o.eq(mem2.q)
+            with m.If(same_phased_read_write):
+                # if read and write addresses coincide,
+                # output the data just written
+                m.d.comb += self.rdp_data_o.eq(mem1.q)
+            with m.Else():
+                # otherwise, output previously read data
+                # from the third memory
+                m.d.comb += self.rdp_data_o.eq(mem3.q)
+
+        return m
+
+
+class PhasedReadPhasedWriteFullReadSRAMTestCase(FHDLTestCase):
+
+    def do_test_case(self, write_phase):
+        """
+        Simulate some read/write/modify operations
+        """
+        dut = PhasedReadPhasedWriteFullReadSRAM(7, 32, 4, write_phase)
+        sim = Simulator(dut)
+        sim.add_clock(1e-6)
+
+        expected = None
+        last_expected = None
+
+        # compare read data with previously written data
+        # and start a new read
+        def read(rd_addr_i, next_expected=None):
+            nonlocal expected, last_expected
+            if expected is not None:
+                self.assertEqual((yield dut.rd_data_o), expected)
+            yield dut.rd_addr_i.eq(rd_addr_i)
+            # account for the read latency
+            expected = last_expected
+            last_expected = next_expected
+
+        expected2 = None
+
+        # same as above, but for the phased read port
+        def phased_read(rdp_addr_i, next_expected2=None):
+            nonlocal expected2
+            if expected2 is not None:
+                self.assertEqual((yield dut.rdp_data_o), expected2)
+            yield dut.rdp_addr_i.eq(rdp_addr_i)
+            # account for the read latency
+            expected2 = next_expected2
+
+        # start a write
+        def write(wr_addr_i, wr_we_i, wr_data_i):
+            yield dut.wr_addr_i.eq(wr_addr_i)
+            yield dut.wr_we_i.eq(wr_we_i)
+            yield dut.wr_data_i.eq(wr_data_i)
+            yield dut.phase.eq(write_phase)
+
+        # disable writes, and start read phase
+        def skip_write():
+            yield dut.wr_addr_i.eq(0)
+            yield dut.wr_we_i.eq(0)
+            yield dut.wr_data_i.eq(0)
+            yield dut.phase.eq(~write_phase)
+            # also skip reading from the phased read port
+            yield dut.rdp_addr_i.eq(0)
+
+        # writes a few values on the write port, and read them back
+        def process():
+            yield from read(0)
+            yield from phased_read(0)
+            yield from write(0x42, 0b1111, 0x12345678)
+            yield
+            yield from read(0x42, 0x12345678)
+            yield from skip_write()
+            yield
+            yield from read(0x42, 0x12345678)
+            yield from phased_read(0x42, 0x12345678)
+            yield from write(0x43, 0b1111, 0x9ABCDEF0)
+            yield
+            yield from read(0x43, 0x9ABCDEF0)
+            yield from skip_write()
+            yield
+            yield from read(0x42, 0x12345678)
+            yield from phased_read(0x42, 0x12345678)
+            yield from write(0x43, 0b1001, 0xF0FFFF9A)
+            yield
+            yield from read(0x43, 0xF0BCDE9A)
+            yield from skip_write()
+            yield
+            yield from read(0x43, 0xF0BCDE9A)
+            yield from phased_read(0x43, 0xF0BCDE9A)
+            yield from write(0x42, 0b0110, 0xFF5634FF)
+            yield
+            yield from read(0x42, 0x12563478)
+            yield from skip_write()
+            yield
+            yield from read(0)
+            yield from phased_read(0)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0)
+            yield from skip_write()
+            yield
+            # try reading and writing at the same time
+            yield from read(0x42, 0x12563478)
+            # transparent port, should return the value just written
+            yield from phased_read(0x42, 0x55AA9966)
+            yield from write(0x42, 0b1111, 0x55AA9966)
+            yield
+            # after a cycle, returns the new value
+            yield from read(0x42, 0x55AA9966)
+            yield from skip_write()
+            yield
+            yield from read(0)
+            yield from phased_read(0)
+            yield from write(0, 0, 0)
+            yield
+            yield from read(0)
+            yield from skip_write()
+
+        sim.add_sync_process(process)
+        debug_file = 'test_phased_read_write_sram_' + str(write_phase)
+        traces = ['clk', 'phase',
+                  {'comment': 'phased write port'},
+                  'wr_addr_i[6:0]', 'wr_we_i[3:0]', 'wr_data_i[31:0]',
+                  {'comment': 'full read port'},
+                  'rd_addr_i[6:0]', 'rd_data_o[31:0]',
+                  {'comment': 'phased read port'},
+                  'rdp_addr_i[6:0]', 'rdp_data_o[31:0]']
+        write_gtkw(debug_file + '.gtkw',
+                   debug_file + '.vcd',
+                   traces, module='top', zoom=-22)
+        sim_writer = sim.write_vcd(debug_file + '.vcd')
+        with sim_writer:
+            sim.run()
+
+    def test_case(self):
+        """test both types (odd and even write ports) of phased memory"""
+        with self.subTest("writes happen on phase 0"):
+            self.do_test_case(0)
+        with self.subTest("writes happen on phase 1"):
+            self.do_test_case(1)
+
+
 if __name__ == "__main__":
     unittest.main()
