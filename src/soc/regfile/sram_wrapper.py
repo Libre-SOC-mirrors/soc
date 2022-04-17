@@ -896,6 +896,8 @@ class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
     :param transparent: whether a simultaneous read and write returns the
                         new value (True) or the old value (False) on the full
                         read port
+
+    .. note:: The debug read port is meant only to assist in formal proofs!
     """
 
     def __init__(self, addr_width, data_width, we_width, write_phase,
@@ -914,6 +916,13 @@ class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
         self.rdp_addr_i = Signal(addr_width); """phased read port address"""
         self.rdp_data_o = Signal(data_width); """phased read port data"""
         self.phase = Signal(); """even/odd cycle indicator"""
+        # debug signals, only used in formal proofs
+        self.dbg_addr = Signal(addr_width); """debug: address under test"""
+        lanes = range(we_width)
+        self.dbg_lane = Signal(lanes); """debug: write lane under test"""
+        gran = self.data_width // self.we_width
+        self.dbg_data = Signal(gran); """debug: data to keep in sync"""
+        self.dbg_wrote = Signal(); """debug: data is valid"""
 
     def elaborate(self, platform):
         m = Module()
@@ -987,6 +996,27 @@ class PhasedReadPhasedWriteFullReadSRAM(Elaboratable):
                 # otherwise, output previously read data
                 # from the third memory
                 m.d.comb += self.rdp_data_o.eq(mem3.q)
+
+        if platform == "formal":
+            # pass our state to the device under test, so it can ensure that
+            # its state is in sync with ours, for induction
+            m.d.comb += [
+                # pass the address and write lane under test to both memories
+                mem1.dbg_addr.eq(self.dbg_addr),
+                mem2.dbg_addr.eq(self.dbg_addr),
+                mem3.dbg_addr.eq(self.dbg_addr),
+                mem1.dbg_lane.eq(self.dbg_lane),
+                mem2.dbg_lane.eq(self.dbg_lane),
+                mem3.dbg_lane.eq(self.dbg_lane),
+                # the other memories copy their state from the first memory,
+                # after a cycle, so they have a one cycle delay
+                mem1.dbg_data.eq(self.dbg_data),
+                mem2.dbg_data.eq(Past(self.dbg_data)),
+                mem3.dbg_data.eq(Past(self.dbg_data)),
+                mem1.dbg_wrote.eq(self.dbg_wrote),
+                mem2.dbg_wrote.eq(Past(self.dbg_wrote)),
+                mem3.dbg_wrote.eq(Past(self.dbg_wrote)),
+            ]
 
         return m
 
@@ -1130,6 +1160,88 @@ class PhasedReadPhasedWriteFullReadSRAMTestCase(FHDLTestCase):
             self.do_test_case(0, False)
         with self.subTest("writes happen on phase 1 (non-transparent reads)"):
             self.do_test_case(1, False)
+
+    def do_test_formal(self, write_phase, transparent):
+        """
+        Formal proof of the pseudo 1W/2R regfile
+        """
+        m = Module()
+        # 128 x 32-bit, 8-bit granularity
+        dut = PhasedReadPhasedWriteFullReadSRAM(7, 32, 4, write_phase,
+                                                transparent)
+        m.submodules.dut = dut
+        gran = dut.data_width // dut.we_width  # granularity
+        # choose a single random memory location to test
+        a_const = AnyConst(dut.addr_width)
+        # choose a single byte lane to test
+        lane = AnyConst(range(dut.we_width))
+        # drive alternating phases
+        m.d.comb += Assume(dut.phase != Past(dut.phase))
+        # holding data register
+        d_reg = Signal(gran)
+        # for some reason, simulated formal memory is not zeroed at reset
+        # ... so, remember whether we wrote it, at least once.
+        wrote = Signal()
+        # if our memory location and byte lane is being written,
+        # capture the data in our holding register
+        with m.If((dut.wr_addr_i == a_const)
+                  & dut.wr_we_i.bit_select(lane, 1)
+                  & (dut.phase == dut.write_phase)):
+            m.d.sync += d_reg.eq(dut.wr_data_i.word_select(lane, gran))
+            m.d.sync += wrote.eq(1)
+        # if our memory location is being read,
+        # and the holding register has valid data,
+        # then its value must match the memory output, on the given lane
+        with m.If(Past(dut.rd_addr_i) == a_const):
+            if transparent:
+                with m.If(wrote):
+                    rd_lane = dut.rd_data_o.word_select(lane, gran)
+                    m.d.sync += Assert(d_reg == rd_lane)
+            else:
+                # with a non-transparent read port, the read value depends
+                # on whether there is a simultaneous write, or not
+                with m.If((Past(dut.wr_addr_i) == a_const)
+                          & Past(dut.phase) == dut.write_phase):
+                    # simultaneous write -> check against last written value
+                    with m.If(Past(wrote)):
+                        rd_lane = dut.rd_data_o.word_select(lane, gran)
+                        m.d.sync += Assert(Past(d_reg) == rd_lane)
+                with m.Else():
+                    # otherwise, check against current written value
+                    with m.If(wrote):
+                        rd_lane = dut.rd_data_o.word_select(lane, gran)
+                        m.d.sync += Assert(d_reg == rd_lane)
+        # same for the phased read port, except it's always transparent
+        # and the port works only on the write phase
+        with m.If((Past(dut.rdp_addr_i) == a_const) & wrote
+                  & (Past(dut.phase) == dut.write_phase)):
+            rdp_lane = dut.rdp_data_o.word_select(lane, gran)
+            m.d.sync += Assert(d_reg == rdp_lane)
+
+        # pass our state to the device under test, so it can ensure that
+        # its state is in sync with ours, for induction
+        m.d.comb += [
+            # address and mask under test
+            dut.dbg_addr.eq(a_const),
+            dut.dbg_lane.eq(lane),
+            # state of our holding register
+            dut.dbg_data.eq(d_reg),
+            dut.dbg_wrote.eq(wrote),
+        ]
+
+        self.assertFormal(m, mode="prove", depth=3)
+
+    def test_formal(self):
+        """test both types (odd and even write ports) of phased write memory"""
+        with self.subTest("writes happen on phase 0"):
+            self.do_test_formal(0, False)
+        with self.subTest("writes happen on phase 1"):
+            self.do_test_formal(1, False)
+        # test again, with transparent read ports
+        with self.subTest("writes happen on phase 0 (transparent reads)"):
+            self.do_test_formal(0, True)
+        with self.subTest("writes happen on phase 1 (transparent reads)"):
+            self.do_test_formal(1, True)
 
 
 if __name__ == "__main__":
