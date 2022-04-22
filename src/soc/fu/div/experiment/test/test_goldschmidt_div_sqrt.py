@@ -6,7 +6,8 @@
 
 import unittest
 from nmutil.formaltest import FHDLTestCase
-from soc.fu.div.experiment.goldschmidt_div_sqrt import goldschmidt_div, FixedPoint
+from soc.fu.div.experiment.goldschmidt_div_sqrt import (goldschmidt_div,
+                                                        FixedPoint)
 
 
 class TestFixedPoint(FHDLTestCase):
