@@ -18,6 +18,7 @@ install_requires = [
     'libresoc-ieee754fpu',   # uploaded (successfully, whew) to pip
     'libresoc-openpower-isa',  # uploaded (successfully, whew) to pip
     # 'nmigen-soc', # install manually from git.libre-soc.org
+    "cached-property",
 ]
 
 test_requires = [
