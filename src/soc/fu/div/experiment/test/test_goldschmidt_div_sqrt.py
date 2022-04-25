@@ -25,18 +25,21 @@ class TestGoldschmidtDiv(FHDLTestCase):
     def tst(self, io_width):
         assert isinstance(io_width, int)
         params = GoldschmidtDivParams.get(io_width)
-        print(params)
-        for d in range(1, 1 << io_width):
-            for n in range(d << io_width):
-                expected = n // d
-                with self.subTest(io_width=io_width, n=hex(n), d=hex(d),
-                                  expected=hex(expected)):
-                    result = goldschmidt_div(n, d, params)
-                    self.assertEqual(result, expected, f"result={hex(result)}")
+        with self.subTest(params=str(params)):
+            for d in range(1, 1 << io_width):
+                for n in range(d << io_width):
+                    expected_q, expected_r = divmod(n, d)
+                    with self.subTest(n=hex(n), d=hex(d),
+                                      expected_q=hex(expected_q),
+                                      expected_r=hex(expected_r)):
+                        q, r = goldschmidt_div(n, d, params)
+                        with self.subTest(q=hex(q), r=hex(r)):
+                            self.assertEqual((q, r), (expected_q, expected_r))
 
     def test_1_through_5(self):
-        for width in range(1, 5 + 1):
-            self.tst(width)
+        for io_width in range(1, 5 + 1):
+            with self.subTest(io_width=io_width):
+                self.tst(io_width)
 
     def test_6(self):
         self.tst(6)
