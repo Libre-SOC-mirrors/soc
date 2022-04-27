@@ -284,9 +284,9 @@ def _assert_accuracy(condition, msg="not accurate enough"):
 
 
 @dataclass(frozen=True, unsafe_hash=True)
-class GoldschmidtDivParams:
-    """parameters for a Goldschmidt division algorithm.
-    Use `GoldschmidtDivParams.get` to find a efficient set of parameters.
+class GoldschmidtDivParamsBase:
+    """parameters for a Goldschmidt division algorithm, excluding derived
+    parameters.
     """
 
     io_width: int
@@ -305,6 +305,13 @@ class GoldschmidtDivParams:
 
     iter_count: int
     """the total number of iterations of the division algorithm's loop"""
+
+
+@dataclass(frozen=True, unsafe_hash=True)
+class GoldschmidtDivParams(GoldschmidtDivParamsBase):
+    """parameters for a Goldschmidt division algorithm.
+    Use `GoldschmidtDivParams.get` to find a efficient set of parameters.
+    """
 
     # tuple to be immutable, default so repr() works for debugging even when
     # __post_init__ hasn't finished running yet
