@@ -18,7 +18,13 @@ install_requires = [
     'libresoc-ieee754fpu',   # uploaded (successfully, whew) to pip
     'libresoc-openpower-isa',  # uploaded (successfully, whew) to pip
     # 'nmigen-soc', # install manually from git.libre-soc.org
-    "cached-property",
+    # git url needed for having `pip3 install -e .` install from libre-soc's git repo
+    "cached-property@git+https://git.libre-soc.org/git/cached-property.git@1.5.2#egg=cached-property-1.5.2",
+]
+
+# git url needed for having `setup.py develop` install from libre-soc's git repo
+dependency_links = [
+    "git+https://git.libre-soc.org/git/cached-property.git@1.5.2#egg=cached-property-1.5.2",
 ]
 
 test_requires = [
@@ -49,6 +55,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=install_requires,
+    dependency_links=dependency_links,
     tests_require=test_requires,
     test_suite='nose.collector',
 )
