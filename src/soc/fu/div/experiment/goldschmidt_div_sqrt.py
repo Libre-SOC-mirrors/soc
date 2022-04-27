@@ -406,37 +406,6 @@ class GoldschmidtDivParams:
         object.__setattr__(self, "table", tuple(table))
         object.__setattr__(self, "ops", tuple(self.__make_ops()))
 
-    @staticmethod
-    def get(io_width):
-        """ find efficient parameters for a goldschmidt division algorithm
-        with `params.io_width == io_width`.
-        """
-        assert isinstance(io_width, int) and io_width >= 1
-        last_params = None
-        last_error = None
-        for extra_precision in range(io_width * 2 + 4):
-            for table_addr_bits in range(1, 7 + 1):
-                table_data_bits = io_width + extra_precision
-                for iter_count in range(1, 2 * io_width.bit_length()):
-                    try:
-                        return GoldschmidtDivParams(
-                            io_width=io_width,
-                            extra_precision=extra_precision,
-                            table_addr_bits=table_addr_bits,
-                            table_data_bits=table_data_bits,
-                            iter_count=iter_count)
-                    except ParamsNotAccurateEnough as e:
-                        last_params = (f"GoldschmidtDivParams("
-                                       f"io_width={io_width!r}, "
-                                       f"extra_precision={extra_precision!r}, "
-                                       f"table_addr_bits={table_addr_bits!r}, "
-                                       f"table_data_bits={table_data_bits!r}, "
-                                       f"iter_count={iter_count!r})")
-                        last_error = e
-        raise ValueError(f"can't find working parameters for a goldschmidt "
-                         f"division algorithm: last params: {last_params}"
-                         ) from last_error
-
     @property
     def expanded_width(self):
         """the total number of bits of precision used inside the algorithm."""
@@ -729,6 +698,37 @@ class GoldschmidtDivParams:
                          f" max_allowed_rel_error={max_allowed_rel_error}")
 
         yield GoldschmidtDivOp.CalcResult
+
+    @staticmethod
+    def get(io_width):
+        """ find efficient parameters for a goldschmidt division algorithm
+        with `params.io_width == io_width`.
+        """
+        assert isinstance(io_width, int) and io_width >= 1
+        last_params = None
+        last_error = None
+        for extra_precision in range(io_width * 2 + 4):
+            for table_addr_bits in range(1, 7 + 1):
+                table_data_bits = io_width + extra_precision
+                for iter_count in range(1, 2 * io_width.bit_length()):
+                    try:
+                        return GoldschmidtDivParams(
+                            io_width=io_width,
+                            extra_precision=extra_precision,
+                            table_addr_bits=table_addr_bits,
+                            table_data_bits=table_data_bits,
+                            iter_count=iter_count)
+                    except ParamsNotAccurateEnough as e:
+                        last_params = (f"GoldschmidtDivParams("
+                                       f"io_width={io_width!r}, "
+                                       f"extra_precision={extra_precision!r}, "
+                                       f"table_addr_bits={table_addr_bits!r}, "
+                                       f"table_data_bits={table_data_bits!r}, "
+                                       f"iter_count={iter_count!r})")
+                        last_error = e
+        raise ValueError(f"can't find working parameters for a goldschmidt "
+                         f"division algorithm: last params: {last_params}"
+                         ) from last_error
 
 
 @enum.unique
