@@ -404,7 +404,7 @@ class GoldschmidtDivParams:
                                                   RoundDir.DOWN))
         # we have to use object.__setattr__ since frozen=True
         object.__setattr__(self, "table", tuple(table))
-        object.__setattr__(self, "ops", tuple(_goldschmidt_div_ops(self)))
+        object.__setattr__(self, "ops", tuple(self.__make_ops()))
 
     @staticmethod
     def get(io_width):
@@ -662,6 +662,74 @@ class GoldschmidtDivParams:
             max_n_shift += 1
         return max_n_shift
 
+    def __make_ops(self):
+        """ Goldschmidt division algorithm.
+
+            based on:
+            Even, G., Seidel, P. M., & Ferguson, W. E. (2003).
+            A Parametric Error Analysis of Goldschmidt's Division Algorithm.
+            https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.90.1238&rep=rep1&type=pdf
+
+            yields: GoldschmidtDivOp
+                the operations needed to perform the division.
+        """
+        # establish assumptions of the paper's error analysis (section 3.1):
+
+        # 1. normalize so A (numerator) and B (denominator) are in [1, 2)
+        yield GoldschmidtDivOp.Normalize
+
+        # 2. ensure all relative errors from directed rounding are <= 1 / 4.
+        # the assumption is met by multipliers with > 4-bits precision
+        _assert_accuracy(self.expanded_width > 4)
+
+        # 3. require `abs(e[0]) + 3 * d[0] / 2 + f[0] < 1 / 2`.
+        _assert_accuracy(self.max_abs_e0 + 3 * self.max_d(0) / 2
+                         + self.max_f(0) < Fraction(1, 2))
+
+        # 4. the initial approximation F'[-1] of 1/B is in [1/2, 1].
+        # (B is the denominator)
+
+        for addr in range(self.table_addr_count):
+            f_prime_m1 = self.table[addr]
+            _assert_accuracy(0.5 <= f_prime_m1 <= 1)
+
+        yield GoldschmidtDivOp.FEqTableLookup
+
+        # we use Setting I (section 4.1 of the paper):
+        # Require `n[i] <= n_hat` and `d[i] <= n_hat` and `f[i] = 0`
+        n_hat = Fraction(0)
+        for i in range(self.iter_count):
+            _assert_accuracy(self.max_f(i) == 0)
+            n_hat = max(n_hat, self.max_n(i), self.max_d(i))
+            yield GoldschmidtDivOp.MulNByF
+            if i != self.iter_count - 1:
+                yield GoldschmidtDivOp.MulDByF
+                yield GoldschmidtDivOp.FEq2MinusD
+
+        # relative approximation error `p(N_prime[i])`:
+        # `p(N_prime[i]) = (A / B - N_prime[i]) / (A / B)`
+        # `0 <= p(N_prime[i])`
+        # `p(N_prime[i]) <= (2 * i) * n_hat \`
+        # ` + (abs(e[0]) + 3 * n_hat / 2) ** (2 ** i)`
+        i = self.iter_count - 1  # last used `i`
+        # compute power manually to prevent huge intermediate values
+        power = self._shrink_max(self.max_abs_e0 + 3 * n_hat / 2)
+        for _ in range(i):
+            power = self._shrink_max(power * power)
+
+        max_rel_error = (2 * i) * n_hat + power
+
+        min_a_over_b = Fraction(1, 2)
+        max_a_over_b = Fraction(2)
+        max_allowed_abs_error = max_a_over_b / (1 << self.max_n_shift)
+        max_allowed_rel_error = max_allowed_abs_error / min_a_over_b
+
+        _assert_accuracy(max_rel_error < max_allowed_rel_error,
+                         f"not accurate enough: max_rel_error={max_rel_error}"
+                         f" max_allowed_rel_error={max_allowed_rel_error}")
+
+        yield GoldschmidtDivOp.CalcResult
+
 
 @enum.unique
 class GoldschmidtDivOp(enum.Enum):
@@ -717,81 +785,6 @@ class GoldschmidtDivOp(enum.Enum):
                 state.remainder -= state.orig_d
         else:
             assert False, f"unimplemented GoldschmidtDivOp: {self}"
-
-
-def _goldschmidt_div_ops(params):
-    """ Goldschmidt division algorithm.
-
-        based on:
-        Even, G., Seidel, P. M., & Ferguson, W. E. (2003).
-        A Parametric Error Analysis of Goldschmidt's Division Algorithm.
-        https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.90.1238&rep=rep1&type=pdf
-
-        arguments:
-        params: GoldschmidtDivParams
-            the parameters for the algorithm
-
-        yields: GoldschmidtDivOp
-            the operations needed to perform the division.
-    """
-    assert isinstance(params, GoldschmidtDivParams)
-
-    # establish assumptions of the paper's error analysis (section 3.1):
-
-    # 1. normalize so A (numerator) and B (denominator) are in [1, 2)
-    yield GoldschmidtDivOp.Normalize
-
-    # 2. ensure all relative errors from directed rounding are <= 1 / 4.
-    # the assumption is met by multipliers with > 4-bits precision
-    _assert_accuracy(params.expanded_width > 4)
-
-    # 3. require `abs(e[0]) + 3 * d[0] / 2 + f[0] < 1 / 2`.
-    _assert_accuracy(params.max_abs_e0 + 3 * params.max_d(0) / 2
-                     + params.max_f(0) < Fraction(1, 2))
-
-    # 4. the initial approximation F'[-1] of 1/B is in [1/2, 1].
-    # (B is the denominator)
-
-    for addr in range(params.table_addr_count):
-        f_prime_m1 = params.table[addr]
-        _assert_accuracy(0.5 <= f_prime_m1 <= 1)
-
-    yield GoldschmidtDivOp.FEqTableLookup
-
-    # we use Setting I (section 4.1 of the paper):
-    # Require `n[i] <= n_hat` and `d[i] <= n_hat` and `f[i] = 0`
-    n_hat = Fraction(0)
-    for i in range(params.iter_count):
-        _assert_accuracy(params.max_f(i) == 0)
-        n_hat = max(n_hat, params.max_n(i), params.max_d(i))
-        yield GoldschmidtDivOp.MulNByF
-        if i != params.iter_count - 1:
-            yield GoldschmidtDivOp.MulDByF
-            yield GoldschmidtDivOp.FEq2MinusD
-
-    # relative approximation error `p(N_prime[i])`:
-    # `p(N_prime[i]) = (A / B - N_prime[i]) / (A / B)`
-    # `0 <= p(N_prime[i])`
-    # `p(N_prime[i]) <= (2 * i) * n_hat \`
-    # ` + (abs(e[0]) + 3 * n_hat / 2) ** (2 ** i)`
-    i = params.iter_count - 1  # last used `i`
-    # compute power manually to prevent huge intermediate values
-    power = params._shrink_max(params.max_abs_e0 + 3 * n_hat / 2)
-    for _ in range(i):
-        power = params._shrink_max(power * power)
-
-    max_rel_error = (2 * i) * n_hat + power
-
-    min_a_over_b = Fraction(1, 2)
-    max_a_over_b = Fraction(2)
-    max_allowed_abs_error = max_a_over_b / (1 << params.max_n_shift)
-    max_allowed_rel_error = max_allowed_abs_error / min_a_over_b
-
-    _assert_accuracy(max_rel_error < max_allowed_rel_error,
-                     f"not accurate enough: max_rel_error={max_rel_error} "
-                     f"max_allowed_rel_error={max_allowed_rel_error}")
-
-    yield GoldschmidtDivOp.CalcResult
 
 
 def goldschmidt_div(n, d, params):
