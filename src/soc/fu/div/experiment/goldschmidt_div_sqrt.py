@@ -699,6 +699,26 @@ class GoldschmidtDivParams:
 
         yield GoldschmidtDivOp.CalcResult
 
+    def default_cost_fn(self):
+        """ calculate the estimated cost on an arbitrary scale of implementing
+        goldschmidt division with the specified parameters. larger cost
+        values mean worse parameters.
+
+        This is the default cost function for `GoldschmidtDivParams.get`.
+
+        returns: float
+        """
+        rom_cells = self.table_data_bits << self.table_addr_bits
+        cost = float(rom_cells)
+        for op in self.ops:
+            if op == GoldschmidtDivOp.MulNByF \
+                    or op == GoldschmidtDivOp.MulDByF:
+                mul_cost = self.expanded_width ** 2
+                mul_cost *= self.expanded_width.bit_length()
+                cost += mul_cost
+        cost += 1e6 * self.iter_count
+        return cost
+
     @staticmethod
     def get(io_width):
         """ find efficient parameters for a goldschmidt division algorithm
