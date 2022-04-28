@@ -941,6 +941,7 @@ class GoldschmidtDivParams(GoldschmidtDivParamsBase):
 
 
 def clz(v, wid):
+    """count leading zeros -- handy for debugging."""
     assert isinstance(wid, int)
     assert isinstance(v, int) and 0 <= v < (1 << wid)
     return (1 << wid).bit_length() - v.bit_length()
