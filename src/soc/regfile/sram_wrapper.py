@@ -421,7 +421,7 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
             yield
             # try reading and writing to the same location, simultaneously
             yield from read(0x42)
-            yield from write(0x42, 0b1111, 0x55AA9966)
+            yield from write(0x42, 0b0101, 0x55AA9966)
             yield
             # ... and read again
             yield from read(0x42)
@@ -429,14 +429,14 @@ class PhasedDualPortRegfileTestCase(FHDLTestCase):
             yield
             if transparent:
                 # returns the value just written
-                yield from read(0, 0x55AA9966)
+                yield from read(0, 0x12AA3466)
             else:
                 # returns the old value
                 yield from read(0, 0x12563478)
             yield from write(0, 0, 0)
             yield
             # after a cycle, always returns the new value
-            yield from read(0, 0x55AA9966)
+            yield from read(0, 0x12AA3466)
             yield from skip_write()
 
         sim.add_sync_process(process)
@@ -755,14 +755,14 @@ class DualPortRegfileTestCase(FHDLTestCase):
             yield
             if transparent:
                 # returns the value just written
-                yield from read(0x42, 0x55AA9966)
+                yield from read(0x42, 0x78AA5666)
             else:
                 # returns the old value
                 yield from read(0x42, 0x78345612)
-            yield from write(0x42, 0b1111, 0x55AA9966)
+            yield from write(0x42, 0b0101, 0x55AA9966)
             yield
             # after a cycle, always returns the new value
-            yield from read(0x42, 0x55AA9966)
+            yield from read(0x42, 0x78AA5666)
             yield from write(0, 0, 0)
             yield
             yield from read(0)
@@ -1113,16 +1113,16 @@ class PhasedReadPhasedWriteFullReadSRAMTestCase(FHDLTestCase):
             # try reading and writing at the same time
             if transparent:
                 # transparent port, return the value just written
-                yield from read(0x42, 0x55AA9966)
+                yield from read(0x42, 0x12AA3466)
             else:
                 # ... otherwise, return the old value
                 yield from read(0x42, 0x12563478)
             # transparent port, always return the value just written
-            yield from phased_read(0x42, 0x55AA9966)
-            yield from write(0x42, 0b1111, 0x55AA9966)
+            yield from phased_read(0x42, 0x12AA3466)
+            yield from write(0x42, 0b0101, 0x55AA9966)
             yield
             # after a cycle, always returns the new value
-            yield from read(0x42, 0x55AA9966)
+            yield from read(0x42, 0x12AA3466)
             yield from skip_write()
             yield
             yield from read(0)
@@ -1402,10 +1402,10 @@ class DualPortXorRegfileTestCase(FHDLTestCase):
             # test simultaneous read and write
             # non-transparent read: returns the old value
             yield from read(0x42, 0x78345612)
-            yield from write(0x42, 0b1111, 0x55AA9966)
+            yield from write(0x42, 0b0101, 0x55AA9966)
             yield
             # after a cycle, returns the new value
-            yield from read(0x42, 0x55AA9966)
+            yield from read(0x42, 0x78AA5666)
             yield from write(0, 0, 0)
             yield
             # settle down
