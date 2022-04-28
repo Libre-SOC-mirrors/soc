@@ -7,9 +7,13 @@
 import math
 import unittest
 from nmutil.formaltest import FHDLTestCase
+from nmutil.sim_util import do_sim
+from nmigen.sim import Tick, Delay
+from nmigen.hdl.ast import Signal
+from nmigen.hdl.dsl import Module
 from soc.fu.div.experiment.goldschmidt_div_sqrt import (
-    GoldschmidtDivParams, ParamsNotAccurateEnough, goldschmidt_div,
-    FixedPoint, RoundDir, goldschmidt_sqrt_rsqrt)
+    GoldschmidtDivHDL, GoldschmidtDivParams, ParamsNotAccurateEnough,
+    goldschmidt_div, FixedPoint, RoundDir, goldschmidt_sqrt_rsqrt)
 
 
 class TestFixedPoint(FHDLTestCase):
@@ -84,6 +88,57 @@ class TestGoldschmidtDiv(FHDLTestCase):
                         with self.subTest(q=hex(q), r=hex(r)):
                             self.assertEqual((q, r), (expected_q, expected_r))
 
+    @unittest.skip("hdl/simulation currently broken")
+    def tst_sim(self, io_width, cases=None, pipe_reg_indexes=(),
+                sync_rom=False):
+        # FIXME: finish getting hdl/simulation to work
+        assert isinstance(io_width, int)
+        params = GoldschmidtDivParams.get(io_width)
+        m = Module()
+        dut = GoldschmidtDivHDL(params, pipe_reg_indexes=pipe_reg_indexes,
+                                sync_rom=sync_rom)
+        m.submodules.dut = dut
+        # make sync domain get added
+        m.d.sync += Signal().eq(0)
+
+        def iter_cases():
+            if cases is not None:
+                yield from cases
+                return
+            for d in range(1, 1 << io_width):
+                for n in range(d << io_width):
+                    yield (n, d)
+
+        def inputs_proc():
+            yield Tick()
+            for n, d in iter_cases():
+                yield dut.n.eq(n)
+                yield dut.d.eq(d)
+                yield Tick()
+
+        def check_outputs():
+            yield Tick()
+            for _ in range(dut.total_pipeline_registers):
+                yield Tick()
+            for n, d in iter_cases():
+                yield Delay(0.1e-6)
+                expected_q, expected_r = divmod(n, d)
+                with self.subTest(n=hex(n), d=hex(d),
+                                  expected_q=hex(expected_q),
+                                  expected_r=hex(expected_r)):
+                    q = yield dut.q
+                    r = yield dut.r
+                    with self.subTest(q=hex(q), r=hex(r)):
+                        self.assertEqual((q, r), (expected_q, expected_r))
+                yield Tick()
+
+        with self.subTest(params=str(params)):
+            with do_sim(self, m, (dut.n, dut.d, dut.q, dut.r)) as sim:
+                sim.add_clock(1e-6)
+                sim.add_process(inputs_proc)
+                sim.add_process(check_outputs)
+                sim.run()
+
     def test_1_through_4(self):
         for io_width in range(1, 4 + 1):
             with self.subTest(io_width=io_width):
@@ -94,6 +149,9 @@ class TestGoldschmidtDiv(FHDLTestCase):
 
     def test_6(self):
         self.tst(6)
+
+    def test_sim_5(self):
+        self.tst_sim(5)
 
     def tst_params(self, io_width):
         assert isinstance(io_width, int)
