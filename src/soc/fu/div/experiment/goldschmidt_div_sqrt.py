@@ -1087,6 +1087,11 @@ def goldschmidt_sqrt_rsqrt_table(table_addr_bits, table_data_bits):
     # tuple for immutability
     return tuple(table)
 
+# FIXME: add code to calculate error bounds and check that the algorithm will
+# actually work (like in the goldschmidt division algorithm).
+# FIXME: add code to calculate a good set of parameters based on the error
+# bounds checking.
+
 
 def goldschmidt_sqrt_rsqrt(radicand, io_width, frac_wid, extra_precision,
                            table_addr_bits, table_data_bits, iter_count):
