@@ -315,35 +315,6 @@ class FixedPoint:
         return retval
 
 
-@dataclass
-class GoldschmidtDivState:
-    orig_n: int
-    """original numerator"""
-
-    orig_d: int
-    """original denominator"""
-
-    n: FixedPoint
-    """numerator -- N_prime[i] in the paper's algorithm 2"""
-
-    d: FixedPoint
-    """denominator -- D_prime[i] in the paper's algorithm 2"""
-
-    f: "FixedPoint | None" = None
-    """current factor -- F_prime[i] in the paper's algorithm 2"""
-
-    quotient: "int | None" = None
-    """final quotient"""
-
-    remainder: "int | None" = None
-    """final remainder"""
-
-    n_shift: "int | None" = None
-    """amount the numerator needs to be left-shifted at the end of the
-    algorithm.
-    """
-
-
 class ParamsNotAccurateEnough(Exception):
     """raised when the parameters aren't accurate enough to have goldschmidt
     division work."""
@@ -1003,6 +974,35 @@ class GoldschmidtDivOp(enum.Enum):
                 state.remainder -= state.orig_d
         else:
             assert False, f"unimplemented GoldschmidtDivOp: {self}"
+
+
+@dataclass
+class GoldschmidtDivState:
+    orig_n: int
+    """original numerator"""
+
+    orig_d: int
+    """original denominator"""
+
+    n: FixedPoint
+    """numerator -- N_prime[i] in the paper's algorithm 2"""
+
+    d: FixedPoint
+    """denominator -- D_prime[i] in the paper's algorithm 2"""
+
+    f: "FixedPoint | None" = None
+    """current factor -- F_prime[i] in the paper's algorithm 2"""
+
+    quotient: "int | None" = None
+    """final quotient"""
+
+    remainder: "int | None" = None
+    """final remainder"""
+
+    n_shift: "int | None" = None
+    """amount the numerator needs to be left-shifted at the end of the
+    algorithm.
+    """
 
 
 def goldschmidt_div(n, d, params):
