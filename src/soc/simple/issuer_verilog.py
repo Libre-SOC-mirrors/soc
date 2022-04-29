@@ -77,6 +77,11 @@ if __name__ == '__main__':
                         action="store_true",
                         help="generate old microwatt-compatible interface",
                         default=False)
+    # small cache option
+    parser.add_argument("--small-cache", dest='smallcache',
+                        action="store_true",
+                        help="generate small caches",
+                        default=False)
 
     # allow overlaps in TestIssuer
     parser.add_argument("--allow-overlap", dest='allow_overlap',
@@ -150,6 +155,7 @@ if __name__ == '__main__':
                          microwatt_compat=args.mwcompat, # microwatt compatible
                          microwatt_old=args.old_mwcompat, # old microwatt api
                          microwatt_debug=args.mwdebug, # microwatt debug signals
+                         small_cache=args.smallcache, # small cache/TLB sizes
                          allow_overlap=args.allow_overlap, # allow overlap
                          units=units,
                          msr_reset=msr_reset,
@@ -172,6 +178,7 @@ if __name__ == '__main__':
     print("Microwatt compatibility", pspec.__dict__["microwatt_compat"])
     print("Old Microwatt compatibility", pspec.__dict__["microwatt_old"])
     print("Microwatt debug", pspec.__dict__["microwatt_debug"])
+    print("Small Cache/TLB", pspec.__dict__["small_cache"])
 
     if args.mwcompat:
         dut = TestIssuerInternal(pspec)

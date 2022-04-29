@@ -335,22 +335,33 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
         # use FetchUnitInterface, helps keep some unit tests running
         self.use_fetch_iface = False
 
-        # test if microwatt compatibility is to be enabled
+        # test if small cache to be enabled
+        self.small_cache = (hasattr(pspec, "small_cache") and
+                                 (pspec.small_cache == True))
+        # test if microwatt compatibility to be enabled
         self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
                                  (pspec.microwatt_compat == True))
 
         XLEN = pspec.XLEN
-
+        LINE_SIZE = 64
+        TLB_SIZE = 16
+        NUM_LINES = 16
+        NUM_WAYS = 2
+        if self.small_cache:
+            # reduce way sizes and num lines to ridiculously small
+            NUM_LINES = 2
+            NUM_WAYS = 1
+            TLB_SIZE = 2
         if self.microwatt_compat:
-            # reduce way sizes and num lines
-            ICacheConfig.__init__(self, LINE_SIZE=XLEN,
-                                        XLEN=XLEN,
-                                        NUM_LINES = 2,
-                                        NUM_WAYS = 1,
-                                        TLB_SIZE=2 # needs device-tree update
-                                 )
-        else:
-            ICacheConfig.__init__(self, LINE_SIZE=XLEN, XLEN=XLEN)
+            # reduce way sizes
+            NUM_WAYS = 1
+
+        ICacheConfig.__init__(self, LINE_SIZE=LINE_SIZE,
+                                    XLEN=XLEN,
+                                    NUM_LINES = NUM_LINES,
+                                    NUM_WAYS = NUM_WAYS,
+                                    TLB_SIZE=TLB_SIZE
+                             )
 
     def use_fetch_interface(self):
         self.use_fetch_iface = True

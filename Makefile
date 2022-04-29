@@ -65,11 +65,21 @@ microwatt_external_core:
 
 microwatt_external_core_spi:
 	python3 src/soc/simple/issuer_verilog.py --microwatt-compat \
+            --small-cache \
             --enable-mmu \
             --pc-reset 0x10000000 \
             external_core_top.v
 
+# microwatt-compatible core with smaller cache size (quick. VERSA_ECP5. just)
 microwatt_external_core_bram:
+	python3 src/soc/simple/issuer_verilog.py --microwatt-compat \
+            --small-cache \
+            --enable-mmu \
+            --pc-reset 0xFF000000 \
+            external_core_top.v
+
+# microwatt-compatible core with larger cache size (experiment on arty)
+microwatt_external_core_bram_arty:
 	python3 src/soc/simple/issuer_verilog.py --microwatt-compat \
             --enable-mmu \
             --pc-reset 0xFF000000 \

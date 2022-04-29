@@ -741,18 +741,36 @@ class DCache(Elaboratable, DCacheConfig):
 
         self.log_out   = Signal(20)
 
+        # test if small cache to be enabled
+        self.small_cache = (hasattr(pspec, "small_cache") and
+                                 (pspec.small_cache == True))
         # test if microwatt compatibility is to be enabled
         self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
                                  (pspec.microwatt_compat == True))
 
+        XLEN = pspec.XLEN
+        TLB_SET_SIZE = 16
+        TLB_NUM_WAYS = 2
+        NUM_LINES = 16
+        NUM_WAYS = 2
+
+        if self.small_cache:
+            # reduce way sizes and num lines to ridiculously small
+            TLB_SET_SIZE = 2
+            TLB_NUM_WAYS = 1
+            NUM_LINES = 2
+            NUM_WAYS = 1
         if self.microwatt_compat:
-            # reduce way sizes and num lines
-            super().__init__(NUM_LINES = 2,
-                              NUM_WAYS = 1,
-                              TLB_NUM_WAYS = 1,
-                              TLB_SET_SIZE=2) # XXX needs device-tree entry
-        else:
-            super().__init__()
+            # reduce way sizes
+            NUM_WAYS = 1
+            TLB_NUM_WAYS = 1
+
+        super().__init__(TLB_SET_SIZE=TLB_SET_SIZE,
+                         # XLEN=XLEN, # TODO
+                         TLB_NUM_WAYS = TLB_NUM_WAYS,
+                         NUM_LINES = NUM_LINES,
+                         NUM_WAYS = NUM_WAYS
+                        )
 
     def stage_0(self, m, r0, r1, r0_full):
         """Latch the request in r0.req as long as we're not stalling
@@ -1593,7 +1611,7 @@ class DCache(Elaboratable, DCacheConfig):
 
                 # If we are still sending requests, was one accepted?
                 with m.If((~bus.stall) & r1.wb.stb):
-                    # That was the last word?  We are done sending.  Clear stb 
+                    # That was the last word?  We are done sending.  Clear stb
                     # sigh - reconstruct wb adr with 3 extra 0s at front
                     wb_adr = Cat(Const(0, self.ROW_OFF_BITS), r1.wb.adr)
                     with m.If(self.is_last_row_addr(wb_adr, r1.end_row_ix)):
