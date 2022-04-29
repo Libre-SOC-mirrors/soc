@@ -1100,6 +1100,7 @@ class GoldschmidtDivOp(enum.Enum):
             d_times_f = Signal.like(state.d * state.f)
             m.d.comb += [
                 d_times_f.eq(state.d * state.f),
+                # round the multiplication up
                 d.eq((d_times_f >> params.expanded_width)
                      + (d_times_f[:params.expanded_width] != 0)),
             ]
