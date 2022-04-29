@@ -109,8 +109,13 @@ class TestGoldschmidtDiv(FHDLTestCase):
                 with self.subTest(n=hex(n), d=hex(d),
                                   expected_q=hex(expected_q),
                                   expected_r=hex(expected_r)):
-                    q, r = goldschmidt_div(n, d, params)
-                    with self.subTest(q=hex(q), r=hex(r)):
+                    trace = []
+
+                    def trace_fn(state):
+                        assert isinstance(state, GoldschmidtDivState)
+                        trace.append((replace(state)))
+                    q, r = goldschmidt_div(n, d, params, trace=trace_fn)
+                    with self.subTest(q=hex(q), r=hex(r), trace=repr(trace)):
                         self.assertEqual((q, r), (expected_q, expected_r))
 
     def tst_sim(self, io_width, cases=None, pipe_reg_indexes=(),
