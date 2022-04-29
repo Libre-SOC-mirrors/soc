@@ -1097,7 +1097,12 @@ class GoldschmidtDivOp(enum.Enum):
             assert state.f is not None
             assert state.f.width == params.n_d_f_total_wid, "invalid f width"
             d = Signal.like(state.d)
-            m.d.comb += d.eq((state.d * state.f) >> params.expanded_width)
+            d_times_f = Signal.like(state.d * state.f)
+            m.d.comb += [
+                d_times_f.eq(state.d * state.f),
+                d.eq((d_times_f >> params.expanded_width)
+                     + (d_times_f[:params.expanded_width] != 0)),
+            ]
             state.d = d
         elif self == GoldschmidtDivOp.FEq2MinusD:
             assert state.d.width == params.n_d_f_total_wid, "invalid d width"
