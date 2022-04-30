@@ -319,7 +319,7 @@ class TestIssuerBase(Elaboratable):
         # hack method of keeping an eye on whether branch/trap set the PC
         self.state_nia = self.core.regs.rf['state'].w_ports['nia']
         self.state_nia.wen.name = 'state_nia_wen'
-        # and whether SPR pipeline sets DEC or TB
+        # and whether SPR pipeline sets DEC or TB (fu/spr/main_stage.py)
         self.state_spr = self.core.regs.rf['state'].w_ports['state1']
 
         # pulse to synchronize the simulator at instruction end
@@ -572,6 +572,7 @@ class TestIssuerBase(Elaboratable):
         state_rf = self.core.regs.rf['state']
         state_r_dectb = state_rf.r_ports['issue']  # DEC/TB
         state_w_dectb = state_rf.w_ports['issue']  # DEC/TB
+
 
         with m.FSM() as fsm:
 
@@ -1487,6 +1488,7 @@ class TestIssuerInternal(TestIssuerBase):
         sync = m.d.sync
         dbg = self.dbg
         pdecode2 = self.pdecode2
+        cur_state = self.cur_state
 
         # temporaries
         core_busy_o = core.n.o_data.busy_o  # core is busy
@@ -1512,18 +1514,26 @@ class TestIssuerInternal(TestIssuerBase):
 
             # instruction started: must wait till it finishes
             with m.State("INSN_ACTIVE"):
-                # note changes to MSR, PC and SVSTATE, and DEC/TB
-                # these last two are done together, and passed to the
-                # DEC/TB FSM
+                # note changes to MSR, PC and SVSTATE
                 with m.If(self.state_nia.wen & (1 << StateRegs.SVSTATE)):
                     sync += self.sv_changed.eq(1)
                 with m.If(self.state_nia.wen & (1 << StateRegs.MSR)):
                     sync += self.msr_changed.eq(1)
                 with m.If(self.state_nia.wen & (1 << StateRegs.PC)):
                     sync += self.pc_changed.eq(1)
-                with m.If((self.state_spr.wen &
-                          ((1 << StateRegs.DEC) | (1 << StateRegs.TB))).bool()):
+                # and note changes to DEC/TB, to be passed to DEC/TB FSM
+                with m.If(self.state_spr.wen & (1 << StateRegs.TB)):
                     comb += self.pause_dec_tb.eq(1)
+                # but also zero-out the cur_state DEC so that, on
+                # the next instruction, if it is "enable interrupt"
+                # the delay between the DEC/TB FSM reading and updating
+                # cur_state.dec doesn't trigger a spurious interrupt.
+                # the DEC/TB FSM will read the regfile and update to
+                # the correct value, so having cur_state.dec set to zero
+                # for a while is no big deal.
+                with m.If(self.state_spr.wen & (1 << StateRegs.DEC)):
+                    comb += self.pause_dec_tb.eq(1)
+                    sync += cur_state.dec.eq(0) # only needs top bit clear
                 with m.If(~core_busy_o):  # instruction done!
                     comb += exec_pc_o_valid.eq(1)
                     with m.If(exec_pc_i_ready):

@@ -56,7 +56,8 @@ class SPRMainStage(PipeModBase):
             #### MTSPR ####
             with m.Case(MicrOp.OP_MTSPR):
                 with m.Switch(spr):
-                    # State SPRs first
+                    # State SPRs first, note that this triggers a regfile write
+                    # which is monitored right the way down in TestIssuerBase.
                     with m.Case(SPR.DEC, SPR.TB):
                         comb += state1_o.data.eq(a_i)
                         comb += state1_o.ok.eq(1)

@@ -28,6 +28,10 @@ class SPRInputData(FUBaseData):
         # convenience
         self.a = self.ra
 
+# note that state1 gets a corresponding "state1" write port created
+# by core.py which is "monitored" by TestIssuerBase (hack-job, sigh).
+# when writes are spotted then the DEC/TB FSM resets and re-reads
+# DEC/TB.
 
 class SPROutputData(FUBaseData):
     regspec = [('INT', 'o', '0:63'),        # RT
