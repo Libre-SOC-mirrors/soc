@@ -1268,12 +1268,16 @@ class DualPortXorRegfile(Elaboratable):
     :param addr_width: width of the address bus
     :param data_width: width of the data bus
     :param we_width: number of write enable lines
+    :param transparent: whether a simultaneous read and write returns the
+                        new value (True) or the old value (False) on the full
+                        read port
     """
 
-    def __init__(self, addr_width, data_width, we_width):
+    def __init__(self, addr_width, data_width, we_width, transparent):
         self.addr_width = addr_width
         self.data_width = data_width
         self.we_width = we_width
+        self.transparent = transparent
         # interface signals
         self.wr_addr_i = Signal(addr_width); """write port address"""
         self.wr_data_i = Signal(data_width); """write port data"""
@@ -1297,18 +1301,6 @@ class DualPortXorRegfile(Elaboratable):
             mem0.phase.eq(phase),
             mem1.phase.eq(phase),
         ]
-        # wire read address to memories, and XOR their output
-        m.d.comb += [
-            mem0.rd_addr_i.eq(self.rd_addr_i),
-            mem1.rd_addr_i.eq(self.rd_addr_i),
-            self.rd_data_o.eq(mem0.rd_data_o ^ mem1.rd_data_o),
-        ]
-        # write path
-        # 1) read the memory location which is about to be written
-        m.d.comb += [
-            mem0.rdp_addr_i.eq(self.wr_addr_i),
-            mem1.rdp_addr_i.eq(self.wr_addr_i),
-        ]
         # store the write information for the next cycle
         last_addr = Signal(self.addr_width)
         last_we = Signal(self.we_width)
@@ -1317,6 +1309,39 @@ class DualPortXorRegfile(Elaboratable):
             last_addr.eq(self.wr_addr_i),
             last_we.eq(self.wr_we_i),
             last_data.eq(self.wr_data_i),
+        ]
+        # read path
+        # wire read address to memories, and XOR their output
+        xor_data = Signal(self.data_width)
+        m.d.comb += [
+            mem0.rd_addr_i.eq(self.rd_addr_i),
+            mem1.rd_addr_i.eq(self.rd_addr_i),
+            xor_data.eq(mem0.rd_data_o ^ mem1.rd_data_o),
+        ]
+        if self.transparent:
+            # do the read and write addresses coincide?
+            same_read_write = Signal()
+            m.d.sync += same_read_write.eq(self.rd_addr_i == self.wr_addr_i)
+            gran = self.data_width // self.we_width
+            for i in range(self.we_width):
+                # when simultaneously reading and writing to the same location
+                # and write lane, bypass the memory, and output the write
+                # holding register instead
+                with m.If(same_read_write & last_we[i]):
+                    m.d.comb += self.rd_data_o.word_select(i, gran).eq(
+                        last_data.word_select(i, gran))
+                # otherwise, output the xor data
+                with m.Else():
+                    m.d.comb += self.rd_data_o.word_select(i, gran).eq(
+                        xor_data.word_select(i, gran))
+        # when not transparent, just output the memory contents (xor data)
+        else:
+            m.d.comb += self.rd_data_o.eq(xor_data)
+        # write path
+        # 1) read the memory location which is about to be written
+        m.d.comb += [
+            mem0.rdp_addr_i.eq(self.wr_addr_i),
+            mem1.rdp_addr_i.eq(self.wr_addr_i),
         ]
         # 2) write the XOR of the other memory data, and the desired value
         m.d.comb += [
@@ -1332,12 +1357,12 @@ class DualPortXorRegfile(Elaboratable):
 
 class DualPortXorRegfileTestCase(FHDLTestCase):
 
-    def test_case(self):
+    def do_test_case(self, transparent):
         """
         Simulate some read/write/modify operations on the dual port register
         file
         """
-        dut = DualPortXorRegfile(7, 32, 4)
+        dut = DualPortXorRegfile(7, 32, 4, transparent)
         sim = Simulator(dut)
         sim.add_clock(1e-6)
 
@@ -1400,8 +1425,12 @@ class DualPortXorRegfileTestCase(FHDLTestCase):
             yield from write(0, 0, 0)
             yield
             # test simultaneous read and write
-            # non-transparent read: returns the old value
-            yield from read(0x42, 0x78345612)
+            if transparent:
+                # transparent reads, returns the new value
+                yield from read(0x42, 0x78AA5666)
+            else:
+                # non-transparent read: returns the old value
+                yield from read(0x42, 0x78345612)
             yield from write(0x42, 0b0101, 0x55AA9966)
             yield
             # after a cycle, returns the new value
@@ -1417,6 +1446,8 @@ class DualPortXorRegfileTestCase(FHDLTestCase):
 
         sim.add_sync_process(process)
         debug_file = 'test_dual_port_xor_regfile'
+        if transparent:
+            debug_file += '_transparent'
         traces = ['clk', 'phase',
                   {'comment': 'write port'},
                   'wr_addr_i[6:0]', 'wr_we_i[3:0]', 'wr_data_i[31:0]',
@@ -1429,6 +1460,12 @@ class DualPortXorRegfileTestCase(FHDLTestCase):
         sim_writer = sim.write_vcd(debug_file + '.vcd')
         with sim_writer:
             sim.run()
+
+    def test_case(self):
+        with self.subTest("non-transparent reads"):
+            self.do_test_case(False)
+        with self.subTest("transparent reads"):
+            self.do_test_case(True)
 
 
 if __name__ == "__main__":
