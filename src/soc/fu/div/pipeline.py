@@ -45,9 +45,14 @@ class DivStagesEnd(PipeModBaseChain):
         else:
             core_final = ()
         div_out = DivOutputStage(self.pspec)
-        alu_out = DivMulOutputStage(self.pspec)
         self.div_out = div_out  # debugging - bug #425
-        return [*core_final, div_out, alu_out]
+        return [*core_final, div_out]
+
+
+class DivStagesFinalise(PipeModBaseChain):
+    def get_chain(self):
+        alu_out = DivMulOutputStage(self.pspec)
+        return [alu_out]
 
 
 class DivBasePipe(ControlBase):
@@ -66,9 +71,11 @@ class DivBasePipe(ControlBase):
             self.pipe_middles.append(
                 self.pspec.div_pipe_kind.config.core_stage_class(pspec))
         self.pipe_end = DivStagesEnd(pspec)
+        self.pipe_final = DivStagesFinalise(pspec)
         self._eqs = self.connect([self.pipe_start,
                                   *self.pipe_middles,
-                                  self.pipe_end])
+                                  self.pipe_end,
+                                  self.pipe_final])
 
     def elaborate(self, platform):
         m = ControlBase.elaborate(self, platform)
