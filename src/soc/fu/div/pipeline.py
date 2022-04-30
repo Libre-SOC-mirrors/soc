@@ -84,5 +84,6 @@ class DivBasePipe(ControlBase):
             name = f"pipe_middle_{i}"
             setattr(m.submodules, name, self.pipe_middles[i])
         m.submodules.pipe_end = self.pipe_end
+        m.submodules.pipe_final = self.pipe_final
         m.d.comb += self._eqs
         return m
