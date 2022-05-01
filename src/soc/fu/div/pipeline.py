@@ -12,13 +12,18 @@ from soc.fu.div.pipe_data import DivPipeKindConfigCombPipe
 class DivStagesStart(PipeModBaseChain):
     def get_chain(self):
         alu_input = DivMulInputStage(self.pspec)
+        return [alu_input]
+
+
+class DivStagesSetup(PipeModBaseChain):
+    def get_chain(self):
         div_setup = DivSetupStage(self.pspec)
         if isinstance(self.pspec.div_pipe_kind.config,
                       DivPipeKindConfigCombPipe):
             core_setup = [DivCoreSetupStage(self.pspec)]
         else:
             core_setup = ()
-        return [alu_input, div_setup, *core_setup]
+        return [div_setup, *core_setup]
 
 
 class DivStagesMiddle(PipeModBaseChain):
@@ -60,6 +65,7 @@ class DivBasePipe(ControlBase):
         ControlBase.__init__(self)
         self.pspec = pspec
         self.pipe_start = DivStagesStart(pspec)
+        self.pipe_setup = DivStagesSetup(pspec)
         self.pipe_middles = []
         if isinstance(self.pspec.div_pipe_kind.config,
                       DivPipeKindConfigCombPipe):
@@ -73,6 +79,7 @@ class DivBasePipe(ControlBase):
         self.pipe_end = DivStagesEnd(pspec)
         self.pipe_final = DivStagesFinalise(pspec)
         self._eqs = self.connect([self.pipe_start,
+                                  self.pipe_setup,
                                   *self.pipe_middles,
                                   self.pipe_end,
                                   self.pipe_final])
@@ -80,6 +87,7 @@ class DivBasePipe(ControlBase):
     def elaborate(self, platform):
         m = ControlBase.elaborate(self, platform)
         m.submodules.pipe_start = self.pipe_start
+        m.submodules.pipe_setup = self.pipe_setup
         for i in range(len(self.pipe_middles)):
             name = f"pipe_middle_{i}"
             setattr(m.submodules, name, self.pipe_middles[i])
