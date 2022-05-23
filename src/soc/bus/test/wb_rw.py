@@ -2,13 +2,14 @@
 """
 
 
-def wb_write(bus, addr, data, sel=True):
+def wb_write(bus, addr, data, sel=0b1111):
 
     # write wb
     yield bus.we.eq(1)
     yield bus.cyc.eq(1)
     yield bus.stb.eq(1)
-    yield bus.sel.eq(0b1111 if sel else 0b1) # 32-bit / 8-bit
+    #yield bus.sel.eq(0b1111 if sel else 0b1) # 32-bit / 8-bit
+    yield bus.sel.eq(sel)
     yield bus.adr.eq(addr)
     yield bus.dat_w.eq(data)
 
@@ -33,13 +34,14 @@ def wb_write(bus, addr, data, sel=True):
     yield bus.dat_w.eq(0)
 
 
-def wb_read(bus, addr, sel=True):
+def wb_read(bus, addr, sel=0b1111):
 
     # read wb
     yield bus.cyc.eq(1)
     yield bus.stb.eq(1)
     yield bus.we.eq(0)
-    yield bus.sel.eq(0b1111 if sel else 0b1) # 32-bit / 8-bit
+    #yield bus.sel.eq(0b1111 if sel else 0b1) # 32-bit / 8-bit
+    yield bus.sel.eq(sel)
     yield bus.adr.eq(addr)
 
     # wait for ack to go high
