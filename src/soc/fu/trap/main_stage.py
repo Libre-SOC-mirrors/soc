@@ -74,8 +74,9 @@ class TrapMainStage(PipeModBase):
         nia_o = self.o.nia
         svsrr0_o, srr0_o, srr1_o = self.o.svsrr0, self.o.srr0, self.o.srr1
 
-        # trap address
+        # trap address, including KAIVB override
         comb += nia_o.data.eq(trap_addr)
+        comb += nia_o.data[13:].eq(self.kaivb[13:])
         comb += nia_o.ok.eq(1)
 
         # addr to begin from on return
