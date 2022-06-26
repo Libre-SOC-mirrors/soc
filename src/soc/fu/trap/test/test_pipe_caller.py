@@ -74,10 +74,6 @@ class TrapIlangCase(TestAccumulatorBase):
 
 
 class TestRunner(unittest.TestCase):
-    def __init__(self, test_data):
-        super().__init__("run_all")
-        self.test_data = test_data
-
 
     def execute(self, alu, instruction, pdecode2, test):
         program = test.program
@@ -137,16 +133,24 @@ class TestRunner(unittest.TestCase):
             yield from self.check_alu_outputs(alu, pdecode2, sim, code)
             yield Settle()
 
-    def run_all(self):
+    def test_it(self):
+        test_data = TrapTestCase().test_data
         m = Module()
         comb = m.d.comb
         instruction = Signal(32)
 
+        fn_name = "TRAP"
+        opkls = TrapPipeSpec.opsubsetkls
+
         pdecode = create_pdecode()
+        m.submodules.pdecode2 = pdecode2 = PowerDecode2(
+            pdecode, opkls, fn_name)
+        pdecode = pdecode2.dec
 
-        m.submodules.pdecode2 = pdecode2 = PowerDecode2(pdecode)
-
-        pspec = TrapPipeSpec(id_wid=2, parent_pspec=None)
+        class PPspec:
+            XLEN = 64
+        pps = PPspec()
+        pspec = TrapPipeSpec(id_wid=2, parent_pspec=pps)
         m.submodules.alu = alu = TrapBasePipe(pspec)
 
         comb += alu.p.i_data.ctx.op.eq_from_execute1(pdecode2.do)
@@ -157,7 +161,7 @@ class TestRunner(unittest.TestCase):
         sim.add_clock(1e-6)
 
         def process():
-            for test in self.test_data:
+            for test in test_data:
                 print(test.name)
                 program = test.program
                 with self.subTest(test.name):
@@ -169,14 +173,6 @@ class TestRunner(unittest.TestCase):
             sim.run()
 
     def check_alu_outputs(self, alu, dec2, sim, code):
-
-        rc = yield dec2.e.do.rc.data
-        cridx_ok = yield dec2.e.write_cr.ok
-        cridx = yield dec2.e.write_cr.data
-
-        print("check extra output", repr(code), cridx_ok, cridx)
-        if rc:
-            self.assertEqual(cridx, 0, code)
 
         sim_o = {}
         res = {}
@@ -208,10 +204,4 @@ class TestRunner(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(exit=False)
-    suite = unittest.TestSuite()
-    suite.addTest(TestRunner(TrapTestCase().test_data))
-    suite.addTest(TestRunner(TrapIlangCase().test_data))
-
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
+    unittest.main()
