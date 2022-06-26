@@ -749,9 +749,9 @@ class DCache(Elaboratable, DCacheConfig):
                                  (pspec.microwatt_compat == True))
 
         XLEN = pspec.XLEN
-        TLB_SET_SIZE = 16
+        TLB_SET_SIZE = 8
         TLB_NUM_WAYS = 2
-        NUM_LINES = 16
+        NUM_LINES = 8
         NUM_WAYS = 2
 
         if self.small_cache:

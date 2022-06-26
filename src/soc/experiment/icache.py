@@ -344,8 +344,8 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
 
         XLEN = pspec.XLEN
         LINE_SIZE = 64
-        TLB_SIZE = 16
-        NUM_LINES = 16
+        TLB_SIZE = 8
+        NUM_LINES = 8
         NUM_WAYS = 2
         if self.small_cache:
             # reduce way sizes and num lines to ridiculously small
