@@ -58,6 +58,7 @@ class TrapMainStage(PipeModBase):
         super().__init__(pspec, "main")
         self.fields = DecodeFields(SignalBitRange, [self.i.ctx.op.insn])
         self.fields.create_specs()
+        self.kaivb = Signal(64) # KAIVB SPR
 
     def trap(self, m, trap_addr, return_addr):
         """trap.  sets new PC, stores MSR and old PC in SRR1 and SRR0
@@ -139,7 +140,7 @@ class TrapMainStage(PipeModBase):
 
     def elaborate(self, platform):
         m = Module()
-        comb = m.d.comb
+        comb, sync = m.d.comb, m.d.sync
         op = self.i.ctx.op
 
         # convenience variables
@@ -200,6 +201,16 @@ class TrapMainStage(PipeModBase):
 
         # TODO: some #defines for the bits n stuff.
         with m.Switch(op.insn_type):
+
+            ##############
+            # KAIVB https://bugs.libre-soc.org/show_bug.cgi?id=859
+
+            with m.Case(MicrOp.OP_MTSPR):
+                sync += self.kaivb.eq(a_i)
+
+            with m.Case(MicrOp.OP_MFSPR):
+                comb += o.data.eq(self.kaivb)
+                comb += o.ok.eq(1)
 
             ###############
             # TDI/TWI/TD/TW.  v3.0B p90-91
