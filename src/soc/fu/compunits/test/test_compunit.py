@@ -187,7 +187,7 @@ class TestRunner(FHDLTestCase):
         self.funit = funit
         self.bigendian = bigendian
 
-    def execute(self, cu, l0, instruction, pdecode2, simdec2, test):
+    def execute(self, m, cu, l0, instruction, pdecode2, simdec2, test):
 
         program = test.program
         print("test", test.name, test.mem)
@@ -239,7 +239,7 @@ class TestRunner(FHDLTestCase):
             # set operand and get inputs
             yield from set_operand(cu, pdecode2, sim)
             # reset read-operand mask
-            rdmask = get_rdflags(pdecode2.e, cu)
+            rdmask = get_rdflags(m, pdecode2.e, cu)
             #print ("hardcoded rdmask", cu.rdflags(pdecode2.e))
             #print ("decoder rdmask", rdmask)
             yield cu.rdmaskn.eq(~rdmask)
@@ -359,7 +359,7 @@ class TestRunner(FHDLTestCase):
             for test in self.test_data:
                 print(test.name)
                 with self.subTest(test.name):
-                    yield from self.execute(cu, l0, instruction,
+                    yield from self.execute(m, cu, l0, instruction,
                                             pdecode2, simdec2,
                                             test)
 
