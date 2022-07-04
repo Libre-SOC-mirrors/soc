@@ -265,7 +265,7 @@ class TrapMainStage(PipeModBase):
                 # L => bit 16 in LSB0, bit 15 in MSB0 order
                 L = self.fields.FormX.L1[0:1] # X-Form field L1
                 # start with copy of msr
-                comb += msr_o.eq(msr_i)
+                comb += msr_o.data.eq(msr_i)
                 with m.If(L):
                     # just update RI..EE
                     comb += msr_o.data[MSR.RI].eq(a_i[MSR.RI])
@@ -333,12 +333,12 @@ class TrapMainStage(PipeModBase):
                 if False: # XXX no - not doing hypervisor yet
                     with m.If(~self.i.ctx.op.insn[9]): # XXX BAD HACK! (hrfid)
                         with m.If(field(msr_i, 3)): # HV
-                            comb += field(msr_o, 51).eq(field(srr1_i, 51)) # ME
+                            comb += field(msr_o.data, 51).eq(field(srr1_i, 51)) # ME
                         with m.Else():
-                            comb += field(msr_o, 51).eq(field(msr_i, 51)) # ME
+                            comb += field(msr_o.data, 51).eq(field(msr_i, 51)) # ME
                 else:
                     # same as microwatt: treat MSR.ME rfid same as hrfid
-                    comb += field(msr_o, 51).eq(field(srr1_i, 51)) # ME
+                    comb += field(msr_o.data, 51).eq(field(srr1_i, 51)) # ME
 
                 # check problem state: if set, not permitted to set EE,IR,DR
                 msr_check_pr(m, srr1_i, msr_o.data)
