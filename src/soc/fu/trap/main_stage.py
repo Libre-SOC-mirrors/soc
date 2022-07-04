@@ -59,6 +59,7 @@ class TrapMainStage(PipeModBase):
         self.fields = DecodeFields(SignalBitRange, [self.i.ctx.op.insn])
         self.fields.create_specs()
         self.kaivb = Signal(64) # KAIVB SPR
+        self.state_reset = Signal() # raise high to reset KAIVB cache
 
     def trap(self, m, trap_addr, return_addr):
         """trap.  sets new PC, stores MSR and old PC in SRR1 and SRR0
@@ -152,6 +153,10 @@ class TrapMainStage(PipeModBase):
         msr_o, nia_o, svstate_o = self.o.msr, self.o.nia, self.o.svstate
         srr0_o, srr1_o, svsrr0_o = self.o.srr0, self.o.srr1, self.o.svsrr0
         traptype, trapaddr = op.traptype, op.trapaddr
+
+        # hard reset of KAIVB
+        with m.If(self.state_reset):
+            sync += self.kaivb.eq(0)
 
         # take copy of D-Form TO field
         i_fields = self.fields.FormD
