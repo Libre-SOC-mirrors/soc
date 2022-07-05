@@ -25,7 +25,7 @@ class MulOutputData(FUBaseData):
 
     @property
     def regspec(self):
-        return [('INT', 'o', "0:%d" % (self.pspec.XLEN)),
+        return [('INT', 'o', "0:%d" % (self.pspec.XLEN*2)), # 2xXLEN
                ('XER', 'xer_so', '32')] # XER bit 32: SO
 
 
