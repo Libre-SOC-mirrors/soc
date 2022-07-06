@@ -341,6 +341,9 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
         # test if microwatt compatibility to be enabled
         self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
                                  (pspec.microwatt_compat == True))
+        # test if fabric compatibility is to be enabled
+        self.fabric_compat = (hasattr(pspec, "fabric_compat") and
+                                 (pspec.fabric_compat == True))
 
         XLEN = pspec.XLEN
         LINE_SIZE = 64
@@ -352,7 +355,7 @@ class ICache(FetchUnitInterface, Elaboratable, ICacheConfig):
             NUM_LINES = 2
             NUM_WAYS = 1
             TLB_SIZE = 2
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
             # reduce way sizes
             NUM_WAYS = 1
 

@@ -21,6 +21,9 @@ def make_wb_layout(spec, cti=True):
     # test if microwatt compatibility is to be enabled
     microwatt_compat = (hasattr(spec, "microwatt_compat") and
                                (spec.microwatt_compat == True))
+    # test if fabric compatibility is to be enabled
+    fabric_compat = (hasattr(spec, "fabric_compat") and
+                               (spec.fabric_compat == True))
 
     res = [
     ("adr",   badwid  , DIR_FANOUT),
@@ -34,7 +37,7 @@ def make_wb_layout(spec, cti=True):
     ("err",           1, DIR_FANIN)
     ]
     # microwatt needs a stall signal (operates in pipeline mode)
-    if microwatt_compat:
+    if microwatt_compat or fabric_compat:
         res.append(("stall", 1, DIR_FANIN))
     if not cti:
         return res

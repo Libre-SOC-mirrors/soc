@@ -77,6 +77,11 @@ if __name__ == '__main__':
                         action="store_true",
                         help="generate old microwatt-compatible interface",
                         default=False)
+    # create a module with Fabric compatibility
+    parser.add_argument("--fabric-compat", dest='fabriccompat',
+                        action="store_true",
+                        help="generate Fabric-compatible interface",
+                        default=False)
     # small cache option
     parser.add_argument("--small-cache", dest='smallcache',
                         action="store_true",
@@ -155,6 +160,7 @@ if __name__ == '__main__':
                          microwatt_compat=args.mwcompat, # microwatt compatible
                          microwatt_old=args.old_mwcompat, # old microwatt api
                          microwatt_debug=args.mwdebug, # microwatt debug signals
+                         fabric_compat=args.fabriccompat, # fabric compatible (overlaps with microwatt compat)
                          small_cache=args.smallcache, # small cache/TLB sizes
                          allow_overlap=args.allow_overlap, # allow overlap
                          units=units,
@@ -178,6 +184,7 @@ if __name__ == '__main__':
     print("Microwatt compatibility", pspec.__dict__["microwatt_compat"])
     print("Old Microwatt compatibility", pspec.__dict__["microwatt_old"])
     print("Microwatt debug", pspec.__dict__["microwatt_debug"])
+    print("Fabric compatibility", pspec.__dict__["fabric_compat"])
     print("Small Cache/TLB", pspec.__dict__["small_cache"])
 
     if args.mwcompat:

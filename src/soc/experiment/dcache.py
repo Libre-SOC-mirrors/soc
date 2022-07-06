@@ -747,6 +747,9 @@ class DCache(Elaboratable, DCacheConfig):
         # test if microwatt compatibility is to be enabled
         self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
                                  (pspec.microwatt_compat == True))
+        # test if fabric compatibility is to be enabled
+        self.fabric_compat = (hasattr(pspec, "fabric_compat") and
+                                 (pspec.fabric_compat == True))
 
         XLEN = pspec.XLEN
         TLB_SET_SIZE = 8
@@ -760,7 +763,7 @@ class DCache(Elaboratable, DCacheConfig):
             TLB_NUM_WAYS = 1
             NUM_LINES = 2
             NUM_WAYS = 1
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
             # reduce way sizes
             NUM_WAYS = 1
             TLB_NUM_WAYS = 1
@@ -1855,7 +1858,7 @@ class DCache(Elaboratable, DCacheConfig):
         # deal with litex not doing wishbone pipeline mode
         # XXX in wrong way.  FIFOs are needed in the SRAM test
         # so that stb/ack match up. same thing done in icache.py
-        if not self.microwatt_compat:
+        if not self.microwatt_compat or self.fabric_compat:
             comb += self.bus.stall.eq(self.bus.cyc & ~self.bus.ack)
 
         # Wire up wishbone request latch out of stage 1

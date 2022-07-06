@@ -169,8 +169,11 @@ class TestIssuerBase(Elaboratable):
         self.microwatt_compat = (hasattr(pspec, "microwatt_compat") and
                                  (pspec.microwatt_compat == True))
         self.alt_reset = Signal(reset_less=True) # not connected yet (microwatt)
+        # test if fabric compatibility is to be enabled
+        self.fabric_compat = (hasattr(pspec, "fabric_compat") and
+                                 (pspec.fabric_compat == True))
 
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
 
             if hasattr(pspec, "microwatt_old"):
                 self.microwatt_old = pspec.microwatt_old
@@ -335,13 +338,13 @@ class TestIssuerBase(Elaboratable):
 
         # sigh, the wishbone addresses are not wishbone-compliant
         # in old versions of microwatt, tplaten_3d_game is a new one
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
             self.ibus_adr = Signal(32, name='wishbone_insn_out.adr')
             self.dbus_adr = Signal(32, name='wishbone_data_out.adr')
 
         # add an output of the PC and instruction, and whether it was requested
         # this is for verilator debug purposes
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
             self.nia = Signal(64)
             self.msr_o = Signal(64)
             self.nia_req = Signal(1)
@@ -364,7 +367,7 @@ class TestIssuerBase(Elaboratable):
         csd = DomainRenamer(self.core_domain)
         dbd = DomainRenamer(self.dbg_domain)
 
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
             m.submodules.core = core = self.core
         else:
             m.submodules.core = core = csd(self.core)
@@ -385,7 +388,7 @@ class TestIssuerBase(Elaboratable):
         # fixup the clocks in microwatt-compat mode (but leave resets alone
         # so that microwatt soc.vhdl can pull a reset on the core or DMI
         # can do it, just like in TestIssuer)
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
             intclk = ClockSignal(self.core_domain)
             dbgclk = ClockSignal(self.dbg_domain)
             if self.core_domain != 'sync':
@@ -395,7 +398,7 @@ class TestIssuerBase(Elaboratable):
 
         # if using old version of microwatt
         # drop the first 3 bits of the incoming wishbone addresses
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
             ibus = self.imem.ibus
             dbus = self.core.l0.cmpi.wb_bus()
             if self.microwatt_old:
@@ -702,7 +705,7 @@ class TestIssuerBase(Elaboratable):
                 sync += self.sv_changed.eq(1)
 
         # start renaming some of the ports to match microwatt
-        if self.microwatt_compat:
+        if self.microwatt_compat or self.fabric_compat:
             self.core.o.core_terminate_o.name = "terminated_out"
             # names of DMI interface
             self.dbg.dmi.addr_i.name = 'dmi_addr'
@@ -713,26 +716,28 @@ class TestIssuerBase(Elaboratable):
             self.dbg.dmi.ack_o.name  = 'dmi_ack'
             # wishbone instruction bus
             ibus = self.imem.ibus
-            ibus.adr.name = 'wishbone_insn_out.adr'
-            ibus.dat_w.name = 'wishbone_insn_out.dat'
-            ibus.sel.name = 'wishbone_insn_out.sel'
-            ibus.cyc.name = 'wishbone_insn_out.cyc'
-            ibus.stb.name = 'wishbone_insn_out.stb'
-            ibus.we.name = 'wishbone_insn_out.we'
-            ibus.dat_r.name = 'wishbone_insn_in.dat'
-            ibus.ack.name = 'wishbone_insn_in.ack'
-            ibus.stall.name = 'wishbone_insn_in.stall'
+            if self.microwatt_compat:
+                ibus.adr.name = 'wishbone_insn_out.adr'
+                ibus.dat_w.name = 'wishbone_insn_out.dat'
+                ibus.sel.name = 'wishbone_insn_out.sel'
+                ibus.cyc.name = 'wishbone_insn_out.cyc'
+                ibus.stb.name = 'wishbone_insn_out.stb'
+                ibus.we.name = 'wishbone_insn_out.we'
+                ibus.dat_r.name = 'wishbone_insn_in.dat'
+                ibus.ack.name = 'wishbone_insn_in.ack'
+                ibus.stall.name = 'wishbone_insn_in.stall'
             # wishbone data bus
             dbus = self.core.l0.cmpi.wb_bus()
-            dbus.adr.name = 'wishbone_data_out.adr'
-            dbus.dat_w.name = 'wishbone_data_out.dat'
-            dbus.sel.name = 'wishbone_data_out.sel'
-            dbus.cyc.name = 'wishbone_data_out.cyc'
-            dbus.stb.name = 'wishbone_data_out.stb'
-            dbus.we.name = 'wishbone_data_out.we'
-            dbus.dat_r.name = 'wishbone_data_in.dat'
-            dbus.ack.name = 'wishbone_data_in.ack'
-            dbus.stall.name = 'wishbone_data_in.stall'
+            if self.microwatt_compat:
+                dbus.adr.name = 'wishbone_data_out.adr'
+                dbus.dat_w.name = 'wishbone_data_out.dat'
+                dbus.sel.name = 'wishbone_data_out.sel'
+                dbus.cyc.name = 'wishbone_data_out.cyc'
+                dbus.stb.name = 'wishbone_data_out.stb'
+                dbus.we.name = 'wishbone_data_out.we'
+                dbus.dat_r.name = 'wishbone_data_in.dat'
+                dbus.ack.name = 'wishbone_data_in.ack'
+                dbus.stall.name = 'wishbone_data_in.stall'
 
         return m
 
@@ -750,15 +755,24 @@ class TestIssuerBase(Elaboratable):
         return list(self)
 
     def external_ports(self):
-        if self.microwatt_compat:
-            ports = [self.core.o.core_terminate_o,
-                     self.ext_irq,
-                     self.alt_reset, # not connected yet
-                     self.nia, self.insn, self.nia_req, self.msr_o,
-                     self.ldst_req, self.ldst_addr,
-                     ClockSignal(),
-                     ResetSignal(),
-                    ]
+        if self.microwatt_compat or self.fabric_compat:
+            if self.fabric_compat:
+                ports = [self.core.o.core_terminate_o,
+                         self.alt_reset, # not connected yet
+                         self.nia, self.insn, self.nia_req, self.msr_o,
+                         self.ldst_req, self.ldst_addr,
+                         ClockSignal(),
+                         ResetSignal(),
+                        ]
+            else:
+                ports = [self.core.o.core_terminate_o,
+                         self.ext_irq,
+                         self.alt_reset, # not connected yet
+                         self.nia, self.insn, self.nia_req, self.msr_o,
+                         self.ldst_req, self.ldst_addr,
+                         ClockSignal(),
+                         ResetSignal(),
+                        ]
             ports += list(self.dbg.dmi.ports())
             # for dbus/ibus microwatt, exclude err btw and cti
             for name, sig in self.imem.ibus.fields.items():
@@ -770,7 +784,10 @@ class TestIssuerBase(Elaboratable):
             # microwatt non-compliant with wishbone
             ports.append(self.ibus_adr)
             ports.append(self.dbus_adr)
-            return ports
+
+            if self.microwatt_compat:
+                # Ignore the remaining ports in microwatt compat mode
+                return ports
 
         ports = self.pc_i.ports()
         ports = self.msr_i.ports()
@@ -925,7 +942,7 @@ class TestIssuerInternal(TestIssuerBase):
                             # not SVP64 - 32-bit only
                             sync += nia.eq(cur_state.pc + 4)
                             sync += dec_opcode_i.eq(insn)
-                            if self.microwatt_compat:
+                            if self.microwatt_compat or self.fabric_compat:
                                 # for verilator debug purposes
                                 comb += self.insn.eq(insn)
                                 comb += self.nia.eq(cur_state.pc)
