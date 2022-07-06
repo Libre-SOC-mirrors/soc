@@ -98,7 +98,7 @@ def load_pinouts(chipname=None):
 
     # path is relative to this filename, in the pinmux submodule
     pinmux = os.getenv("PINMUX", "%s/../../../pinmux" % pth)
-    fname = "%s/%s/litex_pinpads.json" % (pinmux, chipname)
+    fname = "%s/%s/fabric_pinpads.json" % (pinmux, chipname)
     with open(fname) as f:
         txt = f.read()
 

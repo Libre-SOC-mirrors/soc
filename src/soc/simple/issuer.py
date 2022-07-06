@@ -209,7 +209,7 @@ class TestIssuerBase(Elaboratable):
         #self.dbg_domain = "sync"  # sigh "dbgsunc" too problematic
         self.dbg_domain = "dbgsync" # domain for DMI/JTAG clock
         if self.jtag_en:
-            # XXX MUST keep this up-to-date with litex, and
+            # XXX MUST keep this up-to-date with fabric, and
             # soc-cocotb-sim, and err.. all needs sorting out, argh
             subset = ['uart',
                       'mtwi',
@@ -415,7 +415,7 @@ class TestIssuerBase(Elaboratable):
 
         cur_state = self.cur_state
 
-        # 4x 4k SRAM blocks.  these simply "exist", they get routed in litex
+        # 4x 4k SRAM blocks.  these simply "exist", they get routed in fabric
         if self.sram4x4k:
             for i, sram in enumerate(self.sram4k):
                 m.submodules["sram4k_%d" % i] = csd(sram)
@@ -435,7 +435,7 @@ class TestIssuerBase(Elaboratable):
             m.submodules.simple_gpio = simple_gpio = csd(self.simple_gpio)
 
         # connect one GPIO output to ICS bit 15 (like in microwatt soc.vhdl)
-        # XXX causes litex ECP5 test to get wrong idea about input and output
+        # XXX causes fabric ECP5 test to get wrong idea about input and output
         # (but works with verilator sim *sigh*)
         # if self.gpio and self.xics:
         #   comb += self.int_level_i[15].eq(simple_gpio.gpio_o[0])
