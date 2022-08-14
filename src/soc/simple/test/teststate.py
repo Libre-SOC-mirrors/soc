@@ -19,6 +19,11 @@ class HDLState(State):
         super().__init__()
         self.core = core
 
+    def get_fpregs(self):
+        self.fpregs = []
+        for i in range(32):
+            self.fpregs.append(0)
+
     def get_intregs(self):
         self.intregs = []
         for i in range(32):
