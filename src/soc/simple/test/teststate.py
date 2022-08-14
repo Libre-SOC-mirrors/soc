@@ -20,6 +20,8 @@ class HDLState(State):
         self.core = core
 
     def get_fpregs(self):
+        if False:
+            yield
         self.fpregs = []
         for i in range(32):
             self.fpregs.append(0)
