@@ -4,7 +4,7 @@
 # Funded by NLnet Assure Programme 2021-02-052, https://nlnet.nl/assure part
 # of Horizon 2020 EU Programme 957073.
 
-from dataclasses import fields, replace
+from nmutil.plain_data import fields, replace
 import math
 import unittest
 from nmutil.formaltest import FHDLTestCase
@@ -13,7 +13,7 @@ from nmigen.sim import Tick, Delay
 from nmigen.hdl.ast import Signal
 from nmigen.hdl.dsl import Module
 from soc.fu.div.experiment.goldschmidt_div_sqrt import (
-    GoldschmidtDivHDL, GoldschmidtDivHDLState, GoldschmidtDivOp, GoldschmidtDivParams,
+    GoldschmidtDivHDL, GoldschmidtDivHDLState, GoldschmidtDivParams,
     GoldschmidtDivState, ParamsNotAccurateEnough, goldschmidt_div,
     FixedPoint, RoundDir, goldschmidt_sqrt_rsqrt)
 
@@ -156,15 +156,15 @@ class TestGoldschmidtDiv(FHDLTestCase):
                                   ref_state=repr(ref_state),
                                   last_op=str(last_op)):
                     for field in fields(GoldschmidtDivHDLState):
-                        sig = getattr(state, field.name)
+                        sig = getattr(state, field)
                         if not isinstance(sig, Signal):
                             continue
-                        ref_value = getattr(ref_state, field.name)
+                        ref_value = getattr(ref_state, field)
                         ref_value_str = repr(ref_value)
                         if isinstance(ref_value, int):
                             ref_value_str = hex(ref_value)
                         value = yield sig
-                        with self.subTest(field_name=field.name,
+                        with self.subTest(field_name=field,
                                           sig=repr(sig),
                                           sig_shape=repr(sig.shape()),
                                           value=hex(value),
