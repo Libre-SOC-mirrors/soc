@@ -103,6 +103,11 @@ class CompALUMultiTestCase(FHDLTestCase):
         m.submodules.dut = dut = MultiCompUnit(regspec, alu, CompALUOpSubset)
         # TODO Test shadow / die
         m.d.comb += [dut.shadown_i.eq(1), dut.go_die_i.eq(0)]
+        # Avoid toggling go_i when rel_o is low (rel / go protocol)
+        rd_go = Signal(dut.n_src)
+        m.d.comb += dut.cu.rd.go_i.eq(rd_go & dut.cu.rd.rel_o)
+        wr_go = Signal(dut.n_dst)
+        m.d.comb += dut.cu.wr.go_i.eq(wr_go & dut.cu.wr.rel_o)
         # Transaction counters
         do_issue = Signal()
         m.d.comb += do_issue.eq(dut.issue_i & ~dut.busy_o)
@@ -110,7 +115,7 @@ class CompALUMultiTestCase(FHDLTestCase):
         m.d.sync += cnt_issue.eq(cnt_issue + do_issue)
         # Ask the formal engine to give an example
         m.d.comb += Cover(cnt_issue == 2)
-        self.assertFormal(m, mode="cover", depth=4)
+        self.assertFormal(m, mode="cover", depth=10)
 
 
 if __name__ == "__main__":
