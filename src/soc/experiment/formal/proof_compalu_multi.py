@@ -101,6 +101,8 @@ class CompALUMultiTestCase(FHDLTestCase):
         # Instantiate "random" ALU
         alu = ALU()
         m.submodules.dut = dut = MultiCompUnit(regspec, alu, CompALUOpSubset)
+        # TODO Test shadow / die
+        m.d.comb += [dut.shadown_i.eq(1), dut.go_die_i.eq(0)]
         # Transaction counters
         do_issue = Signal()
         m.d.comb += do_issue.eq(dut.issue_i & ~dut.busy_o)
