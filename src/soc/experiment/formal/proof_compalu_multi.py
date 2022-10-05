@@ -115,7 +115,6 @@ class CompALUMultiTestCase(FHDLTestCase):
         m.d.sync += cnt_issue.eq(cnt_issue + do_issue)
         do_read = Signal(dut.n_src)
         m.d.comb += do_read.eq(dut.cu.rd.rel_o & dut.cu.rd.go_i)
-        m.d.sync += cnt_issue.eq(cnt_issue + do_issue)
         cnt_read = []
         for i in range(dut.n_src):
             cnt = Signal(4, name="cnt_read_%d" % i)
