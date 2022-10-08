@@ -120,11 +120,20 @@ class CompALUMultiTestCase(FHDLTestCase):
             cnt = Signal(4, name="cnt_read_%d" % i)
             m.d.sync += cnt.eq(cnt + do_read[i])
             cnt_read.append(cnt)
+        do_write = Signal(dut.n_dst)
+        m.d.comb += do_write.eq(dut.cu.wr.rel_o & dut.cu.wr.go_i)
+        cnt_write = []
+        for i in range(dut.n_dst):
+            cnt = Signal(4, name="cnt_write_%d" % i)
+            m.d.sync += cnt.eq(cnt + do_write[i])
+            cnt_write.append(cnt)
 
         # Ask the formal engine to give an example
         m.d.comb += Cover((cnt_issue == 2)
                           & (cnt_read[0] == 1)
-                          & (cnt_read[1] == 0))
+                          & (cnt_read[1] == 1)
+                          & (cnt_write[0] == 1)
+                          & (cnt_write[1] == 1))
         self.assertFormal(m, mode="cover", depth=10)
 
 
