@@ -131,6 +131,10 @@ class CompALUMultiTestCase(FHDLTestCase):
         m.d.comb += do_alu_write.eq(alu.p.i_valid & alu.p.o_ready)
         cnt_alu_write = Signal(4)
         m.d.sync += cnt_alu_write.eq(cnt_alu_write + do_alu_write)
+        do_alu_read = Signal()
+        m.d.comb += do_alu_read.eq(alu.n.o_valid & alu.n.i_ready)
+        cnt_alu_read = Signal(4)
+        m.d.sync += cnt_alu_read.eq(cnt_alu_read + do_alu_read)
 
         # Ask the formal engine to give an example
         m.d.comb += Cover((cnt_issue == 2)
@@ -138,7 +142,8 @@ class CompALUMultiTestCase(FHDLTestCase):
                           & (cnt_read[1] == 1)
                           & (cnt_write[0] == 1)
                           & (cnt_write[1] == 1)
-                          & (cnt_alu_write == 1))
+                          & (cnt_alu_write == 1)
+                          & (cnt_alu_read == 1))
         self.assertFormal(m, mode="cover", depth=10)
 
 
