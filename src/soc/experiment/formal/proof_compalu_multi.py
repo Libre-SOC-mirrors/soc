@@ -103,6 +103,9 @@ class CompALUMultiTestCase(FHDLTestCase):
         m.submodules.dut = dut = MultiCompUnit(regspec, alu, CompALUOpSubset)
         # TODO Test shadow / die
         m.d.comb += [dut.shadown_i.eq(1), dut.go_die_i.eq(0)]
+        # Don't issue while busy
+        issue = Signal()
+        m.d.comb += dut.issue_i.eq(issue & ~dut.busy_o)
         # Avoid toggling go_i when rel_o is low (rel / go protocol)
         rd_go = Signal(dut.n_src)
         m.d.comb += dut.cu.rd.go_i.eq(rd_go & dut.cu.rd.rel_o)
@@ -144,7 +147,7 @@ class CompALUMultiTestCase(FHDLTestCase):
         # Ask the formal engine to give an example
         m.d.comb += Cover((cnt_issue == 2)
                           & (cnt_read[0] == 1)
-                          & (cnt_read[1] == 1)
+                          & (cnt_read[1] == 0)
                           & (cnt_write[0] == 1)
                           & (cnt_write[1] == 1)
                           & (cnt_alu_write == 1)
