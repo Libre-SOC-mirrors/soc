@@ -35,7 +35,7 @@ https://bugs.libre-soc.org/show_bug.cgi?id=197
 import unittest
 
 from nmigen import Signal, Module
-from nmigen.hdl.ast import Cover, Const
+from nmigen.hdl.ast import Cover, Const, Assume
 from nmutil.formaltest import FHDLTestCase
 from nmutil.singlepipe import ControlBase
 
@@ -149,6 +149,9 @@ class CompALUMultiTestCase(FHDLTestCase):
                 extra = Const(0, 1)
             m.d.sync += cnt.eq(cnt + (do_issue & (dut.rdmaskn[i] | extra)))
             cnt_masked_read.append(cnt)
+        # If the ALU is idle, do not assert valid
+        with m.If(cnt_alu_read == cnt_alu_write):
+            m.d.comb += Assume(~alu.n.o_valid)
 
         # Ask the formal engine to give an example
         m.d.comb += Cover((cnt_issue == 2)
