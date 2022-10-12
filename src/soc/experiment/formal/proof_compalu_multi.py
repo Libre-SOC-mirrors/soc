@@ -35,7 +35,7 @@ https://bugs.libre-soc.org/show_bug.cgi?id=197
 import unittest
 
 from nmigen import Signal, Module
-from nmigen.hdl.ast import Cover, Const, Assume
+from nmigen.hdl.ast import Cover, Const, Assume, Assert
 from nmutil.formaltest import FHDLTestCase
 from nmutil.singlepipe import ControlBase
 
@@ -153,6 +153,18 @@ class CompALUMultiTestCase(FHDLTestCase):
         with m.If(cnt_alu_read == cnt_alu_write):
             m.d.comb += Assume(~alu.n.o_valid)
 
+        # Invariant check
+        # For every instruction issued, at any point in time,
+        # each operand was either:
+        # 1) Already read
+        # 2) Not read yet, but the read is pending (rel_o high)
+        # 3) Masked
+        for i in range(dut.n_src):
+            sum_read = Signal(4)
+            m.d.comb += sum_read.eq(
+                cnt_read[i] + cnt_masked_read[i] + dut.cu.rd.rel_o[i])
+            m.d.comb += Assert(sum_read == cnt_issue)
+
         # Ask the formal engine to give an example
         m.d.comb += Cover((cnt_issue == 2)
                           & (cnt_read[0] == 1)
@@ -164,6 +176,8 @@ class CompALUMultiTestCase(FHDLTestCase):
                           & (cnt_masked_read[0] == 1)
                           & (cnt_masked_read[1] == 1))
         self.assertFormal(m, mode="cover", depth=10)
+        # Check assertions
+        self.assertFormal(m, mode="bmc", depth=10)
 
 
 if __name__ == "__main__":
