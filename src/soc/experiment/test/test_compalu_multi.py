@@ -464,13 +464,6 @@ def scoreboard_sim(op):
                         wrmask=[0, 1],
                         src_delays=[2, 0], dest_delays=[1, 0])
 
-    # test combinatorial zero-delay operation
-    # In the test ALU, any operation other than ADD, MUL, EXTS or SHR
-    # is zero-delay, and do a subtraction.
-    # 5 - 2 = 3
-    yield from op.issue([5, 2], MicrOp.OP_CMP, [3, 0],
-                        wrmask=[0, 1],
-                        src_delays=[0, 1], dest_delays=[2, 0])
     # test all combinations of masked input ports
     # NOP does not make any request nor response
     yield from op.issue([5, 2], MicrOp.OP_NOP, [0, 0],
@@ -484,6 +477,15 @@ def scoreboard_sim(op):
     yield from op.issue([2, 0x80], MicrOp.OP_EXTSWSLI, [0xFF80, 0],
                         rdmaskn=[1, 0], wrmask=[0, 1],
                         src_delays=[1, 2], dest_delays=[1, 0])
+
+    # test combinatorial zero-delay operation
+    # In the test ALU, any operation other than ADD, MUL, EXTS or SHR
+    # is zero-delay, and do a subtraction.
+    # 5 - 2 = 3
+    yield from op.issue([5, 2], MicrOp.OP_CMP, [3, 0],
+                        wrmask=[0, 1],
+                        src_delays=[0, 1], dest_delays=[2, 0])
+
     # test with rc=1, so expect results on the CR output port
     # 5 + 2 = 7
     # 7 > 0 => CR = 0b100
