@@ -241,7 +241,7 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
         m.d.comb += reset.eq(req_done | self.go_die_i)
         m.d.comb += rst_r.eq(self.issue_i | self.go_die_i)
         m.d.comb += reset_w.eq(self.wr.go_i | Repl(self.go_die_i, self.n_dst))
-        m.d.comb += reset_r.eq(self.rd.go_i | Repl(self.go_die_i, self.n_src))
+        m.d.comb += reset_r.eq(self.rd.go_i | Repl(rst_r, self.n_src))
 
         # read-done,wr-proceed latch
         rw_domain += rok_l.s.eq(self.issue_i)  # set up when issue starts
