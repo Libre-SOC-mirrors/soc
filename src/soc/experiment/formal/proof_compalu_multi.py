@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPLv3+
 # Copyright (C) 2022 Cesar Strauss <cestrauss@gmail.com>
-# Sponsored by NLnet and NGI POINTER under EU Grants 871528 and 957073
+# Sponsored by NLnet under EU Grant and 957073
 # Part of the Libre-SOC Project.
 
 """
