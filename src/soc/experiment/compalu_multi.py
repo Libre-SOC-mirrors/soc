@@ -182,6 +182,10 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
             rw_domain = m.d.sync
         else:
             rw_domain = m.d.comb
+        # generate a pulse on system reset, to reset any latches, if needed
+        system_reset = Signal(reset=1)
+        m.d.sync += system_reset.eq(0)
+
         # add the ALU to the MultiCompUnit only if it is a "real" ALU
         # see AllFunctionUnits as to why: a FunctionUnitBaseMulti
         # only has one "real" ALU but multiple pseudo front-ends,
@@ -263,7 +267,8 @@ class MultiCompUnit(RegSpecALUAPI, Elaboratable):
 
         # dest operand latch (not using issue_i)
         rw_domain += req_l.s.eq(alu_pulsem & self.wrmask)
-        m.d.comb += req_l.r.eq(reset_w | prev_wr_go)
+        m.d.comb += req_l.r.eq(reset_w | prev_wr_go |
+                               Repl(system_reset, self.n_dst))
 
         # pass operation to the ALU (sync: plenty time to wait for src reads)
         op = self.get_op()
