@@ -139,6 +139,7 @@ class CompALUMultiTestCase(FHDLTestCase):
         cnt_alu_read = Signal(4)
         m.d.sync += cnt_alu_read.eq(cnt_alu_read + do_alu_read)
         cnt_masked_read = []
+        do_masked_read = Signal(dut.n_src)
         for i in range(dut.n_src):
             cnt = Signal(4, name="cnt_masked_read_%d" % i)
             if i == 0:
@@ -147,13 +148,16 @@ class CompALUMultiTestCase(FHDLTestCase):
                 extra = dut.oper_i.imm_data.ok
             else:
                 extra = Const(0, 1)
-            m.d.sync += cnt.eq(cnt + (do_issue & (dut.rdmaskn[i] | extra)))
+            m.d.comb += do_masked_read[i].eq(do_issue &
+                                             (dut.rdmaskn[i] | extra))
+            m.d.sync += cnt.eq(cnt + do_masked_read[i])
             cnt_masked_read.append(cnt)
         # If the ALU is idle, do not assert valid
         with m.If(cnt_alu_read == cnt_alu_write):
             m.d.comb += Assume(~alu.n.o_valid)
 
-        # Invariant check
+        # Invariant checks
+
         # For every instruction issued, at any point in time,
         # each operand was either:
         # 1) Already read
@@ -164,6 +168,21 @@ class CompALUMultiTestCase(FHDLTestCase):
             m.d.comb += sum_read.eq(
                 cnt_read[i] + cnt_masked_read[i] + dut.cu.rd.rel_o[i])
             m.d.comb += Assert(sum_read == cnt_issue)
+
+        # For every instruction, either:
+        # 1) The ALU is executing the instruction
+        # 2) Otherwise, execution is pending (alu.p.i_valid is high)
+        # 3) Otherwise, it is waiting for operands
+        #    (some dut.cu.rd.rel_o are still high)
+        # 4) ... unless all operands are masked, in which case there is a one
+        #    cycle delay
+        all_masked = Signal()
+        m.d.sync += all_masked.eq(do_masked_read.all())
+        sum_alu_write = Signal(4)
+        m.d.comb += sum_alu_write.eq(
+            cnt_alu_write +
+            (dut.cu.rd.rel_o.any() | all_masked | alu.p.i_valid))
+        m.d.comb += Assert(sum_alu_write == cnt_issue)
 
         # Ask the formal engine to give an example
         m.d.comb += Cover((cnt_issue == 2)
