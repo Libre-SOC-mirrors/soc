@@ -175,9 +175,12 @@ class CompALUMultiTestCase(FHDLTestCase):
                           & (cnt_alu_read == 1)
                           & (cnt_masked_read[0] == 1)
                           & (cnt_masked_read[1] == 1))
-        self.assertFormal(m, mode="cover", depth=10)
+        with self.subTest("cover"):
+            self.assertFormal(m, mode="cover", depth=10)
+
         # Check assertions
-        self.assertFormal(m, mode="bmc", depth=10)
+        with self.subTest("bmc"):
+            self.assertFormal(m, mode="bmc", depth=10)
 
 
 if __name__ == "__main__":
