@@ -534,14 +534,14 @@ def test_compunit_fsm():
                 'n_data_o[7:0]',
                 ({'submodule': 'n'},
                     ['n_o_valid', 'n_i_ready'])])]),
-        ('debug', {'module': 'top'},
+        ('debug', {'module': 'bench'},
             ['src1_count[7:0]', 'src2_count[7:0]', 'dest1_count[7:0]'])]
 
     write_gtkw(
         "test_compunit_fsm1.gtkw",
         "test_compunit_fsm1.vcd",
         traces, style,
-        module='top.cu'
+        module='bench.top.cu'
     )
     m = Module()
     alu = Shifter(8)
@@ -667,7 +667,7 @@ def test_compunit_regspec3():
                "test_compunit_regspec3.vcd",
                traces, style,
                clk_period=1e-6,
-               module='top.cu')
+               module='bench.top.cu')
 
     inspec = [('INT', 'a', '0:15'),
               ('INT', 'b', '0:15'),
@@ -738,14 +738,14 @@ def test_compunit_regspec1():
             ('next port', 'out', [
                 'alu_o[15:0]', 'o_valid', 'i_ready',
                 'alu_o_ok', 'alu_cr_ok'])]),
-        ('debug', {'module': 'top'},
+        ('debug', {'module': 'bench'},
             ['src1_count[7:0]', 'src2_count[7:0]', 'dest1_count[7:0]'])]
 
     write_gtkw("test_compunit_regspec1.gtkw",
                "test_compunit_regspec1.vcd",
                traces, style,
                clk_period=1e-6,
-               module='top.cu')
+               module='bench.top.cu')
 
     inspec = [('INT', 'a', '0:15'),
               ('INT', 'b', '0:15')]
