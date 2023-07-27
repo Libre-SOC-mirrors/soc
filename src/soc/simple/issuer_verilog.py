@@ -69,6 +69,10 @@ if __name__ == '__main__':
                         action="store_true",
                         help="generate microwatt-compatible interface",
                         default=False)
+    parser.add_argument("--microwatt-compat-svp64", dest='mwcompatsvp64',
+                        action="store_true",
+                        help="generate microwatt-compatible interface + SVP64",
+                        default=False)
     parser.add_argument("--old-microwatt-compat", dest='old_mwcompat',
                         action="store_true",
                         help="generate old microwatt-compatible interface",
@@ -105,6 +109,18 @@ if __name__ == '__main__':
         args.gpio = False
         args.sram4x4kblock = False
         args.svp64 = False
+
+    # Yes, this is duplicating mwcompat, but for the sake of simplicity
+    # adding support for svp64 like this
+    if args.mwcompatsvp64:
+        args.pll = False
+        args.debug = 'dmi'
+        args.core = True
+        args.xics = False
+        args.gpio = False
+        args.sram4x4kblock = False
+        args.svp64 = True
+        args.mwcompat = True # Ensures TestMemPspec gets the expected value
 
     print(args)
 

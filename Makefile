@@ -63,6 +63,14 @@ microwatt_external_core:
 	python3 src/soc/simple/issuer_verilog.py --microwatt-compat --enable-mmu \
             external_core_top.v
 
+# build microwatt "external core" with fixed 64-bit width SVP64
+# note that the TLB set size is set to 16
+# for I/D-Cache which needs a corresponding alteration of the device-tree
+# entries for linux
+microwatt_external_core_svp64:
+	python3 src/soc/simple/issuer_verilog.py --microwatt-compat-svp64 --enable-mmu \
+            external_core_top.v
+
 microwatt_external_core_spi:
 	python3 src/soc/simple/issuer_verilog.py --microwatt-compat \
             --small-cache \
