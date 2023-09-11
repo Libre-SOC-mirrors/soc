@@ -6,7 +6,10 @@ from soc.fu.mul.pipeline import MulBasePipe
 
 class TestPipeIlang(unittest.TestCase):
     def write_ilang(self):
-        pspec = MulPipeSpec(id_wid=2, parent_pspec=None)
+        class PPspec:
+            XLEN = 64
+        pps = PPspec()
+        pspec = MulPipeSpec(id_wid=2, parent_pspec=pps)
         alu = MulBasePipe(pspec)
         vl = rtlil.convert(alu, ports=alu.ports())
         with open("mul_pipeline.il", "w") as f:
