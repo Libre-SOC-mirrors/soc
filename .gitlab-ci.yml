@@ -84,6 +84,11 @@ build:
         - make install
         - popd
 
+        - git clone --depth 1 -b v1.5.2 https://github.com/cocotb/cocotb.git cocotb
+        - pushd cocotb
+        - python3 setup.py install
+        - popd
+
         - git clone --depth 1 https://gitlab.com/nmigen/nmigen.git nmigen
         - pushd nmigen
         - git rev-parse HEAD
