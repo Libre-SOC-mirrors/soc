@@ -7,11 +7,11 @@ from openpower.test.mul.long_mul_cases import (MulTestCases2Arg,
 
 class TestPipeLong(MulTestHelper):
     def test_mul_pipe_2_arg(self):
-        self.run_all(MulTestCases2Arg().test_data, "mul_pipe_caller_long_2_arg",
-                     has_third_input=False)
+        self.run_all(MulTestCases2Arg({'soc'}).test_data,
+                     "mul_pipe_caller_long_2_arg", has_third_input=False)
 
     def helper_3_arg(self, subtest_index):
-        self.run_all(MulTestCases3Arg(subtest_index).test_data,
+        self.run_all(MulTestCases3Arg(subtest_index, {'soc'}).test_data,
                      f"mul_pipe_caller_long_3_arg_{subtest_index}",
                      has_third_input=True)
 
