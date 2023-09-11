@@ -111,7 +111,7 @@ class TestRunner(unittest.TestCase):
             yield Settle()
 
     def test_it(self):
-        test_data = ALUTestCase().test_data
+        test_data = ALUTestCase({'soc'}).test_data
         m = Module()
         comb = m.d.comb
         instruction = Signal(32)
