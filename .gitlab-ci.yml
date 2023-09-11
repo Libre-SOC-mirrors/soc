@@ -56,6 +56,16 @@ build:
         - . .env/bin/activate
         - pip install pytest-xdist==3.3.1 pytest==7.3.1
 
+        - git clone --depth 1 -b v0.1.1 https://github.com/cocotb/cocotb-bus.git cocotb-bus
+        - pushd cocotb-bus
+        - pip install . --no-deps
+        - popd
+
+        - git clone --depth 1 -b v1.5.2 https://github.com/cocotb/cocotb.git cocotb
+        - pushd cocotb
+        - pip install .
+        - popd
+
         - git clone --depth 1 https://git.libre-soc.org/git/pytest-output-to-files.git pytest-output-to-files
         - pushd pytest-output-to-files
         - git rev-parse HEAD
@@ -82,11 +92,6 @@ build:
         - pushd SymbiYosys
         - git checkout d10e472edf4ea9be3aa6347b264ba575fbea933a
         - make install
-        - popd
-
-        - git clone --depth 1 -b v1.5.2 https://github.com/cocotb/cocotb.git cocotb
-        - pushd cocotb
-        - python3 setup.py install
         - popd
 
         - git clone --depth 1 https://gitlab.com/nmigen/nmigen.git nmigen
@@ -155,4 +160,4 @@ build:
         - popd
 
         - python setup.py develop
-        - SILENCELOG='!*,default' pytest -v --maxfail=10
+        - SILENCELOG='!*,default' pytest -v --maxfail=20
