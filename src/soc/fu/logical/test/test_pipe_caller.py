@@ -109,7 +109,7 @@ class TestRunner(unittest.TestCase):
 
     def test_it(self):
         test_data = LogicalIlangCase().test_data + \
-                    LogicalTestCase().test_data
+            LogicalTestCase({'soc'}).test_data
         m = Module()
         comb = m.d.comb
         instruction = Signal(32)
