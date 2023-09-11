@@ -3,12 +3,13 @@ from nmigen.back.pysim import Simulator, Delay, Settle
 from nmutil.formaltest import FHDLTestCase
 from nmigen.cli import rtlil
 from soc.fu.shift_rot.maskgen import MaskGen
-from openpower.decoder.helpers import MASK
+from openpower.decoder.helpers import ISACallerHelper
 import random
 import unittest
 
 class MaskGenTestCase(FHDLTestCase):
     def test_maskgen(self):
+        MASK = ISACallerHelper(64, FPSCR=None).MASK
         m = Module()
         comb = m.d.comb
         m.submodules.dut = dut = MaskGen(64)
