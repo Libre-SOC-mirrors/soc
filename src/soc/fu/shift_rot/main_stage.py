@@ -12,7 +12,6 @@ from soc.fu.pipe_data import get_pspec_draft_bitmanip
 from soc.fu.shift_rot.pipe_data import (ShiftRotOutputData,
                                         ShiftRotInputData)
 from nmutil.lut import BitwiseLut
-from nmutil.grev import GRev
 from openpower.decoder.power_enums import MicrOp
 from soc.fu.shift_rot.rotator import Rotator
 
@@ -41,24 +40,12 @@ class ShiftRotMainStage(PipeModBase):
         o = self.o.o
 
         bitwise_lut = None
-        grev = None
         if self.draft_bitmanip:
             bitwise_lut = BitwiseLut(input_count=3, width=XLEN)
             m.submodules.bitwise_lut = bitwise_lut
             comb += bitwise_lut.inputs[0].eq(self.i.rb)
             comb += bitwise_lut.inputs[1].eq(self.i.ra)
             comb += bitwise_lut.inputs[2].eq(self.i.rc)
-            # 6 == log2(64) because we have 64-bit values
-            grev = GRev(log2_width=(XLEN-1).bit_length())
-            m.submodules.grev = grev
-            with m.If(op.is_32bit):
-                # 32-bit, so input is lower 32-bits zero-extended
-                comb += grev.input.eq(self.i.ra[0:32])
-                # 32-bit, so we only feed in log2(32) == 5 bits
-                comb += grev.chunk_sizes.eq(self.i.rb[0:5])
-            with m.Else():
-                comb += grev.input.eq(self.i.ra)
-                comb += grev.chunk_sizes.eq(self.i.rb)
 
         # NOTE: the sh field immediate is read in by PowerDecode2
         # (actually DecodeRB), whereupon by way of rb "immediate" mode
@@ -119,9 +106,6 @@ class ShiftRotMainStage(PipeModBase):
                     # value from register when we implement other variants
                     comb += bitwise_lut.lut.eq(self.fields.FormTLI.TLI[:])
                     comb += o.data.eq(bitwise_lut.output)
-                    comb += self.o.xer_ca.data.eq(0)
-                with m.Case(MicrOp.OP_GREV):
-                    comb += o.data.eq(grev.output)
                     comb += self.o.xer_ca.data.eq(0)
             with m.Default():
                 comb += o.ok.eq(0)  # otherwise disable

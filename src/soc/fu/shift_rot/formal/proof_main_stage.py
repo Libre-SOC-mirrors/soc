@@ -39,8 +39,9 @@ class TstOp(enum.Enum):
     RLCR = MicrOp.OP_RLCR
     EXTSWSLI = MicrOp.OP_EXTSWSLI
     TERNLOG = MicrOp.OP_TERNLOG
-    GREV32 = MicrOp.OP_GREV, 32
-    GREV64 = MicrOp.OP_GREV, 64
+    # grev removed -- leaving code for later use in grevlut
+    # GREV32 = MicrOp.OP_GREV, 32
+    # GREV64 = MicrOp.OP_GREV, 64
 
     @property
     def op(self):
@@ -316,6 +317,7 @@ class Driver(Elaboratable):
                     m.d.comb += Assert(dut.o.o.data[i] == lut[j])
         m.d.comb += Assert(dut.o.xer_ca.data == 0)
 
+    # grev removed -- leaving code for later use in grevlut
     def _check_grev32(self, m, dut):
         m.d.comb += Assume(dut.i.ctx.op.is_32bit)
         # assert zero-extended
@@ -326,6 +328,7 @@ class Driver(Elaboratable):
         m.d.comb += Assert((dut.o.o.data >> i)[0] == (dut.i.ra >> idx)[0])
         m.d.comb += Assert(dut.o.xer_ca.data == 0)
 
+    # grev removed -- leaving code for later use in grevlut
     def _check_grev64(self, m, dut):
         m.d.comb += Assume(~dut.i.ctx.op.is_32bit)
         i = Signal(6)
@@ -368,9 +371,11 @@ class ALUTestCase(FHDLTestCase):
     def test_ternlog(self):
         self.run_it(TstOp.TERNLOG)
 
+    @unittest.skip("grev removed -- leaving code for later use in grevlut")
     def test_grev32(self):
         self.run_it(TstOp.GREV32)
 
+    @unittest.skip("grev removed -- leaving code for later use in grevlut")
     def test_grev64(self):
         self.run_it(TstOp.GREV64)
 
