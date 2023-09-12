@@ -20,6 +20,8 @@ from soc.fu.compunits.test.test_compunit import (check_sim_memory,
 
 from soc.simple.test.test_runner import setup_i_memory
 
+from pathlib import Path
+
 import sys
 sys.setrecursionlimit(10**6)
 
@@ -36,6 +38,8 @@ class BinaryTestCase(FHDLTestCase):
         with Program("1.bin", bigendian) as program:
             self.run_tst_program(program)
 
+    @unittest.skipUnless(Path("hello_world.bin").exists(),
+                         "missing hello_world.bin")
     def test_binary(self):
         with Program("hello_world.bin", bigendian) as program:
             self.run_tst_program(program)
