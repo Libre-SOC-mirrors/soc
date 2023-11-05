@@ -153,7 +153,7 @@ class CompALUMultiTestCase(FHDLTestCase):
             m.d.sync += cnt.eq(cnt + do_masked_read[i])
             cnt_masked_read.append(cnt)
         # If the ALU is idle, do not assert valid
-        with m.If(cnt_alu_read == cnt_alu_write):
+        with m.If((cnt_alu_read == cnt_alu_write) & ~do_alu_write):
             m.d.comb += Assume(~alu.n.o_valid)
         # Keep ALU valid high, until read
         last_alu_valid = Signal()
