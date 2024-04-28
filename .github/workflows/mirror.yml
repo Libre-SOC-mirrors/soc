@@ -12,6 +12,8 @@ jobs:
   mirror:
     runs-on: ubuntu-latest
     name: mirror
+    permissions:
+      contents: write
     steps:
       - name: mirror
         id: mirror
