@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: mirror
         id: mirror
-        uses: bridgelightcloud/github-mirror-action@v3
+        uses: Libre-SOC-mirrors/github-mirror-action@main
         with:
           origin: 'https://git.libre-soc.org/git/soc.git'
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
